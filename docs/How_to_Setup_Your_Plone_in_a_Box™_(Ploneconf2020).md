@@ -8,7 +8,7 @@ We will:
 - discuss how to make your new Plone [Intranet] in a Box™ enterprise-ready
 # Several Ways to Install Plone
 
-If you want to try a demo Plone site, a good starting point is to use https://demo.plone.org. Other Plone demo sites are available at https://plone.com/try-plone
+If you want to try a demo Plone site, a good starting point is to use https://demo.plone.org. Other Plone demo sites are available at https://plone.org/what-is-plone/plone/try-plone
 
 However, if you want to take Plone for a longer test drive and see how it works with your own content and how you can collaborate on a Plone site with colleagues, you need to install it on a computer of your own.
 
@@ -54,7 +54,7 @@ If you want to secure your Plone in a Box™, you should do at least the followi
 - set up intrusion and alert monitoring
 - install an SSL certificate, require `https` (secure) browsing only, and disable `http` browsing on ports 80 and 8080
 
-There are many Plone service providers who would be happy to help you do the above. Please see the list of Plone providers at https://plone.com.
+There are many Plone service providers who would be happy to help you do the above. Please see the list of Plone providers at https://plone.org/providers.
 
 Future updates to Plone in a Box™ are planned. These updates will include more security configuration as part of the default installation and will update existing installations to add more security. 
 
