@@ -1,4 +1,4 @@
-2.0 (unreleased)
+2.0 (2026-11-01)
 ----------------
 
 - Security: Plone, Volto and PostgreSQL now listen on localhost only; previously
@@ -21,6 +21,8 @@
   AWS provider 5.x.
 - Remove src/provision_aws.sh (superseded by aws.tf).
 - Add CI: ShellCheck and `terraform validate`.
+- New step-by-step guide, docs/setup-guide.md; the 2020 guide moved to docs/archive/.
+- Tested on Linode (StackScript) and AWS (Terraform), Ubuntu 24.04.
   [tkimnguyen]
 
 
