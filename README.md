@@ -14,15 +14,18 @@ Volto 19; switch to `6.2` / `19` once Volto 19 has a final release.
 
 ## Supported cloud providers
 
-* **Linode**: [`src/StackScript`](src/StackScript), published as a Community StackScript
+* **Linode**: [`src/StackScript`](src/StackScript), published as the Community StackScript **Plone in a Box**
 * **Amazon AWS**: [`src/aws.tf`](src/aws.tf) (Terraform), which runs the same script as EC2 user data
-* **DigitalOcean**: not yet implemented; the StackScript should work unchanged as a Droplet user-data script
+* **DigitalOcean**: not yet tested; the StackScript is expected to work unchanged as a Droplet user-data script
 
 Use a server with at least 2 GB of RAM (Linode 2 GB, AWS `t3.small`).
 
+**Step-by-step instructions: [docs/setup-guide.md](docs/setup-guide.md)**, including AWS account setup, backups,
+upgrades and troubleshooting.
+
 ### Linode
 
-Deploy a new Linode from the StackScript, choosing Ubuntu 24.04 and adding your SSH key. Optional fields let you
+In Cloud Manager, search Community StackScripts for **Plone in a Box** and deploy a new Linode from it, choosing Ubuntu 24.04 and adding your SSH key. Optional fields let you
 set a domain name (for HTTPS), the site time zone, and the Plone/Volto versions. Provisioning takes about 10 minutes;
 it is finished when `/root/plone-credentials.txt` exists.
 
@@ -60,8 +63,8 @@ If you add a domain later, point its DNS at the server and run `certbot --nginx 
 
 ## Background
 
-The original step-by-step guide from the 2020 Plone Conference ([PDF](docs/How_to_Setup_Your_Plone_in_a_Box™_(Ploneconf2020).pdf),
-[markdown](docs/How_to_Setup_Your_Plone_in_a_Box™_(Ploneconf2020).md)) describes the Plone 5.2 version; the account
+The original step-by-step guide from the 2020 Plone Conference ([PDF](docs/archive/How_to_Setup_Your_Plone_in_a_Box™_(Ploneconf2020).pdf),
+[markdown](docs/archive/How_to_Setup_Your_Plone_in_a_Box™_(Ploneconf2020).md)) describes the Plone 5.2 version; the account
 setup steps still apply, but the port 8080 and `admin`/`admin` instructions no longer do.
 
 See the accompanying [2020 Plone Conference](https://2020.ploneconf.org) presentation, Your Plone [Intranet] in a Box™:
