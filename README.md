@@ -40,6 +40,11 @@ terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
 See the variables at the top of `aws.tf` for region, instance type, domain and versions. Progress is logged to
 `/var/log/cloud-init-output.log`.
 
+Pass the same `-var` options to `terraform destroy` when you remove the box, or put them in `src/terraform.tfvars`
+(for example `ssh_public_key_path = "~/.ssh/id_rsa.pub"`) so both commands pick them up.
+
+If Terraform fails with `lookup sts.<region>.amazonaws.com: no such host` on a Mac, turn off iCloud Private Relay and retry.
+
 ### After provisioning
 
 ```
