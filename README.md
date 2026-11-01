@@ -26,6 +26,9 @@ Deploy a new Linode from the StackScript, choosing Ubuntu 24.04 and adding your 
 set a domain name (for HTTPS), the site time zone, and the Plone/Volto versions. Provisioning takes about 10 minutes;
 it is finished when `/root/plone-credentials.txt` exists.
 
+If you attach a Linode Cloud Firewall, allow inbound TCP 22, 80 and 443; a firewall with no inbound rules blocks SSH and the
+site. The server also runs its own firewall (ufw) that allows only those ports.
+
 ### AWS
 
 ```
