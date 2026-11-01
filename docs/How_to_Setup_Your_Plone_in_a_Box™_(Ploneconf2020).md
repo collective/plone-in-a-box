@@ -1,3 +1,5 @@
+> **Note:** this guide describes the 2020 (Plone 5.2) version of Plone in a Box™. Current boxes run Plone 6 on ports 80/443 (not 8080) with a generated admin password instead of `admin`/`admin`; see the [README](../README.md).
+
 # How to Setup Your Plone in a Box™ (Ploneconf2020)
 For the presentation “Your Plone [Intranet] in a Box™” by Kim Nguyen, https://2020.ploneconf.org/talks/your-plone-intranet-in-a-boxtm/view
 
