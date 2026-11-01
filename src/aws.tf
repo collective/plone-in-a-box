@@ -1,43 +1,196 @@
+# Plone in a Box(TM) on Amazon EC2.
+#
+#   cd src
+#   terraform init
+#   terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
+#
+# The instance provisions itself on first boot by running ./StackScript as
+# EC2 user data; that takes about 10 minutes. Follow it with:
+#   ssh ubuntu@<public_ip> sudo tail -f /var/log/cloud-init-output.log
+# then read the admin password with:
+#   ssh ubuntu@<public_ip> sudo cat /root/plone-credentials.txt
+
 terraform {
+  required_version = ">= 1.3"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 3.27"
-    }
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 2.13.0"
+      version = "~> 5.0"
     }
   }
+}
 
-  required_version = ">= 0.14.9"
+variable "region" {
+  description = "AWS region to deploy into."
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "instance_type" {
+  description = "EC2 instance type. Plone + Volto + PostgreSQL need at least 2 GB of RAM; t3.small is the smallest recommended size."
+  type        = string
+  default     = "t3.small"
+}
+
+variable "ssh_public_key_path" {
+  description = "Path to the SSH public key that will be allowed to log in as the 'ubuntu' user."
+  type        = string
+  default     = "~/.ssh/id_ed25519.pub"
+}
+
+variable "ssh_allowed_cidrs" {
+  description = "CIDR blocks allowed to reach SSH (port 22). Restrict this to your own IP address where possible."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "domain" {
+  description = "Optional domain name for the site. If set (with letsencrypt_email), HTTPS is configured, so DNS must already point at the instance's address."
+  type        = string
+  default     = ""
+}
+
+variable "letsencrypt_email" {
+  description = "Email address for Let's Encrypt certificate notices. Required for HTTPS."
+  type        = string
+  default     = ""
+}
+
+variable "site_timezone" {
+  description = "Time zone for the Plone site, for example America/Chicago."
+  type        = string
+  default     = "UTC"
+}
+
+variable "plone_version" {
+  description = "plone/plone-backend image tag."
+  type        = string
+  default     = "6.1"
+}
+
+variable "volto_version" {
+  description = "plone/plone-frontend image tag."
+  type        = string
+  default     = "18"
+}
+
+variable "volume_size_gb" {
+  description = "Size of the root disk in GB."
+  type        = number
+  default     = 20
 }
 
 provider "aws" {
-  profile = "default"
-  region  = "us-east-1"
+  region = var.region
 }
 
-resource "aws_instance" "app_server" {
-  ami           = "ami-09e67e426f25ce0d7"
-  instance_type = "t2.micro"
-  key_name = "deployer-key"
+# Latest Ubuntu 24.04 LTS image published by Canonical for this region.
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
 
-  tags = {
-    Name = "Plone in a Box™"
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
   }
 
-  provisioner "remote-exec" {
-    script = "StackScript"
-    connection {
-      type = "ssh"
-      user = "ubuntu"
-      host = aws_instance.app_server.public_ip
-    }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }
 
 resource "aws_key_pair" "deployer" {
-  key_name = "deployer-key"
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCZv7tmokQijTEC2guA9YkYQb+BO9pUrMsIgDPkfhioO5HrGEhJmf8YKuXnFqZePpBSdUeKkamSJU5h1b7nZB1dTeR9Pi3zHdq5OFdw3sFLu7XtIqRyLq5m7nw+AboycKN5JTLedIJNmie4UpjLdt8ZK4q8MHa9DOCty9LaajtwQqWzabIMMLl6JUHS6Ux8GZe9xolYIdCVgyjQ2imRab9rOzskJPTfR+6/96QK+oNvM+b9VDVwhsvPhANb7Dgh7vqq8ZS5/xW725X0JNLnI4ckk+WuQVzKECLWKA9chGddd8dGvUHEsnK8zeSCTQe+lw4ATuYxcEwGo+vkgsKgfJG0KeSRtxOFfkW8woLjtITNa6OWJNKWUXn1jSm1yjwAEaFT9cmyNFUvdlHD42OqWnTjFR3mrD+vH2cfhJRRYMmdRkChS+lOR16E4CAQJSg18Fr8GQ9xy3PIlfj/DCjHbS3bCdU0VOrVaGhYt/446CFB0LdKcJKoFCuYY4CL4GMC0GDN9V2Fc/inAXa67AaEmKHSC39xu2rRf7/WOZXJTZPL2r8qoSjCVIy7cO8Zf1iKUcnj5OOssqFHRaoBHnEPAw4Wy+VNASJq3gpDFPFc+LbSuRBHalobNaiW5A5NM3l4OEZgNM+2WUpTBB6Ric/MhtLfFiNYRs85k+yCbReEgyby9Q== kimnguyen@Kims-MBP.new.rr.com"
+  key_name_prefix = "plone-in-a-box-"
+  public_key      = file(pathexpand(var.ssh_public_key_path))
+}
+
+resource "aws_security_group" "plone" {
+  name_prefix = "plone-in-a-box-"
+  description = "Plone in a Box: SSH, HTTP and HTTPS"
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.ssh_allowed_cidrs
+  }
+
+  ingress {
+    description      = "HTTP"
+    from_port        = 80
+    to_port          = 80
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  ingress {
+    description      = "HTTPS"
+    from_port        = 443
+    to_port          = 443
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_instance" "app_server" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  key_name               = aws_key_pair.deployer.key_name
+  vpc_security_group_ids = [aws_security_group.plone.id]
+
+  root_block_device {
+    volume_size = var.volume_size_gb
+    volume_type = "gp3"
+    encrypted   = true
+  }
+
+  metadata_options {
+    http_tokens = "required" # IMDSv2 only
+  }
+
+  # Same provisioning script as the Linode StackScript, with its settings
+  # passed as environment variables.
+  user_data = join("\n", [
+    "#!/bin/bash",
+    "export DOMAIN=${jsonencode(var.domain)}",
+    "export LETSENCRYPT_EMAIL=${jsonencode(var.letsencrypt_email)}",
+    "export SITE_TIMEZONE=${jsonencode(var.site_timezone)}",
+    "export PLONE_VERSION=${jsonencode(var.plone_version)}",
+    "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
+    file("${path.module}/StackScript"),
+  ])
+  user_data_replace_on_change = true
+
+  tags = {
+    Name = "Plone in a Box"
+  }
+}
+
+output "public_ip" {
+  value = aws_instance.app_server.public_ip
+}
+
+output "site_url" {
+  value = var.domain != "" ? "https://${var.domain}" : "http://${aws_instance.app_server.public_ip}"
+}
+
+output "credentials_command" {
+  value = "ssh ubuntu@${aws_instance.app_server.public_ip} sudo cat /root/plone-credentials.txt"
 }

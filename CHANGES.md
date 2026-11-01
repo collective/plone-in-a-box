@@ -1,3 +1,31 @@
+2.0 (2026-11-01)
+----------------
+
+- Security: Plone, Volto and PostgreSQL now listen on localhost only; previously
+  PostgreSQL (plone/plone) and Zope (admin/admin) were reachable from the internet.
+- Security: generate random admin and database passwords, written to
+  /root/plone-credentials.txt; remove the `plone` Linux user with password `plone`.
+- Security: enable the ufw firewall (SSH, HTTP, HTTPS only) and optional
+  Let's Encrypt HTTPS via a domain name setting.
+- Disable the image's admin:admin `inituser` file, which reset the admin
+  password every time the backend container was recreated.
+- Update to Plone 6.1 / Volto 18 / PostgreSQL 17 (pinned, configurable) and
+  Ubuntu 24.04; install Docker Compose v2 from Docker's repository; support arm64.
+- Replace the fixed `sleep 120` with health checks; create the site with the
+  image's `create-site` command; fail fast on errors (`set -euo pipefail`).
+- nginx: allow uploads up to 100 MB; make the virtual host rules scheme-aware for HTTPS.
+- Add swap on servers with less than 3 GB of RAM.
+- aws.tf: fix the invalid self-reference and missing key pair dependency; look up
+  the current Ubuntu AMI; add a security group; provision via EC2 user data instead of
+  remote-exec; make the SSH key, region, size, domain and versions variables;
+  AWS provider 5.x.
+- Remove src/provision_aws.sh (superseded by aws.tf).
+- Add CI: ShellCheck and `terraform validate`.
+- New step-by-step guide, docs/setup-guide.md; the 2020 guide moved to docs/archive/.
+- Tested on Linode (StackScript) and AWS (Terraform), Ubuntu 24.04.
+  [tkimnguyen]
+
+
 1.1 (2021-11-13)
 ----------------
 
