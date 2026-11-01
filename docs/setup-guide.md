@@ -89,7 +89,8 @@ It's done when you see `[plone-in-a-box] Finished.` Continue with [After provisi
 ### With Terraform
 
 1. Install Terraform (see Option B) and create an API token: in the DigitalOcean control panel, go to **API →
-   Tokens → Generate New Token**, give it **write** scope, and copy it. It's shown only once.
+   Tokens → Generate New Token**, give it **Full Access** (custom scopes need, at least, create/read/delete for droplets, SSH keys, firewalls and tags),
+   and copy it. It's shown only once.
 2. Deploy:
    ```
    export DIGITALOCEAN_TOKEN=<your token>
@@ -195,6 +196,7 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
 | Terraform: `Value for undeclared variable` | You're running an old configuration. `git pull`, then `terraform init -upgrade` in `src/aws/`. |
 | DigitalOcean: `SSH Key is already in use on your account` | Pass `-var 'ssh_key_fingerprint=...'` with the existing key's fingerprint. |
 | DigitalOcean: `Unable to authenticate you` | `DIGITALOCEAN_TOKEN` isn't set in this terminal, or the token lacks write scope. |
+| DigitalOcean: `You are missing the required permission tag:create` (or another `...:create`) | The token has custom scopes. Create one with **Full Access**, export it, and run `terraform apply` again. |
 | Terraform: `no file exists at .../id_ed25519.pub` | Pass your key's path with `-var 'ssh_public_key_path=...'`, for `destroy` too. |
 | Terraform on a Mac: `lookup sts.<region>.amazonaws.com: no such host` | Turn off iCloud Private Relay and retry. |
 | Linode: "A UDF is missing the required 'name' attribute" | The script was modified with a `<UDF>` tag that has no `name`. Use the current `src/StackScript`. |

@@ -50,7 +50,7 @@ If Terraform fails with `lookup sts.<region>.amazonaws.com: no such host` on a M
 
 ### DigitalOcean
 
-Create an API token (DigitalOcean **API → Generate New Token**, with write scope), then:
+Create an API token (DigitalOcean **API → Generate New Token**, with **Full Access**), then:
 
 ```
 export DIGITALOCEAN_TOKEN=<your token>
