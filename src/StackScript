@@ -4,13 +4,13 @@
 # (backend + Volto frontend + PostgreSQL) behind nginx.
 #
 # Used as:
-#   - a Linode StackScript (the <UDF> lines below become form fields), and
+#   - a Linode StackScript (the UDF lines below become form fields), and
 #   - EC2 user data via src/aws.tf (the same variables are exported first).
 #
 # Tested target: Ubuntu 24.04 LTS (amd64 or arm64). Run as root.
 #
-# <UDF name="DOMAIN" label="Domain name for the site (optional; DNS must already point here to get HTTPS)" default="" />
-# <UDF name="LETSENCRYPT_EMAIL" label="Email for Let's Encrypt certificate notices (required if a domain is set)" default="" />
+# <UDF name="DOMAIN" label="Domain name for the site, optional. DNS must already point here to get HTTPS" default="" />
+# <UDF name="LETSENCRYPT_EMAIL" label="Email for Lets Encrypt certificate notices, required if a domain is set" default="" />
 # <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
 # <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.1" />
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="18" />
