@@ -70,3 +70,5 @@ setup steps still apply, but the port 8080 and `admin`/`admin` instructions no l
 See the accompanying [2020 Plone Conference](https://2020.ploneconf.org) presentation, Your Plone [Intranet] in a Box™:
 * [presentation description](https://2020.ploneconf.org/talks/your-plone-intranet-in-a-boxtm/view)
 * [slides](https://www2.slideshare.net/tkimnguyen/your-plone-intranet-in-a-box)
+
+Maintainers: see [RELEASING.md](RELEASING.md) for testing, releasing and syncing to `collective/plone-in-a-box`.
