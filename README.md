@@ -15,10 +15,10 @@ Volto 19; switch to `6.2` / `19` once Volto 19 has a final release.
 ## Supported cloud providers
 
 * **Linode**: [`src/StackScript`](src/StackScript), published as the Community StackScript **Plone in a Box**
-* **Amazon AWS**: [`src/aws.tf`](src/aws.tf) (Terraform), which runs the same script as EC2 user data
-* **DigitalOcean**: not yet tested; the StackScript is expected to work unchanged as a Droplet user-data script
+* **Amazon AWS**: [`src/aws/`](src/aws/main.tf) (Terraform), which runs the same script as EC2 user data
+* **DigitalOcean**: [`src/digitalocean/`](src/digitalocean/main.tf) (Terraform), which runs the same script as Droplet user data
 
-Use a server with at least 2 GB of RAM (Linode 2 GB, AWS `t3.small`).
+Use a server with at least 2 GB of RAM (Linode 2 GB, AWS `t3.small`, DigitalOcean `s-1vcpu-2gb`).
 
 **Step-by-step instructions: [docs/setup-guide.md](docs/setup-guide.md)**, including AWS account setup, backups,
 upgrades and troubleshooting.
@@ -35,18 +35,33 @@ site. The server also runs its own firewall (ufw) that allows only those ports.
 ### AWS
 
 ```
-cd src
+cd src/aws
 terraform init
 terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
 ```
 
-See the variables at the top of `aws.tf` for region, instance type, domain and versions. Progress is logged to
+See the variables at the top of `src/aws/main.tf` for region, instance type, domain and versions. Progress is logged to
 `/var/log/cloud-init-output.log`.
 
-Pass the same `-var` options to `terraform destroy` when you remove the box, or put them in `src/terraform.tfvars`
+Pass the same `-var` options to `terraform destroy` when you remove the box, or put them in `src/aws/terraform.tfvars`
 (for example `ssh_public_key_path = "~/.ssh/id_rsa.pub"`) so both commands pick them up.
 
 If Terraform fails with `lookup sts.<region>.amazonaws.com: no such host` on a Mac, turn off iCloud Private Relay and retry.
+
+### DigitalOcean
+
+Create an API token (DigitalOcean **API → Generate New Token**, with **Full Access**), then:
+
+```
+export DIGITALOCEAN_TOKEN=<your token>
+cd src/digitalocean
+terraform init
+terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
+```
+
+If your SSH key is already in your DigitalOcean account, pass `-var 'ssh_key_fingerprint=<fingerprint>'` instead.
+The Droplet gets a DigitalOcean Cloud Firewall allowing only ports 22, 80 and 443. Without Terraform, you can also
+paste `src/StackScript` into **Advanced Options → Add initialization scripts** when creating an Ubuntu 24.04 Droplet.
 
 ### After provisioning
 

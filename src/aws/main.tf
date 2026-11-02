@@ -1,10 +1,10 @@
 # Plone in a Box(TM) on Amazon EC2.
 #
-#   cd src
+#   cd src/aws
 #   terraform init
 #   terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
 #
-# The instance provisions itself on first boot by running ./StackScript as
+# The instance provisions itself on first boot by running ../StackScript as
 # EC2 user data; that takes about 10 minutes. Follow it with:
 #   ssh ubuntu@<public_ip> sudo tail -f /var/log/cloud-init-output.log
 # then read the admin password with:
@@ -174,7 +174,7 @@ resource "aws_instance" "app_server" {
     "export SITE_TIMEZONE=${jsonencode(var.site_timezone)}",
     "export PLONE_VERSION=${jsonencode(var.plone_version)}",
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
-    file("${path.module}/StackScript"),
+    file("${path.module}/../StackScript"),
   ])
   user_data_replace_on_change = true
 

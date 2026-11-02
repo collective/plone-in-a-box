@@ -1,3 +1,16 @@
+2.1 (2026-11-01)
+----------------
+
+- Add DigitalOcean support: Terraform configuration in src/digitalocean/ (Droplet,
+  SSH key, Cloud Firewall) running the same provisioning script as user data;
+  setup guide section, including the no-Terraform user-data route.
+- Move the AWS configuration from src/aws.tf to src/aws/main.tf, so each provider
+  is its own Terraform project. If you have Terraform state from src/, move
+  terraform.tfstate (and .terraform.lock.hcl) into src/aws/ before running again.
+- CI validates both Terraform configurations.
+  [tkimnguyen]
+
+
 2.0 (2026-11-01)
 ----------------
 
