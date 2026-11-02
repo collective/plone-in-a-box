@@ -15,9 +15,13 @@ jobs:
 
   terraform:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [aws, digitalocean]
     defaults:
       run:
-        working-directory: src
+        working-directory: src/${{ matrix.provider }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

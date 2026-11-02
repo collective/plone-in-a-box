@@ -10,7 +10,8 @@ release, and the public Linode StackScript is updated by hand.
 2. Test the changed script before merging:
    * **Linode**: paste `src/StackScript` from the branch into the private test StackScript (`plone-in-a-box-test`,
      Target Image Ubuntu 24.04) and deploy a 2 GB Linode from it.
-   * **AWS** (if `aws.tf` or the script changed): `terraform apply` from `src/` on the branch.
+   * **AWS** (if `src/aws/` or the script changed): `terraform apply` from `src/aws/` on the branch.
+   * **DigitalOcean** (if `src/digitalocean/` or the script changed): `terraform apply` from `src/digitalocean/`.
    * Checks on each test server:
      * `/root/plone-credentials.txt` exists, the site loads, and `admin` can log in with the generated password
      * from outside, ports 5432, 8080 and 3000 time out (`nc -zv -w 5 <ip> <port>`)
