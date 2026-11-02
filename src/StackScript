@@ -5,7 +5,9 @@
 #
 # Used as:
 #   - a Linode StackScript (the UDF lines below become form fields), and
-#   - EC2 user data via src/aws.tf (the same variables are exported first).
+#   - EC2 user data via src/aws/main.tf, and
+#   - DigitalOcean Droplet user data via src/digitalocean/main.tf
+#     (both export the same variables first).
 #
 # Tested target: Ubuntu 24.04 LTS (amd64 or arm64). Run as root.
 #
