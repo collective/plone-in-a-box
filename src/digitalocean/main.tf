@@ -62,6 +62,13 @@ variable "backups" {
   default     = false
 }
 
+variable "admin_password" {
+  description = "Plone admin password (at least 12 characters). Leave empty to have one generated; read it with the credentials_command output. Note: it is stored in Terraform state and in the server's user data."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "domain" {
   description = "Optional domain name for the site. If set (with letsencrypt_email), HTTPS is configured, so DNS must already point at the Droplet's address."
   type        = string
@@ -120,6 +127,7 @@ resource "digitalocean_droplet" "plone" {
   # passed as environment variables.
   user_data = join("\n", [
     "#!/bin/bash",
+    "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
     "export DOMAIN=${jsonencode(var.domain)}",
     "export LETSENCRYPT_EMAIL=${jsonencode(var.letsencrypt_email)}",
     "export SITE_TIMEZONE=${jsonencode(var.site_timezone)}",
@@ -177,6 +185,7 @@ output "site_url" {
   value = var.domain != "" ? "https://${var.domain}" : "http://${digitalocean_droplet.plone.ipv4_address}"
 }
 
+# Only needed when admin_password was left empty.
 output "credentials_command" {
   value = "ssh root@${digitalocean_droplet.plone.ipv4_address} cat /root/plone-credentials.txt"
 }
