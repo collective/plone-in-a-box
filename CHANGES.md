@@ -1,4 +1,4 @@
-2.2 (unreleased)
+2.2 (2026-11-01)
 ----------------
 
 - Let the user choose the Plone admin password at deploy time: a new "Plone admin
