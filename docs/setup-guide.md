@@ -30,8 +30,11 @@ password when deploying, or one is generated for you; there is no `admin`/`admin
 4. Choose **Ubuntu 24.04 LTS** as the image, a region, and a **2 GB** (or larger) plan.
 5. Set a root password, add your **SSH key**, and click **Create Linode**.
 
-If you attach a **Linode Cloud Firewall**, give it inbound rules for TCP 22, 80 and 443. A firewall with no inbound
-rules blocks both SSH and the site.
+Cloud Manager asks you to choose a **Public Interface Firewall**. Pick **No firewall** if it's offered (the server runs
+its own firewall, ufw, which allows only ports 22, 80 and 443). Otherwise create one named `plone-in-a-box` and reuse it
+for every deploy: default inbound policy **Drop**, default outbound **Accept**, and three inbound **Accept** rules for
+TCP ports **22**, **80** and **443** from all IPv4 and IPv6 addresses. A firewall without those rules blocks both SSH
+and the site.
 
 Wait about 10 minutes after the Linode shows *Running*, then open `http://<linode-ip>` (or your domain). If you set
 an admin password, log in as `admin` and you're done; skip to step 2 of [After provisioning](#after-provisioning).

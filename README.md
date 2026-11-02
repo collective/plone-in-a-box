@@ -29,7 +29,7 @@ In Cloud Manager, search Community StackScripts for **Plone in a Box** and deplo
 set the admin password, a domain name (for HTTPS), the site time zone, and the Plone/Volto versions. If you set the
 admin password, no command line is needed: after about 10 minutes, open the site and log in as `admin`.
 
-If you attach a Linode Cloud Firewall, allow inbound TCP 22, 80 and 443; a firewall with no inbound rules blocks SSH and the
+Cloud Manager requires choosing a firewall: pick **No firewall** if offered, or a Cloud Firewall that allows inbound TCP 22, 80 and 443; a firewall with no inbound rules blocks SSH and the
 site. The server also runs its own firewall (ufw) that allows only those ports.
 
 ### AWS
