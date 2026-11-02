@@ -11,18 +11,25 @@
 #
 # Tested target: Ubuntu 24.04 LTS (amd64 or arm64). Run as root.
 #
+# <UDF name="ADMIN_PASSWORD" label="Plone admin password, at least 12 characters. Leave empty to have one generated and saved on the server" default="" />
 # <UDF name="DOMAIN" label="Domain name for the site, optional. DNS must already point here to get HTTPS" default="" />
 # <UDF name="LETSENCRYPT_EMAIL" label="Email for Lets Encrypt certificate notices, required if a domain is set" default="" />
 # <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
 # <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.1" />
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="18" />
 #
-# After provisioning finishes, log in over SSH as root and read
-# /root/plone-credentials.txt for the Plone admin password.
+# After provisioning finishes, open the site and log in as "admin" with the
+# password you chose. If you left it empty, a password is generated: log in over
+# SSH as root and read /root/plone-credentials.txt.
 
-set -euo pipefail
+set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
+# Keep a copy of all output in one place on every provider.
+LOG_FILE=/var/log/plone-in-a-box.log
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DOMAIN="${DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 SITE_TIMEZONE="${SITE_TIMEZONE:-UTC}"
@@ -34,6 +41,89 @@ APP_DIR=/opt/plone
 CREDENTIALS_FILE=/root/plone-credentials.txt
 
 log() { echo "[plone-in-a-box] $*"; }
+
+# --- Setup progress page -----------------------------------------------------
+# While provisioning runs, nginx serves a page at the server's address that
+# shows the current step and refreshes itself; when Plone is ready, the next
+# refresh shows the site. If provisioning fails, the page says so.
+
+PROGRESS_DIR=/var/www/plone-in-a-box-setup
+PROGRESS_STEPS=(
+  "Preparing the server"
+  "Installing Docker"
+  "Securing the server"
+  "Downloading Plone (the longest step)"
+  "Creating your Plone site"
+  "Starting Plone"
+  "Finishing up"
+)
+CURRENT_STEP=0
+STARTED_AT=$(date -u +"%H:%M UTC")
+
+write_progress_page() {
+  # write_progress_page <title> <message html> <body html> <refresh seconds, 0 for none>
+  [[ -d "$PROGRESS_DIR" ]] || return 0
+  local refresh=""
+  if (( $4 > 0 )); then
+    refresh="<meta http-equiv=\"refresh\" content=\"$4\">"
+  fi
+  cat > "$PROGRESS_DIR/index.html.tmp" <<EOF
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">${refresh}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>$1 - Plone in a Box</title>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;max-width:36rem;margin:3rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.5}
+h1{font-size:1.5rem;margin-bottom:.5rem}
+ol{list-style:none;padding:0;margin:1.5rem 0}
+li{margin:.5rem 0;padding-left:1.75rem;position:relative}
+li span{position:absolute;left:0;width:1.25rem;text-align:center}
+.done{color:#2e7d32}.now{font-weight:600}.todo{color:#888}.failed{color:#c62828;font-weight:600}
+.small{color:#666;font-size:.875rem;margin-top:2rem}
+code{background:#f2f2f2;padding:.1rem .3rem;border-radius:3px}
+</style></head><body>
+<h1>$1</h1>
+<p>$2</p>
+$3
+<p class="small">Plone in a Box&trade; &middot; started ${STARTED_AT}</p>
+</body></html>
+EOF
+  mv "$PROGRESS_DIR/index.html.tmp" "$PROGRESS_DIR/index.html"
+}
+
+step_list() {
+  # step_list <state of the current step: now|failed>
+  local i html="" cls mark
+  for i in "${!PROGRESS_STEPS[@]}"; do
+    if (( i + 1 < CURRENT_STEP )); then
+      cls="done"; mark="&#10003;"
+    elif (( i + 1 == CURRENT_STEP )); then
+      cls=$1
+      if [[ "$1" == failed ]]; then mark="&#10007;"; else mark="&rarr;"; fi
+    else
+      cls="todo"; mark=""
+    fi
+    html+="<li class=\"${cls}\"><span>${mark}</span>${PROGRESS_STEPS[i]}</li>"
+  done
+  echo "<ol>${html}</ol>"
+}
+
+progress() {
+  # progress <step number, starting at 1>
+  CURRENT_STEP=$1
+  log "Step ${CURRENT_STEP}/${#PROGRESS_STEPS[@]}: ${PROGRESS_STEPS[CURRENT_STEP-1]}"
+  write_progress_page "Your Plone site is being set up" \
+    "This usually takes about 10 minutes. This page refreshes every 15 seconds and turns into your site when it's ready." \
+    "$(step_list now)" 15
+}
+
+on_error() {
+  log "Setup failed at line $1 (step ${CURRENT_STEP})"
+  write_progress_page "Setup didn't finish" \
+    "Something went wrong while setting up Plone. Often it's a temporary download problem: deleting this server and deploying a new one usually fixes it. To see what happened, log in to the server as root and look at <code>${LOG_FILE}</code>." \
+    "$(step_list failed)" 0
+}
+trap 'on_error $LINENO' ERR
 
 wait_for() {
   # wait_for <description> <timeout-seconds> <command...>
@@ -52,10 +142,31 @@ wait_for() {
 
 # --- System packages ---------------------------------------------------------
 
-log "Updating system packages"
+# Install nginx first, so the progress page is up within a minute or two.
 apt-get update -y
+apt-get install -y nginx
+mkdir -p "$PROGRESS_DIR"
+cat > /etc/nginx/sites-available/plone-in-a-box-setup <<EOF
+server {
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  server_name _;
+  root ${PROGRESS_DIR};
+  add_header Cache-Control "no-store" always;
+  location / {
+    try_files /index.html =404;
+  }
+}
+EOF
+rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/plone-in-a-box-setup /etc/nginx/sites-enabled/plone-in-a-box-setup
+progress 1
+nginx -t
+systemctl reload nginx || systemctl restart nginx
+
+log "Updating system packages"
 apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade
-apt-get install -y ca-certificates curl gnupg nginx ufw openssl
+apt-get install -y ca-certificates curl gnupg ufw openssl
 
 # --- Swap (Plone + Volto + PostgreSQL do not fit comfortably in 1 GB) -------
 
@@ -71,6 +182,7 @@ fi
 
 # --- Docker Engine + Compose plugin (official repository) -------------------
 
+progress 2
 log "Installing Docker"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -87,6 +199,7 @@ systemctl enable --now docker
 # Only SSH and HTTP(S) are reachable from outside. The containers publish
 # their ports on 127.0.0.1 only, so Docker's iptables rules don't bypass this.
 
+progress 3
 log "Configuring firewall"
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
@@ -100,7 +213,20 @@ chmod 700 "$APP_DIR"
 if [[ ! -f "$APP_DIR/.env" ]]; then
   log "Generating passwords"
   POSTGRES_PASSWORD=$(openssl rand -hex 24)
-  ADMIN_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+  ADMIN_PASSWORD_CHOSEN=0
+  PASSWORD_NOTE=""
+  if [[ -n "$ADMIN_PASSWORD" ]]; then
+    if (( ${#ADMIN_PASSWORD} >= 12 )); then
+      ADMIN_PASSWORD_CHOSEN=1
+    else
+      log "The admin password given is shorter than 12 characters; generating one instead"
+      PASSWORD_NOTE="The password entered at deploy time was shorter than 12 characters, so this one was generated instead."
+      ADMIN_PASSWORD=""
+    fi
+  fi
+  if [[ -z "$ADMIN_PASSWORD" ]]; then
+    ADMIN_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+  fi
   umask 077
   cat > "$APP_DIR/.env" <<EOF
 PLONE_VERSION=${PLONE_VERSION}
@@ -113,6 +239,8 @@ EOF
 else
   log "Re-using existing $APP_DIR/.env"
   ADMIN_PASSWORD=""
+  ADMIN_PASSWORD_CHOSEN=0
+  PASSWORD_NOTE=""
   NEW_ADMIN_PASSWORD_SET=1
 fi
 
@@ -172,35 +300,119 @@ EOF
 
 : > "$APP_DIR/inituser"
 
-# Creates the Zope "admin" user with our generated password (or resets it).
+# Creates the Zope "admin" user or resets its password. Before the Plone site
+# exists, the root user folder is a plain Zope User Folder; creating the site
+# replaces it with a PluggableAuthService (PAS), whose generic user-folder API
+# doesn't list or update users reliably, so PAS is handled through its user
+# manager plugin. The new password is verified before committing.
 cat > "$APP_DIR/set_admin_password.py" <<'EOF'
 import os
+import sys
 import transaction
 
 app = globals()["app"]
-users = app.acl_users
+uf = app.acl_users
 password = os.environ["NEW_ADMIN_PASSWORD"]
-if "admin" in users.getUserNames():
-    users._doChangeUser("admin", password, ["Manager"], [])
+
+if hasattr(uf, "plugins"):
+    # PluggableAuthService
+    managers = [
+        p for p in uf.objectValues()
+        if hasattr(p, "updateUserPassword") and hasattr(p, "listUserIds")
+    ]
+    if not managers:
+        sys.exit("No user manager plugin found in the root acl_users")
+    manager = managers[0]
+    if "admin" in manager.listUserIds():
+        manager.updateUserPassword("admin", password)
+    else:
+        manager.addUser("admin", "admin", password)
+        for roles in uf.objectValues():
+            if hasattr(roles, "assignRoleToPrincipal"):
+                roles.assignRoleToPrincipal("Manager", "admin")
+    ok = manager.authenticateCredentials({"login": "admin", "password": password})
 else:
-    users._doAddUser("admin", password, ["Manager"], [])
+    # Plain Zope User Folder
+    if "admin" in uf.getUserNames():
+        uf._doChangeUser("admin", password, ["Manager"], [])
+    else:
+        uf._doAddUser("admin", password, ["Manager"], [])
+    ok = uf.authenticate("admin", password, None) is not None
+
+if not ok:
+    transaction.abort()
+    sys.exit("The new admin password could not be verified; nothing was changed")
 transaction.commit()
 print("Zope admin user is set up")
 EOF
 
+# Command for resetting the admin password later: sudo plone-reset-admin-password
+cat > /usr/local/bin/plone-reset-admin-password <<'EOF'
+#!/bin/bash
+# Reset the password of the Plone (Zope) "admin" user.
+# Usage: sudo plone-reset-admin-password
+#        (asks for the new password; press Enter to have one generated)
+set -euo pipefail
+if [[ $EUID -ne 0 ]]; then
+  echo "Please run this with sudo: sudo plone-reset-admin-password" >&2
+  exit 1
+fi
+if [[ ! -t 0 ]]; then
+  echo "This command asks for the new password, so it needs a terminal." >&2
+  echo "Over SSH, add -t:  ssh -t root@<server> plone-reset-admin-password" >&2
+  exit 1
+fi
+read -rsp "New admin password (at least 12 characters, or press Enter to generate one): " NEW_PASSWORD
+echo
+if [[ -z "$NEW_PASSWORD" ]]; then
+  NEW_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+  GENERATED=1
+else
+  if (( ${#NEW_PASSWORD} < 12 )); then
+    echo "That password is shorter than 12 characters; nothing was changed." >&2
+    exit 1
+  fi
+  read -rsp "Type it again: " AGAIN
+  echo
+  if [[ "$NEW_PASSWORD" != "$AGAIN" ]]; then
+    echo "The passwords don't match; nothing was changed." >&2
+    exit 1
+  fi
+  GENERATED=0
+fi
+if ! OUTPUT=$(NEW_ADMIN_PASSWORD="$NEW_PASSWORD" docker compose --project-directory /opt/plone \
+    run --rm --no-deps -e NEW_ADMIN_PASSWORD \
+    -v /opt/plone/set_admin_password.py:/app/scripts/set_admin_password.py:ro \
+    backend run /app/scripts/set_admin_password.py 2>&1) \
+  || ! grep -q "Zope admin user is set up" <<<"$OUTPUT"; then
+  echo "Changing the password failed; nothing was changed. Last lines of output:" >&2
+  tail -5 <<<"$OUTPUT" >&2
+  exit 1
+fi
+if [[ "$GENERATED" == 1 ]]; then
+  echo "The admin password is now: $NEW_PASSWORD"
+  echo "Store it in a password manager."
+else
+  echo "The admin password has been changed."
+fi
+EOF
+chmod 755 /usr/local/bin/plone-reset-admin-password
+
 cd "$APP_DIR"
 compose() { docker compose --project-directory "$APP_DIR" "$@"; }
 
+progress 4
 log "Pulling images (Plone ${PLONE_VERSION}, Volto ${VOLTO_VERSION}, PostgreSQL ${POSTGRES_VERSION})"
 compose pull --quiet
 
+progress 5
 log "Starting PostgreSQL"
 compose up -d --wait db
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
   log "Setting the Zope admin password"
-  compose run --rm --no-deps \
-    -e NEW_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+  NEW_ADMIN_PASSWORD="$ADMIN_PASSWORD" compose run --rm --no-deps \
+    -e NEW_ADMIN_PASSWORD \
     -v "$APP_DIR/set_admin_password.py:/app/scripts/set_admin_password.py:ro" \
     backend run /app/scripts/set_admin_password.py
 fi
@@ -211,6 +423,7 @@ compose run --rm --no-deps \
   -e TIMEZONE="$SITE_TIMEZONE" \
   backend create-site
 
+progress 6
 log "Starting Plone"
 compose up -d
 wait_for "Plone backend" 300 curl -fsS http://127.0.0.1:8080/ok
@@ -218,9 +431,10 @@ wait_for "Volto frontend" 300 curl -fsS -o /dev/null http://127.0.0.1:3000/
 
 # --- nginx -------------------------------------------------------------------
 
+progress 7
 log "Configuring nginx"
 SERVER_NAME="${DOMAIN:-_}"
-rm -f /etc/nginx/sites-enabled/default
+rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/plone-in-a-box-setup
 cat > /etc/nginx/sites-available/plone <<EOF
 upstream backend {
   server 127.0.0.1:8080;
@@ -292,19 +506,36 @@ fi
 # --- Done ----------------------------------------------------------------------
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
+  if [[ "$ADMIN_PASSWORD_CHOSEN" == 1 ]]; then
+    PASSWORD_LINE="(the password you entered when deploying)"
+  else
+    PASSWORD_LINE="${ADMIN_PASSWORD}"
+  fi
   umask 077
   cat > "$CREDENTIALS_FILE" <<EOF
 Plone in a Box(TM)
 
 Site:      ${SITE_URL}
 Username:  admin
-Password:  ${ADMIN_PASSWORD}
-
-Change this password after your first login, store it in a password manager,
-then delete this file.
+Password:  ${PASSWORD_LINE}
+${PASSWORD_NOTE}
+Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF
   umask 022
 fi
 
-log "Finished. Site: ${SITE_URL} -- admin credentials are in ${CREDENTIALS_FILE}"
+# Show the site address on the server's console login screen (Linode LISH,
+# DigitalOcean Recovery Console, AWS serial console), for anyone who never uses SSH.
+cat >> /etc/issue <<EOF
+
+  Plone in a Box(TM) is ready: ${SITE_URL}
+  Log in to the site as "admin".
+
+EOF
+
+if [[ "$ADMIN_PASSWORD_CHOSEN" == 1 ]]; then
+  log "Finished. Site: ${SITE_URL} -- log in as admin with the password you chose"
+else
+  log "Finished. Site: ${SITE_URL} -- admin credentials are in ${CREDENTIALS_FILE}"
+fi

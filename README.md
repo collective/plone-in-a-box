@@ -4,7 +4,7 @@ An easy way to deploy a cloud server running Plone 6 with the Volto React front 
 Each box is a single Ubuntu 24.04 server running the official Plone Docker images
 (backend, Volto frontend and PostgreSQL) behind nginx, with:
 
-* a randomly generated admin password (no `admin:admin`)
+* an admin password you choose when deploying, or a randomly generated one (no `admin:admin`)
 * only SSH, HTTP and HTTPS reachable from the internet; Plone, Volto and PostgreSQL listen on localhost only
 * optional HTTPS from Let's Encrypt when you give it a domain name
 * swap added automatically on small servers
@@ -26,10 +26,12 @@ upgrades and troubleshooting.
 ### Linode
 
 In Cloud Manager, search Community StackScripts for **Plone in a Box** and deploy a new Linode from it, choosing Ubuntu 24.04 and adding your SSH key. Optional fields let you
-set a domain name (for HTTPS), the site time zone, and the Plone/Volto versions. Provisioning takes about 10 minutes;
-it is finished when `/root/plone-credentials.txt` exists.
+set the admin password, a domain name (for HTTPS), the site time zone, and the Plone/Volto versions. If you set the
+admin password, no command line is needed: open the server's address right away to watch a setup progress page,
+which turns into your Plone site when it's ready (about 10 minutes). Log in as `admin`. To reset the admin password
+later, run `sudo plone-reset-admin-password` on the server.
 
-If you attach a Linode Cloud Firewall, allow inbound TCP 22, 80 and 443; a firewall with no inbound rules blocks SSH and the
+Cloud Manager requires choosing a firewall: pick **No firewall** if offered, or a Cloud Firewall that allows inbound TCP 22, 80 and 443; a firewall with no inbound rules blocks SSH and the
 site. The server also runs its own firewall (ufw) that allows only those ports.
 
 ### AWS
@@ -40,8 +42,8 @@ terraform init
 terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
 ```
 
-See the variables at the top of `src/aws/main.tf` for region, instance type, domain and versions. Progress is logged to
-`/var/log/cloud-init-output.log`.
+See the variables at the top of `src/aws/main.tf` for region, instance type, domain and versions. Open the printed
+`site_url` to watch setup progress; it's also logged to `/var/log/plone-in-a-box.log`.
 
 Pass the same `-var` options to `terraform destroy` when you remove the box, or put them in `src/aws/terraform.tfvars`
 (for example `ssh_public_key_path = "~/.ssh/id_rsa.pub"`) so both commands pick them up.
@@ -65,13 +67,15 @@ paste `src/StackScript` into **Advanced Options → Add initialization scripts**
 
 ### After provisioning
 
+If you left the admin password empty, read the generated one:
+
 ```
 ssh root@<server>          # or ubuntu@<server> on AWS, then sudo -i
 cat /root/plone-credentials.txt
 ```
 
-Open the site URL, log in as `admin` with that password, change the password, store it in a password manager and
-delete the credentials file. The stack lives in `/opt/plone`; manage it with
+Open the site URL, log in as `admin`, store the password in a password manager and delete the credentials file.
+With Terraform, pass `-var 'admin_password=...'` (or set it in `terraform.tfvars`) to choose it yourself. The stack lives in `/opt/plone`; manage it with
 `docker compose --project-directory /opt/plone ps|logs|pull|up -d`.
 
 If you add a domain later, point its DNS at the server and run `certbot --nginx -d <domain>`.
