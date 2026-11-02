@@ -150,7 +150,8 @@ Open the `site_url` to watch the setup progress page (or follow `ssh root@<publi
    ```
    sudo plone-reset-admin-password
    ```
-   It asks for the new password (or press Enter to have one generated). The change takes effect immediately.
+   It asks for the new password (or press Enter to have one generated). The change takes effect immediately. To run
+   it straight from your computer, use `ssh -t` so it can prompt you: `ssh -t root@<server> plone-reset-admin-password`.
 3. Optional check: from your own computer, these should all time out:
    ```
    nc -zv -w 5 <server-ip> 5432

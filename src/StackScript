@@ -327,6 +327,11 @@ if [[ $EUID -ne 0 ]]; then
   echo "Please run this with sudo: sudo plone-reset-admin-password" >&2
   exit 1
 fi
+if [[ ! -t 0 ]]; then
+  echo "This command asks for the new password, so it needs a terminal." >&2
+  echo "Over SSH, add -t:  ssh -t root@<server> plone-reset-admin-password" >&2
+  exit 1
+fi
 read -rsp "New admin password (at least 12 characters, or press Enter to generate one): " NEW_PASSWORD
 echo
 if [[ -z "$NEW_PASSWORD" ]]; then
