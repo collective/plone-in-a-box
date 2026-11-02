@@ -11,18 +11,21 @@
 #
 # Tested target: Ubuntu 24.04 LTS (amd64 or arm64). Run as root.
 #
+# <UDF name="ADMIN_PASSWORD" label="Plone admin password, at least 12 characters. Leave empty to have one generated and saved on the server" default="" />
 # <UDF name="DOMAIN" label="Domain name for the site, optional. DNS must already point here to get HTTPS" default="" />
 # <UDF name="LETSENCRYPT_EMAIL" label="Email for Lets Encrypt certificate notices, required if a domain is set" default="" />
 # <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
 # <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.1" />
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="18" />
 #
-# After provisioning finishes, log in over SSH as root and read
-# /root/plone-credentials.txt for the Plone admin password.
+# After provisioning finishes, open the site and log in as "admin" with the
+# password you chose. If you left it empty, a password is generated: log in over
+# SSH as root and read /root/plone-credentials.txt.
 
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DOMAIN="${DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 SITE_TIMEZONE="${SITE_TIMEZONE:-UTC}"
@@ -100,7 +103,20 @@ chmod 700 "$APP_DIR"
 if [[ ! -f "$APP_DIR/.env" ]]; then
   log "Generating passwords"
   POSTGRES_PASSWORD=$(openssl rand -hex 24)
-  ADMIN_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+  ADMIN_PASSWORD_CHOSEN=0
+  PASSWORD_NOTE=""
+  if [[ -n "$ADMIN_PASSWORD" ]]; then
+    if (( ${#ADMIN_PASSWORD} >= 12 )); then
+      ADMIN_PASSWORD_CHOSEN=1
+    else
+      log "The admin password given is shorter than 12 characters; generating one instead"
+      PASSWORD_NOTE="The password entered at deploy time was shorter than 12 characters, so this one was generated instead."
+      ADMIN_PASSWORD=""
+    fi
+  fi
+  if [[ -z "$ADMIN_PASSWORD" ]]; then
+    ADMIN_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+  fi
   umask 077
   cat > "$APP_DIR/.env" <<EOF
 PLONE_VERSION=${PLONE_VERSION}
@@ -113,6 +129,8 @@ EOF
 else
   log "Re-using existing $APP_DIR/.env"
   ADMIN_PASSWORD=""
+  ADMIN_PASSWORD_CHOSEN=0
+  PASSWORD_NOTE=""
   NEW_ADMIN_PASSWORD_SET=1
 fi
 
@@ -292,19 +310,36 @@ fi
 # --- Done ----------------------------------------------------------------------
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
+  if [[ "$ADMIN_PASSWORD_CHOSEN" == 1 ]]; then
+    PASSWORD_LINE="(the password you entered when deploying)"
+  else
+    PASSWORD_LINE="${ADMIN_PASSWORD}"
+  fi
   umask 077
   cat > "$CREDENTIALS_FILE" <<EOF
 Plone in a Box(TM)
 
 Site:      ${SITE_URL}
 Username:  admin
-Password:  ${ADMIN_PASSWORD}
-
-Change this password after your first login, store it in a password manager,
-then delete this file.
+Password:  ${PASSWORD_LINE}
+${PASSWORD_NOTE}
+Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF
   umask 022
 fi
 
-log "Finished. Site: ${SITE_URL} -- admin credentials are in ${CREDENTIALS_FILE}"
+# Show the site address on the server's console login screen (Linode LISH,
+# DigitalOcean Recovery Console, AWS serial console), for anyone who never uses SSH.
+cat >> /etc/issue <<EOF
+
+  Plone in a Box(TM) is ready: ${SITE_URL}
+  Log in to the site as "admin".
+
+EOF
+
+if [[ "$ADMIN_PASSWORD_CHOSEN" == 1 ]]; then
+  log "Finished. Site: ${SITE_URL} -- log in as admin with the password you chose"
+else
+  log "Finished. Site: ${SITE_URL} -- admin credentials are in ${CREDENTIALS_FILE}"
+fi

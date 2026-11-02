@@ -1,3 +1,15 @@
+2.2 (unreleased)
+----------------
+
+- Let the user choose the Plone admin password at deploy time: a new "Plone admin
+  password" field on the Linode StackScript, and an `admin_password` variable for
+  the AWS and DigitalOcean Terraform configurations. With it set, no SSH is needed
+  to start using the site. Shorter than 12 characters or empty: a password is
+  generated as before. A chosen password is not written to the credentials file.
+- Show the site address on the server console login screen once provisioning is done.
+  [tkimnguyen]
+
+
 2.1 (2026-11-01)
 ----------------
 

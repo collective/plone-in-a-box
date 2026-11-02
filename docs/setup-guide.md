@@ -4,8 +4,8 @@ This guide takes you from a cloud account to a running Plone 6 site, on Linode, 
 most of it waiting for the server to provision.
 
 What you get: one Ubuntu 24.04 server running Plone 6.1 (backend), Volto 18 (the React front end) and PostgreSQL in
-Docker, behind nginx. Only SSH (22), HTTP (80) and HTTPS (443) are open to the internet. The Plone `admin` password is
-generated for you; there is no `admin`/`admin` login.
+Docker, behind nginx. Only SSH (22), HTTP (80) and HTTPS (443) are open to the internet. You choose the Plone `admin`
+password when deploying, or one is generated for you; there is no `admin`/`admin` login.
 
 ## Before you start
 
@@ -22,6 +22,8 @@ generated for you; there is no `admin`/`admin` login.
 1. Log in to [Cloud Manager](https://cloud.linode.com) and open **StackScripts → Community StackScripts**.
 2. Search for **Plone in a Box**, open it, and click **Deploy New Linode**.
 3. Fill in the **StackScript Options** (all optional):
+   * **Plone admin password**: at least 12 characters. If you set it, you won't need SSH at all. If you leave it
+     empty (or it's too short), a password is generated and saved on the server.
    * **Domain name** and **Email for Lets Encrypt**: both are needed for HTTPS.
    * **Site time zone**, for example `America/Chicago` (default `UTC`).
    * **Plone backend image tag** and **Volto frontend image tag** (defaults `6.1` and `18`).
@@ -31,8 +33,10 @@ generated for you; there is no `admin`/`admin` login.
 If you attach a **Linode Cloud Firewall**, give it inbound rules for TCP 22, 80 and 443. A firewall with no inbound
 rules blocks both SSH and the site.
 
-Wait about 10 minutes after the Linode shows *Running*, then continue with [After provisioning](#after-provisioning)
-using `ssh root@<linode-ip>`.
+Wait about 10 minutes after the Linode shows *Running*, then open `http://<linode-ip>` (or your domain). If you set
+an admin password, log in as `admin` and you're done; skip to step 2 of [After provisioning](#after-provisioning).
+Otherwise continue with step 1 using `ssh root@<linode-ip>`. If the site doesn't load yet, give it a few more minutes:
+the Linode's **Launch LISH Console** screen shows the site address once provisioning has finished.
 
 ## Option B: Amazon AWS (Terraform)
 
@@ -66,6 +70,7 @@ Use the path of your own public key (for example `~/.ssh/id_rsa.pub`). To avoid 
 
 ```
 ssh_public_key_path = "~/.ssh/id_rsa.pub"
+# admin_password    = "a long password"  # optional; generated if empty
 # domain            = "plone.example.org"
 # letsencrypt_email = "you@example.org"
 # site_timezone     = "America/Chicago"
@@ -125,11 +130,12 @@ Follow provisioning with `ssh root@<public-ip> tail -f /var/log/cloud-init-outpu
 
 ## After provisioning
 
-1. Read the admin password:
+1. If you didn't choose an admin password when deploying, read the generated one:
    ```
    sudo cat /root/plone-credentials.txt
    ```
-   If the file doesn't exist yet, provisioning is still running.
+   If the file doesn't exist yet, provisioning is still running. (If you did choose one, the file just confirms the
+   site address.)
 2. Open the site URL and log in as `admin`. Store the password in a password manager, then delete the file:
    `sudo rm /root/plone-credentials.txt`. For day-to-day editing, create personal accounts under
    **Site Setup → Users and Groups** and keep `admin` for administration.
