@@ -300,18 +300,48 @@ EOF
 
 : > "$APP_DIR/inituser"
 
-# Creates the Zope "admin" user with our generated password (or resets it).
+# Creates the Zope "admin" user or resets its password. Before the Plone site
+# exists, the root user folder is a plain Zope User Folder; creating the site
+# replaces it with a PluggableAuthService (PAS), whose generic user-folder API
+# doesn't list or update users reliably, so PAS is handled through its user
+# manager plugin. The new password is verified before committing.
 cat > "$APP_DIR/set_admin_password.py" <<'EOF'
 import os
+import sys
 import transaction
 
 app = globals()["app"]
-users = app.acl_users
+uf = app.acl_users
 password = os.environ["NEW_ADMIN_PASSWORD"]
-if "admin" in users.getUserNames():
-    users._doChangeUser("admin", password, ["Manager"], [])
+
+if hasattr(uf, "plugins"):
+    # PluggableAuthService
+    managers = [
+        p for p in uf.objectValues()
+        if hasattr(p, "updateUserPassword") and hasattr(p, "listUserIds")
+    ]
+    if not managers:
+        sys.exit("No user manager plugin found in the root acl_users")
+    manager = managers[0]
+    if "admin" in manager.listUserIds():
+        manager.updateUserPassword("admin", password)
+    else:
+        manager.addUser("admin", "admin", password)
+        for roles in uf.objectValues():
+            if hasattr(roles, "assignRoleToPrincipal"):
+                roles.assignRoleToPrincipal("Manager", "admin")
+    ok = manager.authenticateCredentials({"login": "admin", "password": password})
 else:
-    users._doAddUser("admin", password, ["Manager"], [])
+    # Plain Zope User Folder
+    if "admin" in uf.getUserNames():
+        uf._doChangeUser("admin", password, ["Manager"], [])
+    else:
+        uf._doAddUser("admin", password, ["Manager"], [])
+    ok = uf.authenticate("admin", password, None) is not None
+
+if not ok:
+    transaction.abort()
+    sys.exit("The new admin password could not be verified; nothing was changed")
 transaction.commit()
 print("Zope admin user is set up")
 EOF
@@ -350,10 +380,15 @@ else
   fi
   GENERATED=0
 fi
-NEW_ADMIN_PASSWORD="$NEW_PASSWORD" docker compose --project-directory /opt/plone run --rm --no-deps \
-  -e NEW_ADMIN_PASSWORD \
-  -v /opt/plone/set_admin_password.py:/app/scripts/set_admin_password.py:ro \
-  backend run /app/scripts/set_admin_password.py >/dev/null
+if ! OUTPUT=$(NEW_ADMIN_PASSWORD="$NEW_PASSWORD" docker compose --project-directory /opt/plone \
+    run --rm --no-deps -e NEW_ADMIN_PASSWORD \
+    -v /opt/plone/set_admin_password.py:/app/scripts/set_admin_password.py:ro \
+    backend run /app/scripts/set_admin_password.py 2>&1) \
+  || ! grep -q "Zope admin user is set up" <<<"$OUTPUT"; then
+  echo "Changing the password failed; nothing was changed. Last lines of output:" >&2
+  tail -5 <<<"$OUTPUT" >&2
+  exit 1
+fi
 if [[ "$GENERATED" == 1 ]]; then
   echo "The admin password is now: $NEW_PASSWORD"
   echo "Store it in a password manager."
