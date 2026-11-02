@@ -13,9 +13,11 @@ release, and the public Linode StackScript is updated by hand.
    * **AWS** (if `src/aws/` or the script changed): `terraform apply` from `src/aws/` on the branch.
    * **DigitalOcean** (if `src/digitalocean/` or the script changed): `terraform apply` from `src/digitalocean/`.
    * Checks on each test server:
+     * right after creating the server, its address shows the setup progress page, which turns into the site
      * `/root/plone-credentials.txt` exists, the site loads, and `admin` can log in with the generated password
      * deploy once more with **Plone admin password** set: `admin` logs in with that password, and the credentials
        file doesn't contain it
+     * `sudo plone-reset-admin-password` changes the password, and the new one works
      * from outside, ports 5432, 8080 and 3000 time out (`nc -zv -w 5 <ip> <port>`)
      * after `docker compose --project-directory /opt/plone up -d --force-recreate backend`, the same password
        still works

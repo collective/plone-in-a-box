@@ -22,8 +22,12 @@
 # password you chose. If you left it empty, a password is generated: log in over
 # SSH as root and read /root/plone-credentials.txt.
 
-set -euo pipefail
+set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
+
+# Keep a copy of all output in one place on every provider.
+LOG_FILE=/var/log/plone-in-a-box.log
+exec > >(tee -a "$LOG_FILE") 2>&1
 
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DOMAIN="${DOMAIN:-}"
@@ -37,6 +41,89 @@ APP_DIR=/opt/plone
 CREDENTIALS_FILE=/root/plone-credentials.txt
 
 log() { echo "[plone-in-a-box] $*"; }
+
+# --- Setup progress page -----------------------------------------------------
+# While provisioning runs, nginx serves a page at the server's address that
+# shows the current step and refreshes itself; when Plone is ready, the next
+# refresh shows the site. If provisioning fails, the page says so.
+
+PROGRESS_DIR=/var/www/plone-in-a-box-setup
+PROGRESS_STEPS=(
+  "Preparing the server"
+  "Installing Docker"
+  "Securing the server"
+  "Downloading Plone (the longest step)"
+  "Creating your Plone site"
+  "Starting Plone"
+  "Finishing up"
+)
+CURRENT_STEP=0
+STARTED_AT=$(date -u +"%H:%M UTC")
+
+write_progress_page() {
+  # write_progress_page <title> <message html> <body html> <refresh seconds, 0 for none>
+  [[ -d "$PROGRESS_DIR" ]] || return 0
+  local refresh=""
+  if (( $4 > 0 )); then
+    refresh="<meta http-equiv=\"refresh\" content=\"$4\">"
+  fi
+  cat > "$PROGRESS_DIR/index.html.tmp" <<EOF
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">${refresh}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>$1 - Plone in a Box</title>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;max-width:36rem;margin:3rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.5}
+h1{font-size:1.5rem;margin-bottom:.5rem}
+ol{list-style:none;padding:0;margin:1.5rem 0}
+li{margin:.5rem 0;padding-left:1.75rem;position:relative}
+li span{position:absolute;left:0;width:1.25rem;text-align:center}
+.done{color:#2e7d32}.now{font-weight:600}.todo{color:#888}.failed{color:#c62828;font-weight:600}
+.small{color:#666;font-size:.875rem;margin-top:2rem}
+code{background:#f2f2f2;padding:.1rem .3rem;border-radius:3px}
+</style></head><body>
+<h1>$1</h1>
+<p>$2</p>
+$3
+<p class="small">Plone in a Box&trade; &middot; started ${STARTED_AT}</p>
+</body></html>
+EOF
+  mv "$PROGRESS_DIR/index.html.tmp" "$PROGRESS_DIR/index.html"
+}
+
+step_list() {
+  # step_list <state of the current step: now|failed>
+  local i html="" cls mark
+  for i in "${!PROGRESS_STEPS[@]}"; do
+    if (( i + 1 < CURRENT_STEP )); then
+      cls="done"; mark="&#10003;"
+    elif (( i + 1 == CURRENT_STEP )); then
+      cls=$1
+      if [[ "$1" == failed ]]; then mark="&#10007;"; else mark="&rarr;"; fi
+    else
+      cls="todo"; mark=""
+    fi
+    html+="<li class=\"${cls}\"><span>${mark}</span>${PROGRESS_STEPS[i]}</li>"
+  done
+  echo "<ol>${html}</ol>"
+}
+
+progress() {
+  # progress <step number, starting at 1>
+  CURRENT_STEP=$1
+  log "Step ${CURRENT_STEP}/${#PROGRESS_STEPS[@]}: ${PROGRESS_STEPS[CURRENT_STEP-1]}"
+  write_progress_page "Your Plone site is being set up" \
+    "This usually takes about 10 minutes. This page refreshes every 15 seconds and turns into your site when it's ready." \
+    "$(step_list now)" 15
+}
+
+on_error() {
+  log "Setup failed at line $1 (step ${CURRENT_STEP})"
+  write_progress_page "Setup didn't finish" \
+    "Something went wrong while setting up Plone. Often it's a temporary download problem: deleting this server and deploying a new one usually fixes it. To see what happened, log in to the server as root and look at <code>${LOG_FILE}</code>." \
+    "$(step_list failed)" 0
+}
+trap 'on_error $LINENO' ERR
 
 wait_for() {
   # wait_for <description> <timeout-seconds> <command...>
@@ -55,10 +142,31 @@ wait_for() {
 
 # --- System packages ---------------------------------------------------------
 
-log "Updating system packages"
+# Install nginx first, so the progress page is up within a minute or two.
 apt-get update -y
+apt-get install -y nginx
+mkdir -p "$PROGRESS_DIR"
+cat > /etc/nginx/sites-available/plone-in-a-box-setup <<EOF
+server {
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  server_name _;
+  root ${PROGRESS_DIR};
+  add_header Cache-Control "no-store" always;
+  location / {
+    try_files /index.html =404;
+  }
+}
+EOF
+rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/plone-in-a-box-setup /etc/nginx/sites-enabled/plone-in-a-box-setup
+progress 1
+nginx -t
+systemctl reload nginx || systemctl restart nginx
+
+log "Updating system packages"
 apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade
-apt-get install -y ca-certificates curl gnupg nginx ufw openssl
+apt-get install -y ca-certificates curl gnupg ufw openssl
 
 # --- Swap (Plone + Volto + PostgreSQL do not fit comfortably in 1 GB) -------
 
@@ -74,6 +182,7 @@ fi
 
 # --- Docker Engine + Compose plugin (official repository) -------------------
 
+progress 2
 log "Installing Docker"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -90,6 +199,7 @@ systemctl enable --now docker
 # Only SSH and HTTP(S) are reachable from outside. The containers publish
 # their ports on 127.0.0.1 only, so Docker's iptables rules don't bypass this.
 
+progress 3
 log "Configuring firewall"
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
@@ -206,19 +316,63 @@ transaction.commit()
 print("Zope admin user is set up")
 EOF
 
+# Command for resetting the admin password later: sudo plone-reset-admin-password
+cat > /usr/local/bin/plone-reset-admin-password <<'EOF'
+#!/bin/bash
+# Reset the password of the Plone (Zope) "admin" user.
+# Usage: sudo plone-reset-admin-password
+#        (asks for the new password; press Enter to have one generated)
+set -euo pipefail
+if [[ $EUID -ne 0 ]]; then
+  echo "Please run this with sudo: sudo plone-reset-admin-password" >&2
+  exit 1
+fi
+read -rsp "New admin password (at least 12 characters, or press Enter to generate one): " NEW_PASSWORD
+echo
+if [[ -z "$NEW_PASSWORD" ]]; then
+  NEW_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+  GENERATED=1
+else
+  if (( ${#NEW_PASSWORD} < 12 )); then
+    echo "That password is shorter than 12 characters; nothing was changed." >&2
+    exit 1
+  fi
+  read -rsp "Type it again: " AGAIN
+  echo
+  if [[ "$NEW_PASSWORD" != "$AGAIN" ]]; then
+    echo "The passwords don't match; nothing was changed." >&2
+    exit 1
+  fi
+  GENERATED=0
+fi
+NEW_ADMIN_PASSWORD="$NEW_PASSWORD" docker compose --project-directory /opt/plone run --rm --no-deps \
+  -e NEW_ADMIN_PASSWORD \
+  -v /opt/plone/set_admin_password.py:/app/scripts/set_admin_password.py:ro \
+  backend run /app/scripts/set_admin_password.py >/dev/null
+if [[ "$GENERATED" == 1 ]]; then
+  echo "The admin password is now: $NEW_PASSWORD"
+  echo "Store it in a password manager."
+else
+  echo "The admin password has been changed."
+fi
+EOF
+chmod 755 /usr/local/bin/plone-reset-admin-password
+
 cd "$APP_DIR"
 compose() { docker compose --project-directory "$APP_DIR" "$@"; }
 
+progress 4
 log "Pulling images (Plone ${PLONE_VERSION}, Volto ${VOLTO_VERSION}, PostgreSQL ${POSTGRES_VERSION})"
 compose pull --quiet
 
+progress 5
 log "Starting PostgreSQL"
 compose up -d --wait db
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
   log "Setting the Zope admin password"
-  compose run --rm --no-deps \
-    -e NEW_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+  NEW_ADMIN_PASSWORD="$ADMIN_PASSWORD" compose run --rm --no-deps \
+    -e NEW_ADMIN_PASSWORD \
     -v "$APP_DIR/set_admin_password.py:/app/scripts/set_admin_password.py:ro" \
     backend run /app/scripts/set_admin_password.py
 fi
@@ -229,6 +383,7 @@ compose run --rm --no-deps \
   -e TIMEZONE="$SITE_TIMEZONE" \
   backend create-site
 
+progress 6
 log "Starting Plone"
 compose up -d
 wait_for "Plone backend" 300 curl -fsS http://127.0.0.1:8080/ok
@@ -236,9 +391,10 @@ wait_for "Volto frontend" 300 curl -fsS -o /dev/null http://127.0.0.1:3000/
 
 # --- nginx -------------------------------------------------------------------
 
+progress 7
 log "Configuring nginx"
 SERVER_NAME="${DOMAIN:-_}"
-rm -f /etc/nginx/sites-enabled/default
+rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/plone-in-a-box-setup
 cat > /etc/nginx/sites-available/plone <<EOF
 upstream backend {
   server 127.0.0.1:8080;

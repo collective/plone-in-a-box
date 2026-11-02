@@ -7,6 +7,13 @@
   to start using the site. Shorter than 12 characters or empty: a password is
   generated as before. A chosen password is not written to the credentials file.
 - Show the site address on the server console login screen once provisioning is done.
+- Setup progress page: within a minute or two of booting, the server's address shows
+  the provisioning steps and refreshes itself until the Plone site is ready; if a step
+  fails, it says which one.
+- Log all provisioning output to /var/log/plone-in-a-box.log on every provider.
+- New `sudo plone-reset-admin-password` command on the server.
+- The admin password is passed to containers through the environment rather than
+  the command line.
   [tkimnguyen]
 
 

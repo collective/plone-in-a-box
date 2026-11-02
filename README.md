@@ -27,7 +27,9 @@ upgrades and troubleshooting.
 
 In Cloud Manager, search Community StackScripts for **Plone in a Box** and deploy a new Linode from it, choosing Ubuntu 24.04 and adding your SSH key. Optional fields let you
 set the admin password, a domain name (for HTTPS), the site time zone, and the Plone/Volto versions. If you set the
-admin password, no command line is needed: after about 10 minutes, open the site and log in as `admin`.
+admin password, no command line is needed: open the server's address right away to watch a setup progress page,
+which turns into your Plone site when it's ready (about 10 minutes). Log in as `admin`. To reset the admin password
+later, run `sudo plone-reset-admin-password` on the server.
 
 Cloud Manager requires choosing a firewall: pick **No firewall** if offered, or a Cloud Firewall that allows inbound TCP 22, 80 and 443; a firewall with no inbound rules blocks SSH and the
 site. The server also runs its own firewall (ufw) that allows only those ports.
@@ -40,8 +42,8 @@ terraform init
 terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
 ```
 
-See the variables at the top of `src/aws/main.tf` for region, instance type, domain and versions. Progress is logged to
-`/var/log/cloud-init-output.log`.
+See the variables at the top of `src/aws/main.tf` for region, instance type, domain and versions. Open the printed
+`site_url` to watch setup progress; it's also logged to `/var/log/plone-in-a-box.log`.
 
 Pass the same `-var` options to `terraform destroy` when you remove the box, or put them in `src/aws/terraform.tfvars`
 (for example `ssh_public_key_path = "~/.ssh/id_rsa.pub"`) so both commands pick them up.

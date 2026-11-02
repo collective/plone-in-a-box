@@ -36,10 +36,11 @@ for every deploy: default inbound policy **Drop**, default outbound **Accept**, 
 TCP ports **22**, **80** and **443** from all IPv4 and IPv6 addresses. A firewall without those rules blocks both SSH
 and the site.
 
-Wait about 10 minutes after the Linode shows *Running*, then open `http://<linode-ip>` (or your domain). If you set
-an admin password, log in as `admin` and you're done; skip to step 2 of [After provisioning](#after-provisioning).
-Otherwise continue with step 1 using `ssh root@<linode-ip>`. If the site doesn't load yet, give it a few more minutes:
-the Linode's **Launch LISH Console** screen shows the site address once provisioning has finished.
+Once the Linode shows *Running*, open `http://<linode-ip>` in your browser. Within a minute or two it shows a
+**"Your Plone site is being set up"** page that lists each step and refreshes itself; when setup is done (usually about
+10 minutes), the next refresh shows your Plone site. If you set an admin password, log in as `admin` and you're done;
+skip to step 2 of [After provisioning](#after-provisioning). Otherwise continue with step 1 using `ssh root@<linode-ip>`.
+If the page says **"Setup didn't finish"**, see [Troubleshooting](#troubleshooting).
 
 ## Option B: Amazon AWS (Terraform)
 
@@ -83,10 +84,11 @@ Other variables (region, instance type, SSH source addresses, versions, disk siz
 `src/aws/main.tf`. The account needs a default VPC, which new AWS accounts have.
 
 Type `yes` to confirm. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server then provisions
-itself; follow along with:
+itself. Open the `site_url` in your browser to watch the setup progress page, which turns into your site when it's
+ready. Or follow the log:
 
 ```
-ssh ubuntu@<public-ip> sudo tail -f /var/log/cloud-init-output.log
+ssh ubuntu@<public-ip> sudo tail -f /var/log/plone-in-a-box.log
 ```
 
 It's done when you see `[plone-in-a-box] Finished.` Continue with [After provisioning](#after-provisioning) using
@@ -115,8 +117,8 @@ It's done when you see `[plone-in-a-box] Finished.` Continue with [After provisi
 3. Terraform prints `site_url`, `public_ip` and `credentials_command`. The Droplet also gets a DigitalOcean Cloud
    Firewall that allows only ports 22, 80 and 443.
 
-Follow provisioning with `ssh root@<public-ip> tail -f /var/log/cloud-init-output.log`, then continue with
-[After provisioning](#after-provisioning).
+Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
+/var/log/plone-in-a-box.log`), then continue with [After provisioning](#after-provisioning).
 
 ### Without Terraform
 
@@ -143,12 +145,12 @@ Follow provisioning with `ssh root@<public-ip> tail -f /var/log/cloud-init-outpu
    `sudo rm /root/plone-credentials.txt`. For day-to-day editing, create personal accounts under
    **Site Setup → Users and Groups** and keep `admin` for administration.
 
-   `admin` is a Zope-level user, so its password isn't changed in Site Setup. To change it later:
+   `admin` is a Zope-level user, so its password isn't changed in Site Setup. To change it, or if you've forgotten
+   it, log in to the server and run:
    ```
-   sudo docker compose --project-directory /opt/plone run --rm -e NEW_ADMIN_PASSWORD='new-password-here' \
-     -v /opt/plone/set_admin_password.py:/app/scripts/set_admin_password.py:ro \
-     backend run /app/scripts/set_admin_password.py
+   sudo plone-reset-admin-password
    ```
+   It asks for the new password (or press Enter to have one generated). The change takes effect immediately.
 3. Optional check: from your own computer, these should all time out:
    ```
    nc -zv -w 5 <server-ip> 5432
@@ -201,7 +203,9 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
 | Problem | Fix |
 | --- | --- |
 | `ssh: connect ... Operation timed out` on Linode | A Cloud Firewall is blocking port 22. Allow TCP 22, 80, 443, or detach it. |
-| No `/root/plone-credentials.txt` after 15 minutes | Check `sudo docker compose --project-directory /opt/plone ps`, then `/var/log/cloud-init-output.log` on AWS, or log in via Linode's **LISH console**. |
+| Forgot the admin password | Log in to the server as root (SSH, or your provider's console: Linode **Launch LISH Console**, DigitalOcean **Recovery Console**) and run `sudo plone-reset-admin-password`. Forgot the root password too? On Linode, power off and use **Reset Root Password**; on DigitalOcean, **Access → Reset root password**. |
+| The page says "Setup didn't finish" | It shows which step failed. Usually a temporary download problem: delete the server and deploy again. To see details, log in as root and read `/var/log/plone-in-a-box.log`. |
+| No setup page, or no `/root/plone-credentials.txt` after 15 minutes | Read `/var/log/plone-in-a-box.log` (or, if it's missing, `/var/log/cloud-init-output.log` on AWS and DigitalOcean), and check `sudo docker compose --project-directory /opt/plone ps`. |
 | Terraform: `Value for undeclared variable` | You're running an old configuration. `git pull`, then `terraform init -upgrade` in `src/aws/`. |
 | DigitalOcean: `SSH Key is already in use on your account` | Pass `-var 'ssh_key_fingerprint=...'` with the existing key's fingerprint. |
 | DigitalOcean: `Unable to authenticate you` | `DIGITALOCEAN_TOKEN` isn't set in this terminal, or the token lacks write scope. |
