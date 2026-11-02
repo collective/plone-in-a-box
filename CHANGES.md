@@ -1,4 +1,4 @@
-2.1 (unreleased)
+2.1 (2026-11-01)
 ----------------
 
 - Add DigitalOcean support: Terraform configuration in src/digitalocean/ (Droplet,
