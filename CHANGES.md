@@ -1,4 +1,4 @@
-2.4 (unreleased)
+2.4 (2026-11-05)
 ----------------
 
 - Default to Plone 6.2 with Volto 19 (was Plone 6.1 with Volto 18). Volto 19 has
