@@ -26,7 +26,9 @@ release, and the public Linode StackScript is updated by hand.
 
 ## 2. Release
 
-1. In `CHANGES.md`, replace `(unreleased)` with today's date, and commit to `main` (or include it in the last PR).
+1. In `CHANGES.md`, replace `(unreleased)` with today's date. If `src/StackScript` changed, set `PIAB_RELEASE` in
+   `src/digitalocean/user-data.sh` to the new version, so pasted DigitalOcean launchers download it. Commit to
+   `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.
 
