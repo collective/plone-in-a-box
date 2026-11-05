@@ -12,6 +12,13 @@ Each box is a single Ubuntu 24.04 server running the official Plone Docker image
 Default versions: Plone 6.2 with Volto 19. Both are configurable; for the previous release line, use Plone
 `6.1` with Volto `18`.
 
+## Releases
+
+Development and releases happen at [tkimnguyen/plone-in-a-box](https://github.com/tkimnguyen/plone-in-a-box),
+which is mirrored to [collective/plone-in-a-box](https://github.com/collective/plone-in-a-box) after each release.
+Release notes are on the [Releases page](https://github.com/tkimnguyen/plone-in-a-box/releases), and
+[CHANGES.md](CHANGES.md) lists the changes in every version. Both repositories have the same version tags.
+
 ## Supported cloud providers
 
 * **Linode**: [`src/StackScript`](src/StackScript), published as the Community StackScript **Plone in a Box**
