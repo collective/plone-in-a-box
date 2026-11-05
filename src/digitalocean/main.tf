@@ -33,7 +33,7 @@ variable "region" {
 }
 
 variable "size" {
-  description = "Droplet size slug. Plone + Volto + PostgreSQL need at least 2 GB of RAM; s-1vcpu-2gb is the smallest recommended size."
+  description = "Droplet size slug. s-1vcpu-1gb is enough for a small site (swap is added automatically); s-1vcpu-2gb or larger for a busier one."
   type        = string
   default     = "s-1vcpu-2gb"
 }
