@@ -9,8 +9,8 @@ Each box is a single Ubuntu 24.04 server running the official Plone Docker image
 * optional HTTPS from Let's Encrypt when you give it a domain name
 * swap added automatically on small servers
 
-Default versions: Plone 6.1 with Volto 18. Both are configurable. Plone 6.2 is meant to be used with
-Volto 19; switch to `6.2` / `19` once Volto 19 has a final release.
+Default versions: Plone 6.2 with Volto 19. Both are configurable; for the previous release line, use Plone
+`6.1` with Volto `18`.
 
 ## Supported cloud providers
 

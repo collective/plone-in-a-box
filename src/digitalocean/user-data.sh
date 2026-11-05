@@ -30,8 +30,8 @@ export LETSENCRYPT_EMAIL=''
 export SITE_TIMEZONE='UTC'
 
 # Plone backend and Volto frontend image tags.
-export PLONE_VERSION='6.1'
-export VOLTO_VERSION='18'
+export PLONE_VERSION='6.2'
+export VOLTO_VERSION='19'
 
 # --- No need to edit below this line -----------------------------------------
 

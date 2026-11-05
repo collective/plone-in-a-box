@@ -1,3 +1,14 @@
+2.4 (unreleased)
+----------------
+
+- Default to Plone 6.2 with Volto 19 (was Plone 6.1 with Volto 18). Volto 19 has
+  had final releases since 2026-05; the README wrongly said it hadn't. Both
+  versions are still configurable, and `6.1` / `18` still work. Existing servers
+  keep their versions; to move one to 6.2, follow "To move to a newer Plone or
+  Volto release" in the setup guide and Plone's 6.2 upgrade notes.
+  [tkimnguyen]
+
+
 2.3 (2026-11-05)
 ----------------
 
