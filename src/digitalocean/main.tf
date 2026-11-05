@@ -90,13 +90,13 @@ variable "site_timezone" {
 variable "plone_version" {
   description = "plone/plone-backend image tag."
   type        = string
-  default     = "6.1"
+  default     = "6.2"
 }
 
 variable "volto_version" {
   description = "plone/plone-frontend image tag."
   type        = string
-  default     = "18"
+  default     = "19"
 }
 
 # Reads the API token from the DIGITALOCEAN_TOKEN environment variable.

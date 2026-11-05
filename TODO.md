@@ -1,13 +1,38 @@
 # TODO
 
-## Update default versions
+## Finish OS updates during setup
 
-- [ ] **Switch the defaults to Plone 6.2 and Volto 19.** Volto 19 has a final release (19.6.1 as of 2026-11-05),
-  which is when the README said to switch. Plone 6.1 bug-fix releases ended on 2026-06-25 (security fixes
-  continue until 2027-12-31); 6.2 is supported until 2028-06-30. Change `PLONE_VERSION` / `VOLTO_VERSION` in
-  `src/StackScript` (UDF defaults and fallbacks), `src/aws/main.tf`, `src/digitalocean/main.tf` and
-  `src/digitalocean/user-data.sh`, update the README and setup guide, and test a fresh deploy on each provider.
-  Then set `PIAB_RELEASE` in the launcher to the release that includes the change.
+New servers come up with Ubuntu updates still pending and "System restart required" on the login banner.
+
+- [ ] `src/StackScript`: use `apt-get full-upgrade` instead of `apt-get upgrade`, so updates that need new
+  packages (such as a new kernel) are installed too.
+- [ ] At the end of setup, reboot once if `/var/run/reboot-required` exists. The containers restart on their own;
+  make sure the progress page and the console login banner still make sense around the reboot.
+- [ ] Setup guide: tell people to run `sudo apt update && sudo apt full-upgrade -y` and `sudo reboot` now and
+  then (the site is down for a minute or two), and not to run `do-release-upgrade`.
+
+## Enough swap on 1 GB Linodes
+
+`src/StackScript` adds a 2 GB swap file only when the server has no swap at all. Linode servers come with a 512 MB
+swap disk, so a 1 GB Linode never gets the swap file: in testing (Plone 6.2 / Volto 19, idle) it had about 424 MB of
+RAM and 206 MB of swap free, versus about 2.1 GB of headroom on a 1 GB DigitalOcean Droplet with the swap file.
+
+- [ ] Add the swap file whenever RAM plus existing swap is under about 3 GB, not only when there's no swap.
+- [ ] Test on a 1 GB Linode (Nanode) and check `free -m` shows the extra swap; then the docs could say 1 GB works
+  on Linode too.
+
+## Move to Ubuntu 26.04 LTS
+
+- [ ] Ubuntu 26.04 LTS ("Resolute Raccoon") was released on 2026-04-23 (26.04.1 is out), supported until
+  2031-05. Plone in a Box targets 24.04, which is supported until 2029-05. To switch:
+  - `src/aws/main.tf`: change the AMI name filter (`ubuntu-noble-24.04-amd64-server-*`) to the 26.04 image
+    name, and check the `hvm-ssd-gp3` path still matches Canonical's naming.
+  - `src/digitalocean/main.tf`: change `image` from `ubuntu-24-04-x64` to the 26.04 slug.
+  - Linode: add Ubuntu 26.04 to the public StackScript's Target Images.
+  - `src/StackScript`: update "Tested target", and check the Docker install, nginx, ufw, certbot and the
+    progress page on 26.04.
+  - Update the README, setup guide (including the DigitalOcean launcher instructions) and the launcher's comment.
+  - Test a fresh deploy on each provider. Decide whether to keep 24.04 working too.
 
 ## Clean up old images and snapshots
 
