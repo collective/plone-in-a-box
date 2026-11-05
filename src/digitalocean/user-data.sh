@@ -30,13 +30,13 @@ export LETSENCRYPT_EMAIL=''
 export SITE_TIMEZONE='UTC'
 
 # Plone backend and Volto frontend image tags.
-export PLONE_VERSION='6.1'
-export VOLTO_VERSION='18'
+export PLONE_VERSION='6.2'
+export VOLTO_VERSION='19'
 
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.
-PIAB_RELEASE='2.2'
+PIAB_RELEASE='2.4'
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 set -uo pipefail

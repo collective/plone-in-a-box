@@ -15,8 +15,8 @@
 # <UDF name="DOMAIN" label="Domain name for the site, optional. DNS must already point here to get HTTPS" default="" />
 # <UDF name="LETSENCRYPT_EMAIL" label="Email for Lets Encrypt certificate notices, required if a domain is set" default="" />
 # <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
-# <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.1" />
-# <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="18" />
+# <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.2" />
+# <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -33,8 +33,8 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DOMAIN="${DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 SITE_TIMEZONE="${SITE_TIMEZONE:-UTC}"
-PLONE_VERSION="${PLONE_VERSION:-6.1}"
-VOLTO_VERSION="${VOLTO_VERSION:-18}"
+PLONE_VERSION="${PLONE_VERSION:-6.2}"
+VOLTO_VERSION="${VOLTO_VERSION:-19}"
 POSTGRES_VERSION="${POSTGRES_VERSION:-17}"
 
 APP_DIR=/opt/plone
