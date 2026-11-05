@@ -59,7 +59,15 @@ git push collective main:sync-from-tkimnguyen
 ```
 
 Open https://github.com/collective/plone-in-a-box/compare/main...sync-from-tkimnguyen, create the pull request,
-merge it once CI passes, and delete the `sync-from-tkimnguyen` branch.
+merge it once CI passes, and delete the `sync-from-tkimnguyen` branch. Then push the release tag (for example
+`2.4`) so `collective` has every version:
+
+```
+git fetch --tags origin
+git push collective <version>
+```
+
+GitHub releases (with notes) are published only on `tkimnguyen/plone-in-a-box`.
 
 Avoid committing directly to `collective`, so these pull requests stay simple fast-forwards. If someone does
 contribute there, bring it into this repo first with `git pull collective main`.
