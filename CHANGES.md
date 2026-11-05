@@ -1,4 +1,4 @@
-2.3 (unreleased)
+2.3 (2026-11-05)
 ----------------
 
 - DigitalOcean without Terraform or a command line: paste the short
