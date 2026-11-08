@@ -2,25 +2,11 @@
 
 ## Automated test deploys
 
-Let test deploys run without manual steps in Cloud Manager and the DigitalOcean control panel: create the test
-server, watch the progress page, run the checks over SSH, reboot, check again, and delete it.
+`scripts/test-deploy.sh` runs the Linode and DigitalOcean tests (see RELEASING.md). Still open:
 
-- [ ] **Tokens**, stored in the macOS Keychain (never pasted into chats or committed):
-  - Linode personal access token `claude-code-testing`, 1-month expiry, scopes Linodes Read/Write,
-    StackScripts Read/Write, Events Read Only, everything else No Access. Created in the account that owns the
-    private `plone-in-a-box-test` StackScript. Keychain: `security add-generic-password -a "$USER" -s piab-linode-token -w`
-  - DigitalOcean token, 30-day expiry, custom scopes `droplet` create/read/delete, `ssh_key` create/read,
-    `tag` create/read. Keychain: `security add-generic-password -a "$USER" -s piab-do-token -w`
-- [ ] A dedicated SSH key for test servers only (`~/.ssh/piab_test_ed25519`).
-- [ ] Safeguards: name and tag every test server `piab-test-…` and only ever touch servers with that tag. Neither
-  provider can limit a token to particular servers, so consider a separate test account (or a DigitalOcean team)
-  with no production servers in it.
-- [ ] Claude Code permission rules for `api.linode.com` and `api.digitalocean.com` if the permission check blocks
-  creating or deleting test servers.
-- [ ] Optionally, turn the steps into a script in the repo (for example `scripts/test-deploy.sh linode|digitalocean
-  <branch>`) that runs the checks from RELEASING.md, so anyone can repeat them.
-- [ ] Delete or let the tokens expire when not in use; remove the Keychain entries with
-  `security delete-generic-password -s piab-linode-token` (and `piab-do-token`).
+- [ ] The DigitalOcean token can reach every Droplet in the account; only the script's `piab-test` tag check keeps
+  it away from other servers. Consider a separate DigitalOcean team with no other Droplets in it for testing.
+- [ ] Renew the tokens when they expire (Linode: 1 month, DigitalOcean: 30 days), and rotate the AWS access key.
 
 ## Move to Ubuntu 26.04 LTS
 

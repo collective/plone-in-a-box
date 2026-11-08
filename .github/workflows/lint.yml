@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ShellCheck
-        run: shellcheck src/StackScript src/user-data.sh
+        run: shellcheck src/StackScript src/user-data.sh scripts/test-deploy.sh
 
   terraform:
     runs-on: ubuntu-latest
