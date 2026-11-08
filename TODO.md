@@ -34,6 +34,19 @@ RAM and 206 MB of swap free, versus about 2.1 GB of headroom on a 1 GB DigitalOc
   - Update the README, setup guide (including the DigitalOcean launcher instructions) and the launcher's comment.
   - Test a fresh deploy on each provider. Decide whether to keep 24.04 working too.
 
+## Support Hetzner Cloud
+
+- [ ] **No command line:** in the Hetzner Cloud Console's **Create server** page, choose Ubuntu 24.04 and paste
+  `src/user-data.sh` into the **Cloud config** (user data) box, like DigitalOcean and AWS. Check that the launcher
+  works there unchanged, and which plan is the smallest that's comfortable.
+- [ ] **Terraform:** `src/hetzner/main.tf` with the `hcloud` provider (server, SSH key, Hetzner Firewall allowing
+  only TCP 22, 80 and 443), running the same script as user data, with the same variables as the AWS and
+  DigitalOcean configurations. Add it to the CI matrix.
+- [ ] How to read or reset the admin password without SSH (the Cloud Console's browser console), the server's
+  address for a domain (Primary IPs), and backups/snapshots.
+- [ ] README, setup guide ("Option D: Hetzner"), RELEASING.md test steps, and a test deploy (both routes; amd64
+  and Arm plans).
+
 ## Clean up old images and snapshots
 
 - [ ] Check the AWS and DigitalOcean accounts for images or snapshots used with the previous version of

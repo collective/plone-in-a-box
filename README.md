@@ -22,8 +22,8 @@ Release notes are on the [Releases page](https://github.com/tkimnguyen/plone-in-
 ## Supported cloud providers
 
 * **Linode**: [`src/StackScript`](src/StackScript), published as the Community StackScript **Plone in a Box**
-* **Amazon AWS**: [`src/aws/`](src/aws/main.tf) (Terraform), which runs the same script as EC2 user data
-* **DigitalOcean**: [`src/digitalocean/`](src/digitalocean/main.tf) (Terraform), which runs the same script as Droplet user data
+* **Amazon AWS**: [`src/aws/`](src/aws/main.tf) (Terraform), or [`src/user-data.sh`](src/user-data.sh) pasted into the EC2 console's **User data** box; both run the same script
+* **DigitalOcean**: [`src/digitalocean/`](src/digitalocean/main.tf) (Terraform), or [`src/user-data.sh`](src/user-data.sh) pasted into the Droplet's **Startup scripts** box; both run the same script
 
 Use a server with at least 2 GB of RAM on Linode (2 GB) and AWS (`t3.small`). On DigitalOcean, a 1 GB Droplet
 (`s-1vcpu-1gb`) is enough for a small site; choose 2 GB or more for a busier one.
@@ -58,6 +58,13 @@ Pass the same `-var` options to `terraform destroy` when you remove the box, or 
 
 If Terraform fails with `lookup sts.<region>.amazonaws.com: no such host` on a Mac, turn off iCloud Private Relay and retry.
 
+Without Terraform or a command line: in the AWS console, **EC2 → Launch instance** with **Ubuntu Server 24.04 LTS**,
+`t3.small`, a 20 GiB disk, and HTTP and HTTPS allowed in **Network settings**. Paste
+[`src/user-data.sh`](src/user-data.sh) into **Advanced details → User data**, set the admin password on its first
+setting line, and launch. Then open the instance's public address to watch the setup progress page. If you forget
+the password, use **Connect → EC2 Instance Connect** and run `sudo cat /root/plone-credentials.txt` (or
+`sudo plone-reset-admin-password`). Step-by-step: [setup guide](docs/setup-guide.md#without-terraform-aws-console).
+
 ### DigitalOcean
 
 Create an API token (DigitalOcean **API → Generate New Token**, with **Full Access**), then:
@@ -73,7 +80,7 @@ If your SSH key is already in your DigitalOcean account, pass `-var 'ssh_key_fin
 The Droplet gets a DigitalOcean Cloud Firewall allowing only ports 22, 80 and 443.
 
 Without Terraform or a command line: when creating an Ubuntu 24.04 Droplet in the control panel, paste
-[`src/digitalocean/user-data.sh`](src/digitalocean/user-data.sh) into **Additional Options → Startup scripts
+[`src/user-data.sh`](src/user-data.sh) into **Additional Options → Startup scripts
 (free)**. Set the admin password on its first setting line, and optionally the domain, time zone and versions.
 Then open the Droplet's address to watch the setup progress page. If you forget the password, open **Access →
 Launch Droplet Console** and run `cat /root/plone-credentials.txt` (or `plone-reset-admin-password`).

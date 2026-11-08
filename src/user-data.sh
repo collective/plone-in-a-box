@@ -6,22 +6,27 @@
 # =============================================================================
 export ADMIN_PASSWORD=''
 # If you leave it empty, a password is generated. To read it later, open the
-# Droplet in the control panel, choose Access > Launch Droplet Console, and run:
-#   cat /root/plone-credentials.txt
-# (or set a new one with: plone-reset-admin-password)
+# server's browser console and run:
+#   sudo cat /root/plone-credentials.txt
+# (or set a new one with: sudo plone-reset-admin-password)
+#   DigitalOcean: the Droplet's Access > Launch Droplet Console
+#   AWS: the instance's Connect > EC2 Instance Connect (user "ubuntu")
 
 #
-# Plone in a Box(TM) for DigitalOcean, without Terraform.
+# Plone in a Box(TM) without Terraform, for DigitalOcean and Amazon AWS.
 #
-# When creating an Ubuntu 24.04 Droplet, under Additional Options choose
-# "Startup scripts (free)", paste this whole file into "Enter your scripts or
-# data", and edit the settings in it. Keep each value inside its single quotes.
+# Create an Ubuntu 24.04 server, paste this whole file into its user data box,
+# and edit the settings in it. Keep each value inside its single quotes.
+#   DigitalOcean: Create > Droplets > Additional Options > "Startup scripts
+#     (free)" > "Enter your scripts or data".
+#   AWS: EC2 > Launch instance > Advanced details > "User data". In Network
+#     settings, also allow HTTP and HTTPS traffic from the internet.
 #
-# Open the Droplet's address a minute or two after it boots to watch the setup
+# Open the server's address a minute or two after it boots to watch the setup
 # progress page, which turns into your Plone site when it's ready (about
 # 10 minutes). Log in as "admin".
 
-# Domain name for the site, optional. DNS must already point at the Droplet
+# Domain name for the site, optional. DNS must already point at the server
 # to get HTTPS, and LETSENCRYPT_EMAIL is required with it.
 export DOMAIN=''
 export LETSENCRYPT_EMAIL=''

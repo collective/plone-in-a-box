@@ -44,9 +44,11 @@ Once the Linode shows *Running*, open `http://<linode-ip>` in your browser. With
 skip to step 2 of [After provisioning](#after-provisioning). Otherwise continue with step 1 using `ssh root@<linode-ip>`.
 If the page says **"Setup didn't finish"**, see [Troubleshooting](#troubleshooting).
 
-## Option B: Amazon AWS (Terraform)
+## Option B: Amazon AWS
 
-### One-time setup
+Use Terraform, or the AWS console with no command line ([Without Terraform](#without-terraform-aws-console)).
+
+### One-time setup (Terraform)
 
 1. Install Terraform and the AWS CLI. On a Mac:
    ```
@@ -62,7 +64,7 @@ If the page says **"Setup didn't finish"**, see [Troubleshooting](#troubleshooti
 3. Run `aws configure`, paste the keys, and set the region (for example `us-east-1`). Check it with
    `aws sts get-caller-identity`.
 
-### Deploy
+### Deploy with Terraform
 
 ```
 git clone https://github.com/tkimnguyen/plone-in-a-box
@@ -96,6 +98,33 @@ ssh ubuntu@<public-ip> sudo tail -f /var/log/plone-in-a-box.log
 It's done when you see `[plone-in-a-box] Finished.` Continue with [After provisioning](#after-provisioning) using
 `ssh ubuntu@<public-ip>` and `sudo`.
 
+### Without Terraform (AWS console)
+
+No command line is needed if you choose the admin password here. In the AWS console, pick a region, then
+**EC2 → Launch instance**:
+
+1. **Name**: for example `plone-in-a-box`.
+2. **Application and OS Images**: **Ubuntu**, then **Ubuntu Server 24.04 LTS** (64-bit x86, or 64-bit Arm with a
+   `t4g` instance type).
+3. **Instance type**: `t3.small` (2 GB) or larger.
+4. **Key pair**: choose or create one, so you can also log in with SSH.
+5. **Network settings**: keep **Create security group**, allow **SSH traffic** from **Anywhere** (needed for the
+   browser console in step 9; choose **My IP** if you'll only use SSH), and check **Allow HTTPS traffic from the
+   internet** and **Allow HTTP traffic from the internet**.
+6. **Configure storage**: change the default 8 GiB to **20 GiB** (gp3). 8 GiB is too small for the Docker images.
+7. **Advanced details → User data**: paste the contents of
+   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh). **Set the admin password on
+   the first setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone and versions.
+   Keep each value inside its single quotes.
+8. **Launch instance**. Open the instance's **Public IPv4 address** (use `http://`) to watch the setup progress
+   page, which turns into your Plone site when it's ready.
+9. Forgot to set the password? You still don't need SSH: select the instance, choose **Connect → EC2 Instance
+   Connect** (user `ubuntu`), and run `sudo cat /root/plone-credentials.txt` to read the generated one, or
+   `sudo plone-reset-admin-password` to choose a new one.
+
+The public address changes if you stop and start the instance. Before pointing a domain at it, give it a fixed
+address: **EC2 → Elastic IPs → Allocate**, then **Associate** it with the instance.
+
 ## Option C: DigitalOcean
 
 ### With Terraform
@@ -128,7 +157,7 @@ No command line is needed if you choose the admin password here.
 
 1. **Create → Droplets**, choose **Ubuntu 24.04 (LTS) x64**, a 1 GB or larger size, and your SSH key.
 2. Under **Additional Options**, choose **Startup scripts (free)** and paste into **Enter your scripts or data** the contents of
-   [`src/digitalocean/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/digitalocean/user-data.sh).
+   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh).
    **Set the admin password on the first setting line**, then the optional domain and Let's Encrypt email (for
    HTTPS), time zone and versions. Keep each value inside its single quotes. This short script downloads the full provisioning script
    from a fixed Plone in a Box release and runs it.
@@ -215,6 +244,8 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
 | The page says "Setup didn't finish" | It shows which step failed. Usually a temporary download problem: delete the server and deploy again. To see details, log in as root and read `/var/log/plone-in-a-box.log`. |
 | No setup page, or no `/root/plone-credentials.txt` after 15 minutes | Read `/var/log/plone-in-a-box.log` (or, if it's missing, `/var/log/cloud-init-output.log` on AWS and DigitalOcean), and check `sudo docker compose --project-directory /opt/plone ps`. |
 | Terraform: `Value for undeclared variable` | You're running an old configuration. `git pull`, then `terraform init -upgrade` in `src/aws/`. |
+| AWS console: the address doesn't load at all | The security group doesn't allow HTTP. Select the instance, **Security → Security groups → Edit inbound rules**, and add HTTP (80) and HTTPS (443) from `0.0.0.0/0`. Also make sure you opened `http://`, not `https://`. |
+| AWS console: **EC2 Instance Connect** fails to connect | The security group only allows SSH from your IP. Allow SSH (22) from `0.0.0.0/0` (the server's own firewall still applies), or use SSH from your computer. |
 | DigitalOcean: `SSH Key is already in use on your account` | Pass `-var 'ssh_key_fingerprint=...'` with the existing key's fingerprint. |
 | DigitalOcean: `Unable to authenticate you` | `DIGITALOCEAN_TOKEN` isn't set in this terminal, or the token lacks write scope. |
 | DigitalOcean: `You are missing the required permission tag:create` (or another `...:create`) | The token has custom scopes. Create one with **Full Access**, export it, and run `terraform apply` again. |

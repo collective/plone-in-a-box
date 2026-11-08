@@ -1,3 +1,16 @@
+2.5 (unreleased)
+----------------
+
+- AWS without Terraform or a command line: paste `src/user-data.sh` into the EC2
+  console's "User data" box when launching an Ubuntu 24.04 instance, like the
+  DigitalOcean startup script. Setup guide steps cover the AMI, instance type,
+  HTTP/HTTPS in the security group, a 20 GiB disk, EC2 Instance Connect for the
+  password, and an Elastic IP before using a domain.
+- The launcher script moved from `src/digitalocean/user-data.sh` to
+  `src/user-data.sh`, since it now serves both DigitalOcean and AWS.
+  [tkimnguyen]
+
+
 2.4 (2026-11-05)
 ----------------
 
