@@ -9,7 +9,7 @@ release, and the public Linode StackScript is updated by hand.
    must pass.
 2. Test the changed script before merging:
    * **Linode**: paste `src/StackScript` from the branch into the private test StackScript (`plone-in-a-box-test`,
-     Target Image Ubuntu 24.04) and deploy a 2 GB Linode from it.
+     Target Image Ubuntu 24.04) and deploy a 1 GB Linode (Nanode) from it, the smallest size the docs recommend.
    * **AWS** (if `src/aws/` or the script changed): `terraform apply` from `src/aws/` on the branch.
    * **DigitalOcean** (if `src/digitalocean/` or the script changed): `terraform apply` from `src/digitalocean/`.
    * Checks on each test server:
@@ -27,7 +27,7 @@ release, and the public Linode StackScript is updated by hand.
 ## 2. Release
 
 1. In `CHANGES.md`, replace `(unreleased)` with today's date. If `src/StackScript` changed, set `PIAB_RELEASE` in
-   `src/digitalocean/user-data.sh` to the new version, so pasted DigitalOcean launchers download it. Commit to
+   `src/user-data.sh` to the new version, so pasted DigitalOcean and AWS launchers download it. Commit to
    `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.

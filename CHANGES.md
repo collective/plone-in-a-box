@@ -1,3 +1,25 @@
+2.5 (2026-11-08)
+----------------
+
+- Install all Ubuntu updates during setup (`apt-get full-upgrade`, so new kernels
+  too). If they need a restart, the server restarts once early in setup, before
+  Plone is installed, and setup continues by itself; the progress page stays up.
+- Add the 2 GB swap file whenever memory plus existing swap is under about 3 GB,
+  not only when there is no swap. Linode servers come with a 512 MB swap disk, so
+  1 GB Linodes didn't get the swap file before. A 1 GB Linode (Nanode) is now
+  enough for a small site, like a 1 GB DigitalOcean Droplet.
+- Setup guide: keeping Ubuntu up to date (`apt full-upgrade`, restart, and don't
+  use `do-release-upgrade`).
+- AWS without Terraform or a command line: paste `src/user-data.sh` into the EC2
+  console's "User data" box when launching an Ubuntu 24.04 instance, like the
+  DigitalOcean startup script. Setup guide steps cover the AMI, instance type,
+  HTTP/HTTPS in the security group, a 20 GiB disk, EC2 Instance Connect for the
+  password, and an Elastic IP before using a domain.
+- The launcher script moved from `src/digitalocean/user-data.sh` to
+  `src/user-data.sh`, since it now serves both DigitalOcean and AWS.
+  [tkimnguyen]
+
+
 2.4 (2026-11-05)
 ----------------
 

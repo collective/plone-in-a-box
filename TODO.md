@@ -1,25 +1,26 @@
 # TODO
 
-## Finish OS updates during setup
+## Automated test deploys
 
-New servers come up with Ubuntu updates still pending and "System restart required" on the login banner.
+Let test deploys run without manual steps in Cloud Manager and the DigitalOcean control panel: create the test
+server, watch the progress page, run the checks over SSH, reboot, check again, and delete it.
 
-- [ ] `src/StackScript`: use `apt-get full-upgrade` instead of `apt-get upgrade`, so updates that need new
-  packages (such as a new kernel) are installed too.
-- [ ] At the end of setup, reboot once if `/var/run/reboot-required` exists. The containers restart on their own;
-  make sure the progress page and the console login banner still make sense around the reboot.
-- [ ] Setup guide: tell people to run `sudo apt update && sudo apt full-upgrade -y` and `sudo reboot` now and
-  then (the site is down for a minute or two), and not to run `do-release-upgrade`.
-
-## Enough swap on 1 GB Linodes
-
-`src/StackScript` adds a 2 GB swap file only when the server has no swap at all. Linode servers come with a 512 MB
-swap disk, so a 1 GB Linode never gets the swap file: in testing (Plone 6.2 / Volto 19, idle) it had about 424 MB of
-RAM and 206 MB of swap free, versus about 2.1 GB of headroom on a 1 GB DigitalOcean Droplet with the swap file.
-
-- [ ] Add the swap file whenever RAM plus existing swap is under about 3 GB, not only when there's no swap.
-- [ ] Test on a 1 GB Linode (Nanode) and check `free -m` shows the extra swap; then the docs could say 1 GB works
-  on Linode too.
+- [ ] **Tokens**, stored in the macOS Keychain (never pasted into chats or committed):
+  - Linode personal access token `claude-code-testing`, 1-month expiry, scopes Linodes Read/Write,
+    StackScripts Read/Write, Events Read Only, everything else No Access. Created in the account that owns the
+    private `plone-in-a-box-test` StackScript. Keychain: `security add-generic-password -a "$USER" -s piab-linode-token -w`
+  - DigitalOcean token, 30-day expiry, custom scopes `droplet` create/read/delete, `ssh_key` create/read,
+    `tag` create/read. Keychain: `security add-generic-password -a "$USER" -s piab-do-token -w`
+- [ ] A dedicated SSH key for test servers only (`~/.ssh/piab_test_ed25519`).
+- [ ] Safeguards: name and tag every test server `piab-test-…` and only ever touch servers with that tag. Neither
+  provider can limit a token to particular servers, so consider a separate test account (or a DigitalOcean team)
+  with no production servers in it.
+- [ ] Claude Code permission rules for `api.linode.com` and `api.digitalocean.com` if the permission check blocks
+  creating or deleting test servers.
+- [ ] Optionally, turn the steps into a script in the repo (for example `scripts/test-deploy.sh linode|digitalocean
+  <branch>`) that runs the checks from RELEASING.md, so anyone can repeat them.
+- [ ] Delete or let the tokens expire when not in use; remove the Keychain entries with
+  `security delete-generic-password -s piab-linode-token` (and `piab-do-token`).
 
 ## Move to Ubuntu 26.04 LTS
 
@@ -33,6 +34,19 @@ RAM and 206 MB of swap free, versus about 2.1 GB of headroom on a 1 GB DigitalOc
     progress page on 26.04.
   - Update the README, setup guide (including the DigitalOcean launcher instructions) and the launcher's comment.
   - Test a fresh deploy on each provider. Decide whether to keep 24.04 working too.
+
+## Support Hetzner Cloud
+
+- [ ] **No command line:** in the Hetzner Cloud Console's **Create server** page, choose Ubuntu 24.04 and paste
+  `src/user-data.sh` into the **Cloud config** (user data) box, like DigitalOcean and AWS. Check that the launcher
+  works there unchanged, and which plan is the smallest that's comfortable.
+- [ ] **Terraform:** `src/hetzner/main.tf` with the `hcloud` provider (server, SSH key, Hetzner Firewall allowing
+  only TCP 22, 80 and 443), running the same script as user data, with the same variables as the AWS and
+  DigitalOcean configurations. Add it to the CI matrix.
+- [ ] How to read or reset the admin password without SSH (the Cloud Console's browser console), the server's
+  address for a domain (Primary IPs), and backups/snapshots.
+- [ ] README, setup guide ("Option D: Hetzner"), RELEASING.md test steps, and a test deploy (both routes; amd64
+  and Arm plans).
 
 ## Clean up old images and snapshots
 
@@ -59,7 +73,7 @@ still deploy with no build step. Add optional settings for people who need more:
 
 ### Why not switch the whole project to cookieplone
 
-A cookieplone project has to be built. Building Volto on the server needs more memory than the 2 GB minimum
+A cookieplone project has to be built. Building Volto on the server needs more memory than a small box has
 and would push setup well past ~10 minutes. Building in CI means users need a GitHub account, a container
 registry and credentials before deploying, which breaks the no-command-line Linode flow. It would also fix
 Plone/Volto versions when the project is generated, add template churn to maintain, and overlap the existing

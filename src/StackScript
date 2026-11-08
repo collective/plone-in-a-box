@@ -40,7 +40,23 @@ POSTGRES_VERSION="${POSTGRES_VERSION:-17}"
 APP_DIR=/opt/plone
 CREDENTIALS_FILE=/root/plone-credentials.txt
 
+# Used when setup restarts the server once to finish installing updates and
+# then continues after the restart (see "Restart once" below).
+RESUME_DIR=/root/.plone-in-a-box-resume
+RESUME_UNIT=/etc/systemd/system/plone-in-a-box-resume.service
+
 log() { echo "[plone-in-a-box] $*"; }
+
+# If this run is the continuation after that restart, make sure it only
+# happens once, and remove the saved settings (they include the password).
+# The unit file itself stays until the end of setup: removing it and
+# reloading systemd while this run is going would make systemd forget the
+# service's settings.
+if [[ -e "$RESUME_UNIT" ]]; then
+  log "Continuing setup after the restart"
+  systemctl disable plone-in-a-box-resume.service || true
+  rm -f "$RESUME_DIR/settings"
+fi
 
 # --- Setup progress page -----------------------------------------------------
 # While provisioning runs, nginx serves a page at the server's address that
@@ -58,7 +74,7 @@ PROGRESS_STEPS=(
   "Finishing up"
 )
 CURRENT_STEP=0
-STARTED_AT=$(date -u +"%H:%M UTC")
+STARTED_AT="${STARTED_AT:-$(date -u +"%H:%M UTC")}"
 
 write_progress_page() {
   # write_progress_page <title> <message html> <body html> <refresh seconds, 0 for none>
@@ -165,19 +181,71 @@ nginx -t
 systemctl reload nginx || systemctl restart nginx
 
 log "Updating system packages"
-apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade
+# full-upgrade, unlike upgrade, also installs updates that need new packages
+# (such as a new kernel).
+apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold full-upgrade
 apt-get install -y ca-certificates curl gnupg ufw openssl
 
 # --- Swap (Plone + Volto + PostgreSQL do not fit comfortably in 1 GB) -------
+# Add a 2 GB swap file when memory plus existing swap is under about 3 GB.
+# Some providers include a small swap disk (Linode: 512 MB), which isn't
+# enough on its own for a 1 GB server.
 
 mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-if (( mem_kb < 3000000 )) && ! swapon --show | grep -q .; then
+swap_kb=$(awk '/SwapTotal/ {print $2}' /proc/meminfo)
+if (( mem_kb + swap_kb < 3000000 )) && [[ ! -e /swapfile ]]; then
   log "Adding a 2 GB swap file"
   fallocate -l 2G /swapfile
   chmod 600 /swapfile
   mkswap /swapfile
   swapon /swapfile
-  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+# --- Restart once if the updates need it -------------------------------------
+# A new kernel (and some other updates) only takes effect after a restart.
+# Restart now, before Plone is installed, and continue this script
+# automatically afterwards, so the finished site never goes down for it.
+# nginx keeps showing the progress page across the restart.
+
+if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
+  if [[ -f "$0" ]]; then
+    log "Restarting the server to finish installing updates; setup continues automatically afterwards"
+    install -d -m 700 "$RESUME_DIR"
+    cp "$0" "$RESUME_DIR/setup.sh"
+    (
+      umask 077
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION STARTED_AT; do
+        printf 'export %s=%q\n' "$var" "${!var}"
+      done > "$RESUME_DIR/settings"
+    )
+    touch "$RESUME_DIR/restarted"
+    cat > "$RESUME_UNIT" <<EOF
+[Unit]
+Description=Continue Plone in a Box setup after the restart
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+# simple, not oneshot: setup takes several minutes, and systemd puts a time
+# limit on starting a oneshot service.
+Type=simple
+ExecStart=/bin/bash -c '. ${RESUME_DIR}/settings && exec /bin/bash ${RESUME_DIR}/setup.sh'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable plone-in-a-box-resume.service
+    write_progress_page "Restarting the server" \
+      "The server is restarting to finish installing updates, and setup then continues by itself. This page refreshes every 15 seconds; if your browser shows an error while the server restarts, reload the page in a minute." \
+      "$(step_list now)" 15
+    trap - ERR
+    systemctl reboot
+    exit 0
+  else
+    log "Updates need a restart, but this script can't be saved to continue afterwards; restart the server after setup"
+  fi
 fi
 
 # --- Docker Engine + Compose plugin (official repository) -------------------
@@ -533,6 +601,12 @@ cat >> /etc/issue <<EOF
   Log in to the site as "admin".
 
 EOF
+
+rm -rf "$RESUME_DIR"
+rm -f "$RESUME_UNIT"
+if [[ -f /var/run/reboot-required ]]; then
+  log "Some updates need a restart to take effect; restart the server when convenient (sudo reboot). Plone starts again by itself."
+fi
 
 if [[ "$ADMIN_PASSWORD_CHOSEN" == 1 ]]; then
   log "Finished. Site: ${SITE_URL} -- log in as admin with the password you chose"
