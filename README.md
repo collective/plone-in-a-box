@@ -56,7 +56,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    **Set the admin password between the quotes on its first setting line.**
 4. Create the Droplet, then open its IP address in your browser.
 
-Details: [setup guide, DigitalOcean](docs/setup-guide.md#without-terraform).
+Details: [setup guide, DigitalOcean](docs/setup-guide.md#console-deployment-easiest-1).
 
 ### Amazon AWS
 
@@ -68,7 +68,7 @@ Details: [setup guide, DigitalOcean](docs/setup-guide.md#without-terraform).
    first setting line.**
 4. Launch the instance, then open its public IPv4 address (with `http://`) in your browser.
 
-Details: [setup guide, AWS console](docs/setup-guide.md#without-terraform-aws-console).
+Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easiest).
 
 ## Once your site is running
 
@@ -98,7 +98,7 @@ terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub' -var 'admin_pas
 ```
 
 See the variables at the top of each `main.tf` for region, size, domain and versions, and the
-[setup guide](docs/setup-guide.md#option-b-amazon-aws) for account setup. Pass the same `-var` options to
+[setup guide](docs/setup-guide.md#terraform-deployment-automated-more-technical) for account setup. Pass the same `-var` options to
 `terraform destroy`, or put them in `terraform.tfvars`. If Terraform fails with
 `lookup sts.<region>.amazonaws.com: no such host` on a Mac, turn off iCloud Private Relay and retry.
 

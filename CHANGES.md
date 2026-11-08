@@ -8,6 +8,8 @@
 - README and setup guide: which provider to choose. Linode has the simplest
   setup and among the lowest prices; DigitalOcean costs about the same; AWS
   takes the most steps and costs more for a small site.
+- Setup guide: for AWS and DigitalOcean, "Console deployment (easiest)" now
+  comes before "Terraform deployment (automated, more technical)".
   [tkimnguyen]
 
 

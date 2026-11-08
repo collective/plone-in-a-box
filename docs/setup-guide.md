@@ -64,9 +64,39 @@ If the page says **"Setup didn't finish"**, see [Troubleshooting](#troubleshooti
 
 ## Option B: Amazon AWS
 
-Use Terraform, or the AWS console with no command line ([Without Terraform](#without-terraform-aws-console)).
+Use the AWS console, with no command line ([Console deployment](#console-deployment-easiest)), or Terraform
+([Terraform deployment](#terraform-deployment-automated-more-technical)).
 
-### One-time setup (Terraform)
+### Console deployment (easiest)
+
+No command line is needed if you choose the admin password here. In the AWS console, pick a region, then
+**EC2 → Launch instance**:
+
+1. **Name**: for example `plone-in-a-box`.
+2. **Application and OS Images**: **Ubuntu**, then **Ubuntu Server 24.04 LTS** (64-bit x86, or 64-bit Arm with a
+   `t4g` instance type).
+3. **Instance type**: `t3.small` (2 GB) or larger.
+4. **Key pair**: choose or create one, so you can also log in with SSH.
+5. **Network settings**: keep **Create security group**, allow **SSH traffic** from **Anywhere** (needed for the
+   browser console in step 9; choose **My IP** if you'll only use SSH), and check **Allow HTTPS traffic from the
+   internet** and **Allow HTTP traffic from the internet**.
+6. **Configure storage**: change the default 8 GiB to **20 GiB** (gp3). 8 GiB is too small for the Docker images.
+7. **Advanced details → User data**: paste the contents of
+   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh). **Set the admin password on
+   the first setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone and versions.
+   Keep each value inside its single quotes.
+8. **Launch instance**. Open the instance's **Public IPv4 address** (use `http://`) to watch the setup progress
+   page, which turns into your Plone site when it's ready.
+9. Forgot to set the password? You still don't need SSH: select the instance, choose **Connect → EC2 Instance
+   Connect** (user `ubuntu`), and run `sudo cat /root/plone-credentials.txt` to read the generated one, or
+   `sudo plone-reset-admin-password` to choose a new one.
+
+The public address changes if you stop and start the instance. Before pointing a domain at it, give it a fixed
+address: **EC2 → Elastic IPs → Allocate**, then **Associate** it with the instance.
+
+### Terraform deployment (automated, more technical)
+
+#### One-time setup
 
 1. Install Terraform and the AWS CLI. On a Mac:
    ```
@@ -82,7 +112,7 @@ Use Terraform, or the AWS console with no command line ([Without Terraform](#wit
 3. Run `aws configure`, paste the keys, and set the region (for example `us-east-1`). Check it with
    `aws sts get-caller-identity`.
 
-### Deploy with Terraform
+#### Deploy
 
 ```
 git clone https://github.com/tkimnguyen/plone-in-a-box
@@ -116,38 +146,32 @@ ssh ubuntu@<public-ip> sudo tail -f /var/log/plone-in-a-box.log
 It's done when you see `[plone-in-a-box] Finished.` Continue with [After provisioning](#after-provisioning) using
 `ssh ubuntu@<public-ip>` and `sudo`.
 
-### Without Terraform (AWS console)
-
-No command line is needed if you choose the admin password here. In the AWS console, pick a region, then
-**EC2 → Launch instance**:
-
-1. **Name**: for example `plone-in-a-box`.
-2. **Application and OS Images**: **Ubuntu**, then **Ubuntu Server 24.04 LTS** (64-bit x86, or 64-bit Arm with a
-   `t4g` instance type).
-3. **Instance type**: `t3.small` (2 GB) or larger.
-4. **Key pair**: choose or create one, so you can also log in with SSH.
-5. **Network settings**: keep **Create security group**, allow **SSH traffic** from **Anywhere** (needed for the
-   browser console in step 9; choose **My IP** if you'll only use SSH), and check **Allow HTTPS traffic from the
-   internet** and **Allow HTTP traffic from the internet**.
-6. **Configure storage**: change the default 8 GiB to **20 GiB** (gp3). 8 GiB is too small for the Docker images.
-7. **Advanced details → User data**: paste the contents of
-   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh). **Set the admin password on
-   the first setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone and versions.
-   Keep each value inside its single quotes.
-8. **Launch instance**. Open the instance's **Public IPv4 address** (use `http://`) to watch the setup progress
-   page, which turns into your Plone site when it's ready.
-9. Forgot to set the password? You still don't need SSH: select the instance, choose **Connect → EC2 Instance
-   Connect** (user `ubuntu`), and run `sudo cat /root/plone-credentials.txt` to read the generated one, or
-   `sudo plone-reset-admin-password` to choose a new one.
-
-The public address changes if you stop and start the instance. Before pointing a domain at it, give it a fixed
-address: **EC2 → Elastic IPs → Allocate**, then **Associate** it with the instance.
-
 ## Option C: DigitalOcean
 
-### With Terraform
+Use the DigitalOcean control panel, with no command line ([Console deployment](#console-deployment-easiest-1)), or
+Terraform ([Terraform deployment](#terraform-deployment-automated-more-technical-1)).
 
-1. Install Terraform (see Option B) and create an API token: in the DigitalOcean control panel, go to **API →
+### Console deployment (easiest)
+
+No command line is needed if you choose the admin password here.
+
+1. **Create → Droplets**, choose **Ubuntu 24.04 (LTS) x64**, a 1 GB or larger size, and your SSH key.
+2. Under **Additional Options**, choose **Startup scripts (free)** and paste into **Enter your scripts or data** the contents of
+   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh).
+   **Set the admin password on the first setting line**, then the optional domain and Let's Encrypt email (for
+   HTTPS), time zone and versions. Keep each value inside its single quotes. This short script downloads the full provisioning script
+   from a fixed Plone in a Box release and runs it.
+3. Create the Droplet. If you add a Cloud Firewall, allow inbound TCP 22, 80 and 443. (The server's own firewall
+   allows only those ports either way.)
+4. Open the Droplet's address to watch the setup progress page, which turns into your Plone site when it's ready.
+
+Forgot to set the password? You still don't need SSH: open the Droplet in the control panel, choose **Access →
+Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the generated one, or
+`plone-reset-admin-password` to choose a new one.
+
+### Terraform deployment (automated, more technical)
+
+1. Install Terraform (see [One-time setup](#one-time-setup) under AWS) and create an API token: in the DigitalOcean control panel, go to **API →
    Tokens → Generate New Token**, give it **Full Access** (custom scopes need, at least, create/read/delete for droplets, SSH keys, firewalls and tags),
    and copy it. It's shown only once.
 2. Deploy:
@@ -168,24 +192,6 @@ address: **EC2 → Elastic IPs → Allocate**, then **Associate** it with the in
 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
 /var/log/plone-in-a-box.log`), then continue with [After provisioning](#after-provisioning).
-
-### Without Terraform
-
-No command line is needed if you choose the admin password here.
-
-1. **Create → Droplets**, choose **Ubuntu 24.04 (LTS) x64**, a 1 GB or larger size, and your SSH key.
-2. Under **Additional Options**, choose **Startup scripts (free)** and paste into **Enter your scripts or data** the contents of
-   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh).
-   **Set the admin password on the first setting line**, then the optional domain and Let's Encrypt email (for
-   HTTPS), time zone and versions. Keep each value inside its single quotes. This short script downloads the full provisioning script
-   from a fixed Plone in a Box release and runs it.
-3. Create the Droplet. If you add a Cloud Firewall, allow inbound TCP 22, 80 and 443. (The server's own firewall
-   allows only those ports either way.)
-4. Open the Droplet's address to watch the setup progress page, which turns into your Plone site when it's ready.
-
-Forgot to set the password? You still don't need SSH: open the Droplet in the control panel, choose **Access →
-Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the generated one, or
-`plone-reset-admin-password` to choose a new one.
 
 ## After provisioning
 
