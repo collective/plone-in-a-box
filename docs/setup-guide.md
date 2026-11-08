@@ -211,6 +211,18 @@ To move to a newer Plone or Volto release, change `PLONE_VERSION` / `VOLTO_VERSI
 run `pull` and `up -d`. Read the Plone upgrade notes first, and take a backup. Don't change `POSTGRES_VERSION` on an
 existing server: a new PostgreSQL major version can't read the old data directory without a migration.
 
+**Ubuntu updates**: setup installs all updates and restarts the server once if they need it. Ubuntu then installs
+security updates automatically, but never restarts by itself. Every month or so, and whenever the login message
+says `*** System restart required ***`, run:
+
+```
+sudo apt update && sudo apt full-upgrade -y
+sudo reboot
+```
+
+Plone starts again by itself; the site is down for a minute or two. Don't run `do-release-upgrade` to move to a new
+Ubuntu release: deploy a new server instead.
+
 **Backups**: turn on your provider's server backups (Linode Backups, or EBS snapshots on AWS), and/or dump the
 database regularly:
 

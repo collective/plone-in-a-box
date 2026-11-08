@@ -1,25 +1,26 @@
 # TODO
 
-## Finish OS updates during setup
+## Automated test deploys
 
-New servers come up with Ubuntu updates still pending and "System restart required" on the login banner.
+Let test deploys run without manual steps in Cloud Manager and the DigitalOcean control panel: create the test
+server, watch the progress page, run the checks over SSH, reboot, check again, and delete it.
 
-- [ ] `src/StackScript`: use `apt-get full-upgrade` instead of `apt-get upgrade`, so updates that need new
-  packages (such as a new kernel) are installed too.
-- [ ] At the end of setup, reboot once if `/var/run/reboot-required` exists. The containers restart on their own;
-  make sure the progress page and the console login banner still make sense around the reboot.
-- [ ] Setup guide: tell people to run `sudo apt update && sudo apt full-upgrade -y` and `sudo reboot` now and
-  then (the site is down for a minute or two), and not to run `do-release-upgrade`.
-
-## Enough swap on 1 GB Linodes
-
-`src/StackScript` adds a 2 GB swap file only when the server has no swap at all. Linode servers come with a 512 MB
-swap disk, so a 1 GB Linode never gets the swap file: in testing (Plone 6.2 / Volto 19, idle) it had about 424 MB of
-RAM and 206 MB of swap free, versus about 2.1 GB of headroom on a 1 GB DigitalOcean Droplet with the swap file.
-
-- [ ] Add the swap file whenever RAM plus existing swap is under about 3 GB, not only when there's no swap.
-- [ ] Test on a 1 GB Linode (Nanode) and check `free -m` shows the extra swap; then the docs could say 1 GB works
-  on Linode too.
+- [ ] **Tokens**, stored in the macOS Keychain (never pasted into chats or committed):
+  - Linode personal access token `claude-code-testing`, 1-month expiry, scopes Linodes Read/Write,
+    StackScripts Read/Write, Events Read Only, everything else No Access. Created in the account that owns the
+    private `plone-in-a-box-test` StackScript. Keychain: `security add-generic-password -a "$USER" -s piab-linode-token -w`
+  - DigitalOcean token, 30-day expiry, custom scopes `droplet` create/read/delete, `ssh_key` create/read,
+    `tag` create/read. Keychain: `security add-generic-password -a "$USER" -s piab-do-token -w`
+- [ ] A dedicated SSH key for test servers only (`~/.ssh/piab_test_ed25519`).
+- [ ] Safeguards: name and tag every test server `piab-test-…` and only ever touch servers with that tag. Neither
+  provider can limit a token to particular servers, so consider a separate test account (or a DigitalOcean team)
+  with no production servers in it.
+- [ ] Claude Code permission rules for `api.linode.com` and `api.digitalocean.com` if the permission check blocks
+  creating or deleting test servers.
+- [ ] Optionally, turn the steps into a script in the repo (for example `scripts/test-deploy.sh linode|digitalocean
+  <branch>`) that runs the checks from RELEASING.md, so anyone can repeat them.
+- [ ] Delete or let the tokens expire when not in use; remove the Keychain entries with
+  `security delete-generic-password -s piab-linode-token` (and `piab-do-token`).
 
 ## Move to Ubuntu 26.04 LTS
 
