@@ -7,6 +7,23 @@ What you get: one Ubuntu 24.04 server running Plone 6.2 (backend), Volto 19 (the
 Docker, behind nginx. Only SSH (22), HTTP (80) and HTTPS (443) are open to the internet. You choose the Plone `admin`
 password when deploying, or one is generated for you; there is no `admin`/`admin` login.
 
+## Choosing a provider
+
+Plone in a Box works the same on all three; the differences are in how you set it up and what it costs.
+
+| | Linode (Akamai) | DigitalOcean | Amazon AWS |
+|---|---|---|---|
+| Setting it up | Easiest: a form with labelled fields for the password, domain and versions | Paste the launcher script and set the password in it | The most steps: disk size, network settings, then paste the launcher script |
+| Smallest server for a small site | 1 GB (Nanode) | 1 GB Droplet | `t3.small` (2 GB) |
+| Monthly cost of that server | Among the lowest | About the same as Linode | Noticeably higher |
+| Address for a domain name | Fixed | Fixed | Changes if the server is stopped, unless you add an Elastic IP |
+| Browser console for the password | LISH Console | Droplet Console | EC2 Instance Connect |
+| Pricing | [linode.com/pricing](https://www.linode.com/pricing/) | [digitalocean.com/pricing](https://www.digitalocean.com/pricing) | [aws.amazon.com/ec2/pricing](https://aws.amazon.com/ec2/pricing/) |
+
+If you don't already use one of them, choose Linode. Choose DigitalOcean or AWS if you, or your organization,
+already has an account and billing set up there. All three offer automatic server backups for an extra charge; see
+**Backups** under [Day-to-day administration](#day-to-day-administration).
+
 ## Before you start
 
 * **An SSH key.** On a Mac or Linux, check with `ls ~/.ssh/*.pub`. If nothing is listed, create one with
@@ -224,7 +241,7 @@ sudo reboot
 Plone starts again by itself; the site is down for a minute or two. Don't run `do-release-upgrade` to move to a new
 Ubuntu release: deploy a new server instead.
 
-**Backups**: turn on your provider's server backups (Linode Backups, or EBS snapshots on AWS), and/or dump the
+**Backups**: turn on your provider's server backups (Linode Backups, DigitalOcean Backups, or EBS snapshots on AWS), and/or dump the
 database regularly:
 
 ```

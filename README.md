@@ -21,8 +21,14 @@ with Volto `18`.
 
 ## Get started
 
-Pick a cloud provider. You'll need an account with them and a way to pay; a small site costs a few dollars a month on
-Linode and DigitalOcean, and more on AWS.
+Pick a cloud provider. You'll need an account with them and a way to pay.
+
+**Which one?** If you don't already use one of these, choose **Linode**: it has the simplest setup (a form with
+labelled fields, nothing to paste) and among the lowest prices for a small site. Choose **DigitalOcean** if you
+already have an account there; it costs about the same. Choose **AWS** if your organization already runs things
+there; it takes the most steps, and a small site costs noticeably more. The setup guide
+[compares them](docs/setup-guide.md#choosing-a-provider).
+
 A 1 GB server is enough for a small site on Linode and DigitalOcean (choose 2 GB or more for a busier one); on AWS,
 use at least `t3.small` (2 GB).
 
