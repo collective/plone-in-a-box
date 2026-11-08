@@ -1,16 +1,108 @@
 # Plone in a Box™
-An easy way to deploy a cloud server running Plone 6 with the Volto React front end.
 
-Each box is a single Ubuntu 24.04 server running the official Plone Docker images
-(backend, Volto frontend and PostgreSQL) behind nginx, with:
+Your own [Plone 6](https://plone.org) website on a cloud server, without needing a command line.
 
-* an admin password you choose when deploying, or a randomly generated one (no `admin:admin`)
-* only SSH, HTTP and HTTPS reachable from the internet; Plone, Volto and PostgreSQL listen on localhost only
+Plone in a Box is for people who want a Plone site of their own but aren't system administrators. You fill in a
+form on your cloud provider's website (Linode, DigitalOcean or Amazon AWS), choose an admin password, and click
+Create. About 10 minutes later, the server's address shows your new Plone site, ready to log in and edit. There's
+nothing to install on your computer.
+
+Behind the scenes, each box is a single Ubuntu 24.04 server running the official Plone Docker images (the Plone
+backend, the Volto front end and PostgreSQL) behind nginx, with:
+
+* the admin password you choose when creating the server, or a randomly generated one (never `admin:admin`)
+* a page that shows setup progress while you wait, and turns into your site when it's ready
+* only the website (HTTP and HTTPS) and SSH reachable from the internet
 * optional HTTPS from Let's Encrypt when you give it a domain name
-* swap added automatically on small servers
+* all Ubuntu updates installed during setup, and swap added on small servers
 
-Default versions: Plone 6.2 with Volto 19. Both are configurable; for the previous release line, use Plone
-`6.1` with Volto `18`.
+Default versions: Plone 6.2 with Volto 19. Both are configurable; for the previous release line, use Plone `6.1`
+with Volto `18`.
+
+## Get started
+
+Pick a cloud provider. You'll need an account with them and a way to pay; a small site costs a few dollars a month on
+Linode and DigitalOcean, and more on AWS.
+A 1 GB server is enough for a small site on Linode and DigitalOcean (choose 2 GB or more for a busier one); on AWS,
+use at least `t3.small` (2 GB).
+
+The [setup guide](docs/setup-guide.md) has step-by-step instructions for each provider.
+
+### Linode (Akamai)
+
+1. In [Cloud Manager](https://cloud.linode.com), open **StackScripts → Community StackScripts**, search for
+   **Plone in a Box**, and click **Deploy New Linode**.
+2. Fill in the form. Set the **Plone admin password** (at least 12 characters); the domain name, time zone and
+   versions are optional.
+3. Choose **Ubuntu 24.04 LTS**, a region and a plan (a 1 GB Nanode is enough for a small site), set a root password,
+   and pick **No firewall** if Cloud Manager asks for one (the server has its own).
+4. Click **Create Linode**, then open the Linode's IP address in your browser.
+
+Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
+
+### DigitalOcean
+
+1. Open the launcher script, [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh),
+   and copy all of it.
+2. In the DigitalOcean control panel, **Create → Droplets**: choose **Ubuntu 24.04 (LTS) x64** and a size (1 GB is
+   enough for a small site).
+3. Under **Additional Options**, choose **Startup scripts (free)** and paste the launcher into the box.
+   **Set the admin password between the quotes on its first setting line.**
+4. Create the Droplet, then open its IP address in your browser.
+
+Details: [setup guide, DigitalOcean](docs/setup-guide.md#without-terraform).
+
+### Amazon AWS
+
+1. Open the launcher script, [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh),
+   and copy all of it.
+2. In the AWS console, **EC2 → Launch instance**: choose **Ubuntu Server 24.04 LTS** and `t3.small`, allow HTTP and
+   HTTPS traffic in **Network settings**, and change the disk to 20 GiB.
+3. Under **Advanced details → User data**, paste the launcher. **Set the admin password between the quotes on its
+   first setting line.**
+4. Launch the instance, then open its public IPv4 address (with `http://`) in your browser.
+
+Details: [setup guide, AWS console](docs/setup-guide.md#without-terraform-aws-console).
+
+## Once your site is running
+
+* **Log in** as `admin` with the password you chose. For everyday editing, create personal accounts in
+  **Site Setup → Users and Groups**.
+* **Forgot the password, or didn't set one?** Your provider has a console that runs in the browser: Linode's
+  **Launch LISH Console**, DigitalOcean's **Access → Launch Droplet Console**, or AWS's **Connect → EC2 Instance
+  Connect**. Open it and type one command: `sudo cat /root/plone-credentials.txt` shows a generated password, and
+  `sudo plone-reset-admin-password` sets a new one.
+* **Using your own domain name:** point the domain at the server's address before creating it, and fill in the
+  domain and email settings to get HTTPS automatically. Adding a domain to an existing server takes a few commands;
+  see [Adding HTTPS later](docs/setup-guide.md#adding-https-later).
+* **Removing the site:** delete the server in your provider's control panel. This deletes the site's content too.
+
+The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
+
+## For developers and system administrators
+
+AWS and DigitalOcean can also be set up with Terraform from [`src/aws/`](src/aws/main.tf) and
+[`src/digitalocean/`](src/digitalocean/main.tf). Both run the same provisioning script as the console routes,
+[`src/StackScript`](src/StackScript), which is also the Linode StackScript.
+
+```
+cd src/aws            # or src/digitalocean, with DIGITALOCEAN_TOKEN set
+terraform init
+terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub' -var 'admin_password=...'
+```
+
+See the variables at the top of each `main.tf` for region, size, domain and versions, and the
+[setup guide](docs/setup-guide.md#option-b-amazon-aws) for account setup. Pass the same `-var` options to
+`terraform destroy`, or put them in `terraform.tfvars`. If Terraform fails with
+`lookup sts.<region>.amazonaws.com: no such host` on a Mac, turn off iCloud Private Relay and retry.
+
+On the server (`ssh root@<server>`, or `ubuntu@<server>` and `sudo -i` on AWS):
+
+* setup is logged to `/var/log/plone-in-a-box.log`, and a generated admin password is saved in
+  `/root/plone-credentials.txt`
+* the stack lives in `/opt/plone`; manage it with
+  `docker compose --project-directory /opt/plone ps|logs|pull|up -d`
+* to add a domain later, point its DNS at the server and run `certbot --nginx -d <domain>`
 
 ## Releases
 
@@ -19,86 +111,8 @@ which is mirrored to [collective/plone-in-a-box](https://github.com/collective/p
 Release notes are on the [Releases page](https://github.com/tkimnguyen/plone-in-a-box/releases), and
 [CHANGES.md](CHANGES.md) lists the changes in every version. Both repositories have the same version tags.
 
-## Supported cloud providers
-
-* **Linode**: [`src/StackScript`](src/StackScript), published as the Community StackScript **Plone in a Box**
-* **Amazon AWS**: [`src/aws/`](src/aws/main.tf) (Terraform), or [`src/user-data.sh`](src/user-data.sh) pasted into the EC2 console's **User data** box; both run the same script
-* **DigitalOcean**: [`src/digitalocean/`](src/digitalocean/main.tf) (Terraform), or [`src/user-data.sh`](src/user-data.sh) pasted into the Droplet's **Startup scripts** box; both run the same script
-
-On Linode and DigitalOcean, a 1 GB server (a Nanode, or the `s-1vcpu-1gb` Droplet) is enough for a small site;
-choose 2 GB or more for a busier one. On AWS, use at least `t3.small` (2 GB).
-
-**Step-by-step instructions: [docs/setup-guide.md](docs/setup-guide.md)**, including AWS account setup, backups,
-upgrades and troubleshooting.
-
-### Linode
-
-In Cloud Manager, search Community StackScripts for **Plone in a Box** and deploy a new Linode from it, choosing Ubuntu 24.04 and adding your SSH key. Optional fields let you
-set the admin password, a domain name (for HTTPS), the site time zone, and the Plone/Volto versions. If you set the
-admin password, no command line is needed: open the server's address right away to watch a setup progress page,
-which turns into your Plone site when it's ready (about 10 minutes). Log in as `admin`. To reset the admin password
-later, run `sudo plone-reset-admin-password` on the server.
-
-Cloud Manager requires choosing a firewall: pick **No firewall** if offered, or a Cloud Firewall that allows inbound TCP 22, 80 and 443; a firewall with no inbound rules blocks SSH and the
-site. The server also runs its own firewall (ufw) that allows only those ports.
-
-### AWS
-
-```
-cd src/aws
-terraform init
-terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
-```
-
-See the variables at the top of `src/aws/main.tf` for region, instance type, domain and versions. Open the printed
-`site_url` to watch setup progress; it's also logged to `/var/log/plone-in-a-box.log`.
-
-Pass the same `-var` options to `terraform destroy` when you remove the box, or put them in `src/aws/terraform.tfvars`
-(for example `ssh_public_key_path = "~/.ssh/id_rsa.pub"`) so both commands pick them up.
-
-If Terraform fails with `lookup sts.<region>.amazonaws.com: no such host` on a Mac, turn off iCloud Private Relay and retry.
-
-Without Terraform or a command line: in the AWS console, **EC2 → Launch instance** with **Ubuntu Server 24.04 LTS**,
-`t3.small`, a 20 GiB disk, and HTTP and HTTPS allowed in **Network settings**. Paste
-[`src/user-data.sh`](src/user-data.sh) into **Advanced details → User data**, set the admin password on its first
-setting line, and launch. Then open the instance's public address to watch the setup progress page. If you forget
-the password, use **Connect → EC2 Instance Connect** and run `sudo cat /root/plone-credentials.txt` (or
-`sudo plone-reset-admin-password`). Step-by-step: [setup guide](docs/setup-guide.md#without-terraform-aws-console).
-
-### DigitalOcean
-
-Create an API token (DigitalOcean **API → Generate New Token**, with **Full Access**), then:
-
-```
-export DIGITALOCEAN_TOKEN=<your token>
-cd src/digitalocean
-terraform init
-terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
-```
-
-If your SSH key is already in your DigitalOcean account, pass `-var 'ssh_key_fingerprint=<fingerprint>'` instead.
-The Droplet gets a DigitalOcean Cloud Firewall allowing only ports 22, 80 and 443.
-
-Without Terraform or a command line: when creating an Ubuntu 24.04 Droplet in the control panel, paste
-[`src/user-data.sh`](src/user-data.sh) into **Additional Options → Startup scripts
-(free)**. Set the admin password on its first setting line, and optionally the domain, time zone and versions.
-Then open the Droplet's address to watch the setup progress page. If you forget the password, open **Access →
-Launch Droplet Console** and run `cat /root/plone-credentials.txt` (or `plone-reset-admin-password`).
-
-### After provisioning
-
-If you left the admin password empty, read the generated one:
-
-```
-ssh root@<server>          # or ubuntu@<server> on AWS, then sudo -i
-cat /root/plone-credentials.txt
-```
-
-Open the site URL, log in as `admin`, store the password in a password manager and delete the credentials file.
-With Terraform, pass `-var 'admin_password=...'` (or set it in `terraform.tfvars`) to choose it yourself. The stack lives in `/opt/plone`; manage it with
-`docker compose --project-directory /opt/plone ps|logs|pull|up -d`.
-
-If you add a domain later, point its DNS at the server and run `certbot --nginx -d <domain>`.
+Maintainers: see [RELEASING.md](RELEASING.md) for testing (including automated test deploys), releasing and syncing
+to `collective/plone-in-a-box`.
 
 ## Background
 
@@ -109,5 +123,3 @@ setup steps still apply, but the port 8080 and `admin`/`admin` instructions no l
 See the accompanying [2020 Plone Conference](https://2020.ploneconf.org) presentation, Your Plone [Intranet] in a Box™:
 * [presentation description](https://2020.ploneconf.org/talks/your-plone-intranet-in-a-boxtm/view)
 * [slides](https://www2.slideshare.net/tkimnguyen/your-plone-intranet-in-a-box)
-
-Maintainers: see [RELEASING.md](RELEASING.md) for testing, releasing and syncing to `collective/plone-in-a-box`.

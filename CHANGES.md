@@ -1,3 +1,13 @@
+2.6 (unreleased)
+----------------
+
+- README: lead with the no-command-line route for each provider (Linode's
+  StackScript form, the launcher pasted on DigitalOcean and AWS) and the
+  browser consoles, and move Terraform and server administration into a
+  section for developers and system administrators.
+  [tkimnguyen]
+
+
 2.5 (2026-11-08)
 ----------------
 
