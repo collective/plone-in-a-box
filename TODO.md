@@ -73,7 +73,7 @@ still deploy with no build step. Add optional settings for people who need more:
 
 ### Why not switch the whole project to cookieplone
 
-A cookieplone project has to be built. Building Volto on the server needs more memory than the 2 GB minimum
+A cookieplone project has to be built. Building Volto on the server needs more memory than a small box has
 and would push setup well past ~10 minutes. Building in CI means users need a GitHub account, a container
 registry and credentials before deploying, which breaks the no-command-line Linode flow. It would also fix
 Plone/Volto versions when the project is generated, add template churn to maintain, and overlap the existing

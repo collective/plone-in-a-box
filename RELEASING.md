@@ -9,7 +9,7 @@ release, and the public Linode StackScript is updated by hand.
    must pass.
 2. Test the changed script before merging:
    * **Linode**: paste `src/StackScript` from the branch into the private test StackScript (`plone-in-a-box-test`,
-     Target Image Ubuntu 24.04) and deploy a 2 GB Linode from it.
+     Target Image Ubuntu 24.04) and deploy a 1 GB Linode (Nanode) from it, the smallest size the docs recommend.
    * **AWS** (if `src/aws/` or the script changed): `terraform apply` from `src/aws/` on the branch.
    * **DigitalOcean** (if `src/digitalocean/` or the script changed): `terraform apply` from `src/digitalocean/`.
    * Checks on each test server:

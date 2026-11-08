@@ -25,8 +25,8 @@ Release notes are on the [Releases page](https://github.com/tkimnguyen/plone-in-
 * **Amazon AWS**: [`src/aws/`](src/aws/main.tf) (Terraform), or [`src/user-data.sh`](src/user-data.sh) pasted into the EC2 console's **User data** box; both run the same script
 * **DigitalOcean**: [`src/digitalocean/`](src/digitalocean/main.tf) (Terraform), or [`src/user-data.sh`](src/user-data.sh) pasted into the Droplet's **Startup scripts** box; both run the same script
 
-Use a server with at least 2 GB of RAM on Linode (2 GB) and AWS (`t3.small`). On DigitalOcean, a 1 GB Droplet
-(`s-1vcpu-1gb`) is enough for a small site; choose 2 GB or more for a busier one.
+On Linode and DigitalOcean, a 1 GB server (a Nanode, or the `s-1vcpu-1gb` Droplet) is enough for a small site;
+choose 2 GB or more for a busier one. On AWS, use at least `t3.small` (2 GB).
 
 **Step-by-step instructions: [docs/setup-guide.md](docs/setup-guide.md)**, including AWS account setup, backups,
 upgrades and troubleshooting.

@@ -11,11 +11,11 @@ password when deploying, or one is generated for you; there is no `admin`/`admin
 
 * **An SSH key.** On a Mac or Linux, check with `ls ~/.ssh/*.pub`. If nothing is listed, create one with
   `ssh-keygen -t ed25519`.
-* **Server size.** Plone, Volto and PostgreSQL together need **at least 2 GB of RAM** on Linode (2 GB) and AWS
-  (`t3.small`). On DigitalOcean, a 1 GB Droplet (`s-1vcpu-1gb`) is enough for a small site. In testing with
-  Plone 6.2 and Volto 19, about 360 MB of the site's memory moved to the swap that's added automatically on
-  small servers. Editing and images worked normally, but the first page after an idle spell can be a little slower
-  while it's read back from swap. Choose 2 GB or more for a busier site.
+* **Server size.** On Linode and DigitalOcean, a 1 GB server (a Nanode, or the `s-1vcpu-1gb` Droplet) is enough
+  for a small site. On AWS, use at least `t3.small` (2 GB). On small servers, setup adds a 2 GB swap file, and in
+  testing with Plone 6.2 and Volto 19 some of the site's memory (about 150 to 350 MB) moved to it. Editing and
+  images worked normally, but the first page after an idle spell can be a little slower while it's read back from
+  swap. Choose 2 GB or more for a busier site.
 * **A domain name (optional).** For HTTPS, create a DNS `A` record pointing at the server's IP address *before*
   provisioning, or add HTTPS later (see [Adding HTTPS later](#adding-https-later)).
 
@@ -29,7 +29,8 @@ password when deploying, or one is generated for you; there is no `admin`/`admin
    * **Domain name** and **Email for Lets Encrypt**: both are needed for HTTPS.
    * **Site time zone**, for example `America/Chicago` (default `UTC`).
    * **Plone backend image tag** and **Volto frontend image tag** (defaults `6.2` and `19`).
-4. Choose **Ubuntu 24.04 LTS** as the image, a region, and a **2 GB** (or larger) plan.
+4. Choose **Ubuntu 24.04 LTS** as the image, a region, and a plan: a 1 GB **Nanode** is enough for a small site,
+   2 GB or more for a busier one.
 5. Set a root password, add your **SSH key**, and click **Create Linode**.
 
 Cloud Manager asks you to choose a **Public Interface Firewall**. Pick **No firewall** if it's offered (the server runs
