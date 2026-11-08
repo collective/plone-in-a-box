@@ -22,7 +22,38 @@ release, and the public Linode StackScript is updated by hand.
      * after `docker compose --project-directory /opt/plone up -d --force-recreate backend`, the same password
        still works
    * Delete the test servers afterwards (`terraform destroy` with the same `-var` options).
+   * Or let `scripts/test-deploy.sh linode --ref <branch>` (or `digitalocean` or `aws`) do the test: it creates a
+     server (1 GB on Linode and DigitalOcean, `t3.small` on AWS) with the launcher or StackScript from the branch,
+     runs these checks plus a restart, and deletes the server (about 15 minutes). Add
+     `--generated-password` for the generated-password check. `scripts/test-deploy.sh cleanup linode` deletes any
+     test servers left behind. See [Automated test deploys](#automated-test-deploys) for the one-time setup.
 3. Merge the pull request.
+
+### Automated test deploys
+
+One-time setup for `scripts/test-deploy.sh`:
+
+* **SSH key** for test servers only: `ssh-keygen -t ed25519 -f ~/.ssh/piab_test_ed25519 -C piab-test -N ''`
+* **Linode**: in the tknguyen2 account, the restricted user `piab-test` (Identity & Access) has only the roles
+  `account_linode_creator`, `account_stackscript_creator` and the default viewer roles, so it can create servers
+  but can't touch existing Linodes or the public StackScript. As `piab-test`:
+  * a private StackScript `plone-in-a-box-test` (Target Images: Ubuntu 24.04); the script overwrites it each run
+  * a personal access token (Linodes Read/Write, StackScripts Read/Write, Events Read Only, 1-month expiry),
+    stored with `security add-generic-password -a "$USER" -s piab-linode-token -w`
+* **DigitalOcean**: a token with custom scopes `droplet` create/read/delete, `ssh_key` create/read and `tag`
+  create/read (30-day expiry), stored with `security add-generic-password -a "$USER" -s piab-do-token -w`. The
+  first run adds the SSH key to the account as `piab-test`.
+* **AWS**: install the AWS CLI (`brew install awscli`). In IAM, create a user `piab-test` with no console access
+  and one inline policy, the contents of [`scripts/aws-test-policy.json`](scripts/aws-test-policy.json): it can
+  launch, restart and terminate only instances tagged `piab-test`, and create only the `piab-test` key pair and
+  security group. Create an access key for it (use case: Command Line Interface) and store both parts:
+  `security add-generic-password -a "$USER" -s piab-aws-access-key-id -w` and
+  `security add-generic-password -a "$USER" -s piab-aws-secret-access-key -w`. Tests run in `us-east-1` unless
+  `PIAB_TEST_REGION` is set; the first run in a region adds the key pair and the security group there.
+
+Tokens stay in the macOS Keychain; never paste them into chats or commit them. Remove one with
+`security delete-generic-password -s piab-linode-token` (or `piab-do-token`, or the two AWS entries). Deactivate
+the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 
 ## 2. Release
 
