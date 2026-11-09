@@ -7,7 +7,7 @@ form on your cloud provider's website (Linode, DigitalOcean or Amazon AWS), choo
 Create. About 10 minutes later, the server's address shows your new Plone site, ready to log in and edit. There's
 nothing to install on your computer.
 
-Behind the scenes, each box is a single Ubuntu 24.04 server running the official Plone Docker images (the Plone
+Behind the scenes, each box is a single Ubuntu 26.04 LTS server running the official Plone Docker images (the Plone
 backend, the Volto front end and PostgreSQL) behind nginx, with:
 
 * the admin password you choose when creating the server, or a randomly generated one (never `admin:admin`)
@@ -40,8 +40,8 @@ The [setup guide](docs/setup-guide.md) has step-by-step instructions for each pr
    **Plone in a Box**, and click **Deploy New Linode**.
 2. Fill in the form. Set the **Plone admin password** (at least 12 characters); the domain name, time zone and
    versions are optional.
-3. Choose **Ubuntu 24.04 LTS**, a region and a plan (a 1 GB Nanode is enough for a small site), set a root password,
-   and pick **No firewall** if Cloud Manager asks for one (the server has its own).
+3. Choose **Ubuntu 26.04 LTS** (24.04 also works), a region and a plan (a 1 GB Nanode is enough for a small
+   site), set a root password, and pick **No firewall** if Cloud Manager asks for one (the server has its own).
 4. Click **Create Linode**, then open the Linode's IP address in your browser.
 
 Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
@@ -50,7 +50,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
 
 1. Open the launcher script, [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh),
    and copy all of it.
-2. In the DigitalOcean control panel, **Create → Droplets**: choose **Ubuntu 24.04 (LTS) x64** and a size (1 GB is
+2. In the DigitalOcean control panel, **Create → Droplets**: choose **Ubuntu 26.04 (LTS) x64** and a size (1 GB is
    enough for a small site).
 3. Under **Additional Options**, choose **Startup scripts (free)** and paste the launcher into the box.
    **Set the admin password between the quotes on its first setting line.**

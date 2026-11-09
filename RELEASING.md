@@ -9,7 +9,7 @@ release, and the public Linode StackScript is updated by hand.
    `cfn-lint`) must pass.
 2. Test the changed script before merging:
    * **Linode**: paste `src/StackScript` from the branch into the private test StackScript (`plone-in-a-box-test`,
-     Target Image Ubuntu 24.04) and deploy a 1 GB Linode (Nanode) from it, the smallest size the docs recommend.
+     Target Images Ubuntu 24.04 and 26.04) and deploy a 1 GB Linode (Nanode) from it, the smallest size the docs recommend.
    * **AWS** (if `src/aws/` or the script changed): `terraform apply` from `src/aws/` on the branch.
    * **DigitalOcean** (if `src/digitalocean/` or the script changed): `terraform apply` from `src/digitalocean/`.
    * **AWS Launch Stack** (if `src/aws/cloudformation.yaml` changed): in the CloudFormation console, **Create stack →
@@ -40,7 +40,7 @@ One-time setup for `scripts/test-deploy.sh`:
 * **Linode**: in the tknguyen2 account, the restricted user `piab-test` (Identity & Access) has only the roles
   `account_linode_creator`, `account_stackscript_creator` and the default viewer roles, so it can create servers
   but can't touch existing Linodes or the public StackScript. As `piab-test`:
-  * a private StackScript `plone-in-a-box-test` (Target Images: Ubuntu 24.04); the script overwrites it each run
+  * a private StackScript `plone-in-a-box-test` (Target Images: Ubuntu 24.04 and 26.04); the script overwrites it each run
   * a personal access token (Linodes Read/Write, StackScripts Read/Write, Events Read Only, 1-month expiry),
     stored with `security add-generic-password -a "$USER" -s piab-linode-token -w`
 * **DigitalOcean**: a token with custom scopes `droplet` create/read/delete, `ssh_key` create/read and `tag`

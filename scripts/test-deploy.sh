@@ -24,7 +24,8 @@
 # (piab-aws-access-key-id and piab-aws-secret-access-key), or from the usual
 # AWS_PROFILE / AWS_ACCESS_KEY_ID settings. The test servers get the SSH key
 # ~/.ssh/piab_test_ed25519 (or PIAB_TEST_SSH_KEY). Optional: PIAB_TEST_REGION,
-# PIAB_LINODE_FIREWALL_ID, PIAB_AWS_INSTANCE_TYPE (default t3.small).
+# PIAB_LINODE_FIREWALL_ID, PIAB_AWS_INSTANCE_TYPE (default t3.small),
+# PIAB_TEST_UBUNTU (Ubuntu release: 26.04, the default, or 24.04).
 #
 # Linode deploys use the private StackScript "plone-in-a-box-test", which this
 # script overwrites with src/StackScript from REF. DigitalOcean and AWS deploys
@@ -36,6 +37,12 @@
 set -euo pipefail
 
 TAG=piab-test
+UBUNTU=${PIAB_TEST_UBUNTU:-26.04}
+case "$UBUNTU" in
+  24.04) UBUNTU_CODENAME=noble ;;
+  26.04) UBUNTU_CODENAME=resolute ;;
+  *) echo "error: PIAB_TEST_UBUNTU must be 24.04 or 26.04" >&2; exit 1 ;;
+esac
 LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
@@ -181,7 +188,7 @@ NAME="$TAG-$PROVIDER-$(date +%Y%m%d-%H%M%S)"
 ADMIN_PASSWORD=""
 (( GENERATED )) || ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
 
-say "Testing $REF ($(git rev-parse --short "$SHA")) on $PROVIDER as $NAME"
+say "Testing $REF ($(git rev-parse --short "$SHA")) on $PROVIDER, Ubuntu $UBUNTU, as $NAME"
 say "Notes, passwords and logs: $WORK"
 {
   echo "ref=$REF sha=$SHA name=$NAME"
@@ -222,12 +229,13 @@ if [[ "$PROVIDER" == linode ]]; then
   [[ -n "$STACKSCRIPT_ID" ]] || die "no StackScript named $LINODE_STACKSCRIPT_LABEL in this Linode account"
   say "Updating StackScript $LINODE_STACKSCRIPT_LABEL ($STACKSCRIPT_ID) to src/StackScript from $REF"
   api PUT "/linode/stackscripts/$STACKSCRIPT_ID" "$(git show "$SHA:src/StackScript" | jq -Rs \
-      --arg note "Test $REF ($(git rev-parse --short "$SHA"))" '{script: ., rev_note: $note}')" >/dev/null
+      --arg note "Test $REF ($(git rev-parse --short "$SHA"))" \
+      '{script: ., rev_note: $note, images: ["linode/ubuntu24.04", "linode/ubuntu26.04"]}')" >/dev/null
   ROOT_PASS=$(openssl rand -base64 33 | tr -d '\n')
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
-      --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" \
-      '{region: $region, type: "g6-nanode-1", image: "linode/ubuntu24.04", label: $label, tags: [$tag],
+      --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" \
+      '{region: $region, type: "g6-nanode-1", image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         stackscript_data: {ADMIN_PASSWORD: $pw}, booted: true}
        + (if $fw == "" then {} else {firewall_id: ($fw | tonumber)} end)')
@@ -243,8 +251,8 @@ elif [[ "$PROVIDER" == digitalocean ]]; then
   fi
   user_data=$(launcher)
   body=$(jq -nc --arg region "$REGION" --arg name "$NAME" --arg tag "$TAG" --arg fp "$fingerprint" \
-      --arg ud "$user_data" \
-      '{name: $name, region: $region, size: "s-1vcpu-1gb", image: "ubuntu-24-04-x64",
+      --arg ud "$user_data" --arg ubuntu "$UBUNTU" \
+      '{name: $name, region: $region, size: "s-1vcpu-1gb", image: ("ubuntu-" + ($ubuntu | sub("\\."; "-")) + "-x64"),
         ssh_keys: [$fp], tags: [$tag], user_data: $ud}')
   SERVER_ID=$(api POST /droplets "$body" | jq -r '.droplet.id')
   deadline=$((SECONDS + 300))
@@ -257,10 +265,10 @@ else
   vpc=$(ec2 describe-vpcs --filters Name=is-default,Values=true | jq -r '.Vpcs[0].VpcId // empty')
   [[ -n "$vpc" ]] || die "no default VPC in $AWS_DEFAULT_REGION"
   ami=$(ec2 describe-images --owners 099720109477 \
-      --filters 'Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*' \
+      --filters "Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-$UBUNTU_CODENAME-$UBUNTU-amd64-server-*" \
                 Name=state,Values=available Name=virtualization-type,Values=hvm \
     | jq -r '.Images | sort_by(.CreationDate) | last | .ImageId // empty')
-  [[ -n "$ami" ]] || die "couldn't find the Ubuntu 24.04 AMI in $AWS_DEFAULT_REGION"
+  [[ -n "$ami" ]] || die "couldn't find the Ubuntu $UBUNTU AMI in $AWS_DEFAULT_REGION"
   if ! ec2 describe-key-pairs --key-names "$TAG" >/dev/null 2>&1; then
     say "Adding the test SSH key to AWS as key pair $TAG"
     ec2 import-key-pair --key-name "$TAG" --public-key-material "fileb://$SSH_KEY.pub" \

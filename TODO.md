@@ -8,22 +8,9 @@
   it away from other servers. Consider a separate DigitalOcean team with no other Droplets in it for testing.
 - [ ] Renew the tokens when they expire (Linode: 1 month, DigitalOcean: 30 days), and rotate the AWS access key.
 
-## Move to Ubuntu 26.04 LTS
-
-- [ ] Ubuntu 26.04 LTS ("Resolute Raccoon") was released on 2026-04-23 (26.04.1 is out), supported until
-  2031-05. Plone in a Box targets 24.04, which is supported until 2029-05. To switch:
-  - `src/aws/main.tf`: change the AMI name filter (`ubuntu-noble-24.04-amd64-server-*`) to the 26.04 image
-    name, and check the `hvm-ssd-gp3` path still matches Canonical's naming.
-  - `src/digitalocean/main.tf`: change `image` from `ubuntu-24-04-x64` to the 26.04 slug.
-  - Linode: add Ubuntu 26.04 to the public StackScript's Target Images.
-  - `src/StackScript`: update "Tested target", and check the Docker install, nginx, ufw, certbot and the
-    progress page on 26.04.
-  - Update the README, setup guide (including the DigitalOcean launcher instructions) and the launcher's comment.
-  - Test a fresh deploy on each provider. Decide whether to keep 24.04 working too.
-
 ## Support Hetzner Cloud
 
-- [ ] **No command line:** in the Hetzner Cloud Console's **Create server** page, choose Ubuntu 24.04 and paste
+- [ ] **No command line:** in the Hetzner Cloud Console's **Create server** page, choose Ubuntu 26.04 and paste
   `src/user-data.sh` into the **Cloud config** (user data) box, like DigitalOcean and AWS. Check that the launcher
   works there unchanged, and which plan is the smallest that's comfortable.
 - [ ] **Terraform:** `src/hetzner/main.tf` with the `hcloud` provider (server, SSH key, Hetzner Firewall allowing

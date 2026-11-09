@@ -15,7 +15,7 @@ export ADMIN_PASSWORD=''
 #
 # Plone in a Box(TM) without Terraform, for DigitalOcean and Amazon AWS.
 #
-# Create an Ubuntu 24.04 server, paste this whole file into its user data box,
+# Create an Ubuntu 26.04 server, paste this whole file into its user data box,
 # and edit the settings in it. Keep each value inside its single quotes.
 #   DigitalOcean: Create > Droplets > Additional Options > "Startup scripts
 #     (free)" > "Enter your scripts or data".
@@ -41,7 +41,7 @@ export VOLTO_VERSION='19'
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.
-PIAB_RELEASE='2.5'
+PIAB_RELEASE='2.7'
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 set -uo pipefail

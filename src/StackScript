@@ -9,7 +9,7 @@
 #   - DigitalOcean Droplet user data via src/digitalocean/main.tf
 #     (both export the same variables first).
 #
-# Tested target: Ubuntu 24.04 LTS (amd64 or arm64). Run as root.
+# Tested target: Ubuntu 26.04 or 24.04 LTS (amd64 or arm64). Run as root.
 #
 # <UDF name="ADMIN_PASSWORD" label="Plone admin password, at least 12 characters. Leave empty to have one generated and saved on the server" default="" />
 # <UDF name="DOMAIN" label="Domain name for the site, optional. DNS must already point here to get HTTPS" default="" />
