@@ -1,4 +1,4 @@
-2.8 (unreleased)
+2.8 (2026-11-09)
 ----------------
 
 - Hetzner Cloud: paste the launcher (src/user-data.sh) into the Cloud config
