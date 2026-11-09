@@ -2,10 +2,8 @@
 
 ## Automated test deploys
 
-`scripts/test-deploy.sh` runs the Linode and DigitalOcean tests (see RELEASING.md). Still open:
+`scripts/test-deploy.sh` runs the Linode, DigitalOcean, AWS and Hetzner tests (see RELEASING.md). Still open:
 
-- [ ] The DigitalOcean token can reach every Droplet in the account; only the script's `piab-test` tag check keeps
-  it away from other servers. Consider a separate DigitalOcean team with no other Droplets in it for testing.
 - [ ] Renew the tokens when they expire (Linode: 1 month, DigitalOcean: 30 days), and rotate the AWS access key.
 
 ## Support custom Plone projects (e.g. from cookieplone)
