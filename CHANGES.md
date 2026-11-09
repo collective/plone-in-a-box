@@ -1,4 +1,4 @@
-2.7 (unreleased)
+2.7 (2026-11-08)
 ----------------
 
 - New servers run Ubuntu 26.04 LTS (supported until 2031-05): the AWS Launch
