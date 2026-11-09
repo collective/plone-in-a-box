@@ -39,8 +39,10 @@ locations are in Germany and Finland. All four offer automatic server backups fo
 
 ## Option A: Linode
 
-1. Log in to [Cloud Manager](https://cloud.linode.com) and open **StackScripts → Community StackScripts**.
-2. Search for **Plone in a Box**, open it, and click **Deploy New Linode**.
+1. Log in to [Cloud Manager](https://cloud.linode.com) and open the
+   [Plone in a Box StackScript](https://cloud.linode.com/stackscripts/931893). (Or open **StackScripts → Community
+   StackScripts** and search for **Plone in a Box** by **nguyen-plone**.)
+2. Click **Deploy New Linode**.
 3. Fill in the **StackScript Options** (all optional):
    * **Plone admin password**: at least 12 characters. If you set it, you won't need SSH at all. If you leave it
      empty (or it's too short), a password is generated and saved on the server.

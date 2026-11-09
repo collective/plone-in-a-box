@@ -6,6 +6,11 @@
 
 - [ ] Renew the tokens when they expire (Linode: 1 month, DigitalOcean: 30 days), and rotate the AWS access key.
 
+## Retire the duplicate Linode StackScript
+
+- [ ] Ask Linode support (from the tknguyen2 account) to remove the public StackScript 692002, a duplicate of
+  nguyen-plone's 931893. Once it's gone, drop it from step 3 of RELEASING.md.
+
 ## Support custom Plone projects (e.g. from cookieplone)
 
 Keep the official `plone/plone-backend` and `plone/plone-frontend` images as the default, so most people
