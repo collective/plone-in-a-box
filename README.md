@@ -49,13 +49,18 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
 
 ### DigitalOcean
 
-1. Open the launcher script, [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh),
-   and copy all of it.
-2. In the DigitalOcean control panel, **Create → Droplets**: choose **Ubuntu 26.04 (LTS) x64** and a size (1 GB is
+1. In the DigitalOcean control panel, **Create → Droplets**: choose **Ubuntu 26.04 (LTS) x64** and a size (1 GB is
    enough for a small site).
-3. Under **Additional Options**, choose **Startup scripts (free)** and paste the launcher into the box.
-   **Set the admin password between the quotes on its first setting line.**
-4. Create the Droplet, then open its IP address in your browser.
+2. Under **Additional Options**, choose **Startup scripts (free)** and paste these three lines into the box. Replace
+   `CHANGE-ME` with your admin password (at least 12 characters), keeping the quotes:
+   ```
+   #!/bin/bash
+   export ADMIN_PASSWORD='CHANGE-ME'
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.7/src/StackScript && bash /root/plone-in-a-box.sh
+   ```
+3. Create the Droplet, then open its IP address in your browser.
+
+For more settings (a domain for HTTPS, the time zone, versions), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
 
 Details: [setup guide, DigitalOcean](docs/setup-guide.md#console-deployment-easiest-1).
 
@@ -71,14 +76,19 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
 
 ### Hetzner
 
-1. Open the launcher script, [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh),
-   and copy all of it.
-2. In the [Hetzner Console](https://console.hetzner.com), open a project and click **Create server**: choose a
+1. In the [Hetzner Console](https://console.hetzner.com), open a project and click **Create server**: choose a
    **Regular Performance** plan (**CPX02**, 1 GB, is enough for a small site; CPX11 in the US), a location and
    **Ubuntu 26.04**.
-3. Under **Cloud config**, paste the launcher into the "Cloud-init configuration" box. **Set the admin password between the quotes on its first
-   setting line.**
-4. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
+2. Under **Cloud config**, paste these three lines into the "Cloud-init configuration" box. Replace `CHANGE-ME` with
+   your admin password (at least 12 characters), keeping the quotes:
+   ```
+   #!/bin/bash
+   export ADMIN_PASSWORD='CHANGE-ME'
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.7/src/StackScript && bash /root/plone-in-a-box.sh
+   ```
+3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
+
+For more settings (a domain for HTTPS, the time zone, versions), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
 
 Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2).
 

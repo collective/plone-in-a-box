@@ -179,14 +179,20 @@ Terraform ([Terraform deployment](#terraform-deployment-automated-more-technical
 
 ### Console deployment (easiest)
 
-No command line is needed if you choose the admin password here.
+No command line is needed if you set the admin password here. If you leave `CHANGE-ME` (or any password under 12
+characters), a password is generated instead; see "Forgot to set the password?" below.
 
 1. **Create → Droplets**, choose **Ubuntu 26.04 (LTS) x64**, a 1 GB or larger size, and your SSH key.
-2. Under **Additional Options**, choose **Startup scripts (free)** and paste into **Enter your scripts or data** the contents of
-   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh).
-   **Set the admin password on the first setting line**, then the optional domain and Let's Encrypt email (for
-   HTTPS), time zone and versions. Keep each value inside its single quotes. This short script downloads the full provisioning script
-   from a fixed Plone in a Box release and runs it.
+2. Under **Additional Options**, choose **Startup scripts (free)** and paste these three lines into **Enter your
+   scripts or data**. Replace `CHANGE-ME` with your admin password (at least 12 characters), keeping the quotes:
+   ```
+   #!/bin/bash
+   export ADMIN_PASSWORD='CHANGE-ME'
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.7/src/StackScript && bash /root/plone-in-a-box.sh
+   ```
+   They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
+   domain and Let's Encrypt email for HTTPS, the time zone, versions), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
+   and fill in its setting lines.
 3. Create the Droplet. If you add a Cloud Firewall, allow inbound TCP 22, 80 and 443. (The server's own firewall
    allows only those ports either way.)
 4. Open the Droplet's address to watch the setup progress page, which turns into your Plone site when it's ready.
@@ -243,10 +249,15 @@ No command line is needed if you choose the admin password here. In the
    password, which you'd only need for the browser console.
 6. **Firewalls** are optional. If you add one, allow inbound TCP 22, 80 and 443. (The server's own firewall allows
    only those ports either way.) **Backups** are optional too, for 20% of the server's price.
-7. **Cloud config**: paste into the box (it says "Cloud-init configuration") the contents of
-   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh). **Set the admin password on the first
-   setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone and versions. Keep each
-   value inside its single quotes.
+7. **Cloud config**: paste these three lines into the box (it says "Cloud-init configuration"). Replace `CHANGE-ME`
+   with your admin password (at least 12 characters), keeping the quotes:
+   ```
+   #!/bin/bash
+   export ADMIN_PASSWORD='CHANGE-ME'
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.7/src/StackScript && bash /root/plone-in-a-box.sh
+   ```
+   For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions), paste the contents of
+   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
 8. **Name** is filled in for you; change it if you like (for example `plone`). Click **Create & Buy now**, then open
    the server's IPv4 address (with `http://`) to watch the setup progress page, which turns into your Plone site
    when it's ready.

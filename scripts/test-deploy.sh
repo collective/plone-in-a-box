@@ -26,7 +26,10 @@
 # ~/.ssh/piab_test_ed25519 (or PIAB_TEST_SSH_KEY). Optional: PIAB_TEST_REGION,
 # PIAB_LINODE_FIREWALL_ID, PIAB_AWS_INSTANCE_TYPE (default t3.small),
 # PIAB_TEST_UBUNTU (Ubuntu release: 26.04, the default, or 24.04),
-# PIAB_HETZNER_SERVER_TYPE (default cpx02; an Arm type, cax..., works too).
+# PIAB_HETZNER_SERVER_TYPE (default cpx02; an Arm type, cax..., works too),
+# PIAB_TEST_LAUNCHER=short (DigitalOcean, AWS, Hetzner: use the three-line
+# launcher from the docs instead of src/user-data.sh; with
+# --generated-password, its CHANGE-ME placeholder is left in place).
 #
 # Linode deploys use the private StackScript "plone-in-a-box-test", which this
 # script overwrites with src/StackScript from REF. DigitalOcean, AWS and Hetzner deploys
@@ -223,6 +226,13 @@ trap 'exit 130' INT TERM
 # The launcher, set to the admin password and to download this exact commit.
 launcher() {
   local text
+  if [[ "${PIAB_TEST_LAUNCHER:-}" == short ]]; then
+    # The three-line launcher from the README and setup guide.
+    printf '%s\n' '#!/bin/bash' \
+      "export ADMIN_PASSWORD='${ADMIN_PASSWORD:-CHANGE-ME}'" \
+      "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
+    return
+  fi
   text=$(git show "$SHA:src/user-data.sh" \
     | sed -e "s/^export ADMIN_PASSWORD=''$/export ADMIN_PASSWORD='$ADMIN_PASSWORD'/" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")

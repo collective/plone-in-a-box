@@ -1,3 +1,16 @@
+2.9 (unreleased)
+----------------
+
+- DigitalOcean and Hetzner: the README and setup guide now give a three-line
+  launcher to paste, with a CHANGE-ME placeholder for the admin password (a
+  forgotten placeholder is too short, so a password is generated instead). The
+  full launcher, src/user-data.sh, is still there for more settings.
+- CI checks that the launchers, the Launch Stack template and the docs all
+  download the same release.
+- scripts/test-deploy.sh: PIAB_TEST_LAUNCHER=short tests the three-line launcher.
+  [tkimnguyen]
+
+
 2.8 (2026-11-09)
 ----------------
 
