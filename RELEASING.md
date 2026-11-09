@@ -66,9 +66,10 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 
 ## 2. Release
 
-1. In `CHANGES.md`, replace `(unreleased)` with today's date. If `src/StackScript` changed, set `PIAB_RELEASE` in
-   `src/user-data.sh` and the `Release` parameter's `Default` in `src/aws/cloudformation.yaml` to the new version,
-   so pasted launchers and the Launch Stack button download it. Commit to `main` (or include it in the last PR).
+1. In `CHANGES.md`, replace `(unreleased)` with today's date. If `src/StackScript` changed, set the new version in
+   `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, and
+   the three-line launchers in `README.md` and `docs/setup-guide.md` (the `.../plone-in-a-box/<version>/src/StackScript`
+   URL), so pasted launchers and the Launch Stack button download it. CI checks that they all match. Commit to `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.
 

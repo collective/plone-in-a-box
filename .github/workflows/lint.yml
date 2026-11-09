@@ -12,6 +12,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: ShellCheck
         run: shellcheck src/StackScript src/user-data.sh scripts/test-deploy.sh
+      - name: Launchers download the same release
+        run: |
+          release=$(sed -n "s/^PIAB_RELEASE='\(.*\)'$/\1/p" src/user-data.sh)
+          template=$(grep -A3 '^  Release:' src/aws/cloudformation.yaml | sed -n 's/.*Default: "\(.*\)"/\1/p')
+          echo "src/user-data.sh: $release, src/aws/cloudformation.yaml: $template"
+          test -n "$release" && test "$template" = "$release"
+          bad=$(grep -Hno 'plone-in-a-box/[^/ ]*/src/StackScript' README.md docs/setup-guide.md \
+            | grep -v "plone-in-a-box/$release/src/StackScript" || true)
+          if [ -n "$bad" ]; then echo "Launchers in the docs download another release:"; echo "$bad"; exit 1; fi
 
   terraform:
     runs-on: ubuntu-latest
