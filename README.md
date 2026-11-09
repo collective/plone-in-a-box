@@ -37,8 +37,9 @@ The [setup guide](docs/setup-guide.md) has step-by-step instructions for each pr
 
 ### Linode (Akamai)
 
-1. In [Cloud Manager](https://cloud.linode.com), open **StackScripts → Community StackScripts**, search for
-   **Plone in a Box**, and click **Deploy New Linode**.
+1. Log in to [Cloud Manager](https://cloud.linode.com), open the
+   [Plone in a Box StackScript](https://cloud.linode.com/stackscripts/931893) (by **nguyen-plone**), and click
+   **Deploy New Linode**.
 2. Fill in the form. Set the **Plone admin password** (at least 12 characters); the domain name, time zone and
    versions are optional.
 3. Choose **Ubuntu 26.04 LTS** (24.04 also works), a region and a plan (a 1 GB Nanode is enough for a small

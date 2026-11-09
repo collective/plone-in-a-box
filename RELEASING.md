@@ -106,12 +106,18 @@ In the AWS console (Plone Foundation account), region **US East (N. Virginia) us
 
 ## 3. Update the public Linode StackScript
 
-1. Log in to Cloud Manager as **nguyen-plone**, the account that owns the public **Plone in a Box** StackScript.
-2. **StackScripts → Account StackScripts → ⋯ → Edit**.
+The public **Plone in a Box** StackScript is [931893](https://cloud.linode.com/stackscripts/931893), owned by
+**nguyen-plone**; the README and setup guide link to it. An older copy, 692002 owned by **tknguyen2**, is waiting
+for Linode support to remove it; until it's gone, update it too, so nobody deploys an old version. For each:
+
+1. Log in to Cloud Manager as the owner.
+2. **StackScripts → Account StackScripts → ⋯ → Edit** on **Plone in a Box** (not the private
+   `plone-in-a-box-test`, which `scripts/test-deploy.sh` overwrites).
 3. Replace the **Script** with
    https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/StackScript, check that **Target Images**
    includes the Ubuntu release the script supports, and enter a revision note such as `2.1: <summary>`.
-4. Save, then confirm the Community StackScripts list shows today's date.
+4. Save, then confirm **Last Revision** shows today's date. (Community StackScripts leaves out your own
+   account's StackScripts, so check the other account's copy there.)
 
 Public StackScripts can't be deleted or made private by their owner; only Linode support can remove one.
 
