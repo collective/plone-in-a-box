@@ -44,9 +44,11 @@ One-time setup for `scripts/test-deploy.sh`:
   * a private StackScript `plone-in-a-box-test` (Target Images: Ubuntu 24.04 and 26.04); the script overwrites it each run
   * a personal access token (Linodes Read/Write, StackScripts Read/Write, Events Read Only, 1-month expiry),
     stored with `security add-generic-password -a "$USER" -s piab-linode-token -w`
-* **DigitalOcean**: a token with custom scopes `droplet` create/read/delete, `ssh_key` create/read and `tag`
-  create/read (30-day expiry), stored with `security add-generic-password -a "$USER" -s piab-do-token -w`. The
-  first run adds the SSH key to the account as `piab-test`.
+* **DigitalOcean**: a team `piab-test` used only for tests, so its token can't reach any other Droplets (team
+  switcher → **Create a team**). In it, **API → Tokens → Generate New Token** with custom scopes `droplet`
+  create/read/delete, `ssh_key` create/read and `tag` create/read (30-day expiry), stored with
+  `security add-generic-password -a "$USER" -s piab-do-token -w`. The first run adds the SSH key to the team as
+  `piab-test`.
 * **Hetzner**: in the [Hetzner Console](https://console.hetzner.com), a project `piab-test` used only for tests, so its
   token can't reach any other servers. In it, **Security → API tokens → Generate API token** (Read & Write), stored
   with `security add-generic-password -a "$USER" -s piab-hetzner-token -w`. The first run adds the SSH key to the
