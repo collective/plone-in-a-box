@@ -3,7 +3,7 @@
 This guide takes you from a cloud account to a running Plone 6 site, on Linode, Amazon AWS or DigitalOcean. Allow about 20 minutes,
 most of it waiting for the server to provision.
 
-What you get: one Ubuntu 24.04 server running Plone 6.2 (backend), Volto 19 (the React front end) and PostgreSQL in
+What you get: one Ubuntu 26.04 LTS server running Plone 6.2 (backend), Volto 19 (the React front end) and PostgreSQL in
 Docker, behind nginx. Only SSH (22), HTTP (80) and HTTPS (443) are open to the internet. You choose the Plone `admin`
 password when deploying, or one is generated for you; there is no `admin`/`admin` login.
 
@@ -46,8 +46,8 @@ already has an account and billing set up there. All three offer automatic serve
    * **Domain name** and **Email for Lets Encrypt**: both are needed for HTTPS.
    * **Site time zone**, for example `America/Chicago` (default `UTC`).
    * **Plone backend image tag** and **Volto frontend image tag** (defaults `6.2` and `19`).
-4. Choose **Ubuntu 24.04 LTS** as the image, a region, and a plan: a 1 GB **Nanode** is enough for a small site,
-   2 GB or more for a busier one.
+4. Choose **Ubuntu 26.04 LTS** as the image (24.04 also works), a region, and a plan: a 1 GB **Nanode** is enough
+   for a small site, 2 GB or more for a busier one.
 5. Set a root password, add your **SSH key**, and click **Create Linode**.
 
 Cloud Manager asks you to choose a **Public Interface Firewall**. Pick **No firewall** if it's offered (the server runs
@@ -98,7 +98,7 @@ If you'd rather not use CloudFormation, you can launch the server in the EC2 con
 **EC2 → Launch instance**:
 
 1. **Name**: for example `plone-in-a-box`.
-2. **Application and OS Images**: **Ubuntu**, then **Ubuntu Server 24.04 LTS** (64-bit x86, or 64-bit Arm with a
+2. **Application and OS Images**: **Ubuntu**, then **Ubuntu Server 26.04 LTS** (64-bit x86, or 64-bit Arm with a
    `t4g` instance type).
 3. **Instance type**: `t3.small` (2 GB) or larger.
 4. **Key pair**: choose or create one, so you can also log in with SSH.
@@ -180,7 +180,7 @@ Terraform ([Terraform deployment](#terraform-deployment-automated-more-technical
 
 No command line is needed if you choose the admin password here.
 
-1. **Create → Droplets**, choose **Ubuntu 24.04 (LTS) x64**, a 1 GB or larger size, and your SSH key.
+1. **Create → Droplets**, choose **Ubuntu 26.04 (LTS) x64**, a 1 GB or larger size, and your SSH key.
 2. Under **Additional Options**, choose **Startup scripts (free)** and paste into **Enter your scripts or data** the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh).
    **Set the admin password on the first setting line**, then the optional domain and Let's Encrypt email (for

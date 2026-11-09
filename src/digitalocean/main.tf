@@ -114,7 +114,7 @@ locals {
 
 resource "digitalocean_droplet" "plone" {
   name       = "plone-in-a-box"
-  image      = "ubuntu-24-04-x64"
+  image      = "ubuntu-26-04-x64"
   region     = var.region
   size       = var.size
   ssh_keys   = [local.ssh_key]

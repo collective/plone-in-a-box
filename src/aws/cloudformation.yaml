@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Plone in a Box: one Ubuntu 24.04 server running Plone 6 with the Volto front end
+  Plone in a Box: one Ubuntu 26.04 LTS server running Plone 6 with the Volto front end
   and PostgreSQL behind nginx. Open the SiteURL output after creating the stack to
   watch setup progress (about 10 minutes). https://github.com/tkimnguyen/plone-in-a-box
 
@@ -138,8 +138,8 @@ Parameters:
     Description: The Plone in a Box release whose provisioning script the server downloads.
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
-    Description: Latest Ubuntu 24.04 LTS image, looked up automatically.
+    Default: /aws/service/canonical/ubuntu/server/26.04/stable/current/amd64/hvm/ebs-gp3/ami-id
+    Description: Latest Ubuntu 26.04 LTS image, looked up automatically.
 
 Conditions:
   HasKeyName: !Not [!Equals [!Ref KeyName, ""]]

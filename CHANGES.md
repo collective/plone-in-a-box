@@ -1,3 +1,16 @@
+2.7 (unreleased)
+----------------
+
+- New servers run Ubuntu 26.04 LTS (supported until 2031-05): the AWS Launch
+  Stack template and Terraform configuration, the DigitalOcean Terraform
+  configuration and the docs now use it. The provisioning script didn't need
+  changes; tested on Linode, DigitalOcean and AWS. Ubuntu 24.04 still works,
+  and existing 24.04 servers keep running as they are.
+- scripts/test-deploy.sh: PIAB_TEST_UBUNTU chooses the Ubuntu release (26.04
+  by default, or 24.04).
+  [tkimnguyen]
+
+
 2.6.1 (2026-11-08)
 ------------------
 
