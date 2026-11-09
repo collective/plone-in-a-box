@@ -1,4 +1,4 @@
-2.9 (unreleased)
+2.9 (2026-11-09)
 ----------------
 
 - DigitalOcean and Hetzner: the README and setup guide now give a three-line
