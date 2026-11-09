@@ -21,12 +21,6 @@
 - [ ] README, setup guide ("Option D: Hetzner"), RELEASING.md test steps, and a test deploy (both routes; amd64
   and Arm plans).
 
-## Clean up old images and snapshots
-
-- [ ] Check the AWS and DigitalOcean accounts for images or snapshots used with the previous version of
-  Plone in a Box™ (for example AMIs and their EBS snapshots, or DigitalOcean snapshots), and delete the ones that
-  are no longer needed. Check every AWS region the project was deployed in, since AMIs are per region.
-
 ## Support custom Plone projects (e.g. from cookieplone)
 
 Keep the official `plone/plone-backend` and `plone/plone-frontend` images as the default, so most people
