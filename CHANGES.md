@@ -1,4 +1,4 @@
-2.6.1 (unreleased)
+2.6.1 (2026-11-08)
 ------------------
 
 - Fix: AWS deploys with Terraform failed since 2.2, because the provisioning
