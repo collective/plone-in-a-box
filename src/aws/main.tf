@@ -173,8 +173,9 @@ resource "aws_instance" "app_server" {
   }
 
   # Same provisioning script as the Linode StackScript, with its settings
-  # passed as environment variables.
-  user_data = join("\n", [
+  # passed as environment variables. Compressed, because EC2 limits user data
+  # to 16 KB and the script is larger; cloud-init decompresses it.
+  user_data_base64 = base64gzip(join("\n", [
     "#!/bin/bash",
     "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
     "export DOMAIN=${jsonencode(var.domain)}",
@@ -183,7 +184,7 @@ resource "aws_instance" "app_server" {
     "export PLONE_VERSION=${jsonencode(var.plone_version)}",
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
     file("${path.module}/../StackScript"),
-  ])
+  ]))
   user_data_replace_on_change = true
 
   tags = {

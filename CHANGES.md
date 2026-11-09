@@ -1,3 +1,12 @@
+2.6.1 (2026-11-08)
+------------------
+
+- Fix: AWS deploys with Terraform failed since 2.2, because the provisioning
+  script grew past EC2's 16 KB user data limit. The user data is now
+  gzip-compressed. (The console launcher and Launch Stack button weren't affected.)
+  [tkimnguyen]
+
+
 2.6 (2026-11-08)
 ----------------
 
