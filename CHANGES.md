@@ -1,6 +1,12 @@
 2.6 (unreleased)
 ----------------
 
+- AWS without the command line, the easy way: a Launch Stack button
+  (CloudFormation template src/aws/cloudformation.yaml) opens a form for the
+  admin password, server size, domain and SSH options. The stack creates the
+  server, a security group and a fixed address (Elastic IP), and the server
+  downloads the provisioning script from the release, like the launcher does.
+  Deleting the stack removes everything. CI runs cfn-lint on the template.
 - README: lead with the no-command-line route for each provider (Linode's
   StackScript form, the launcher pasted on DigitalOcean and AWS) and the
   browser consoles, and move Terraform and server administration into a

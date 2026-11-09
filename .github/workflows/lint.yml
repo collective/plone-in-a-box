@@ -31,3 +31,15 @@ jobs:
         run: |
           terraform init -backend=false
           terraform validate
+
+  cloudformation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: cfn-lint
+        run: |
+          pip install cfn-lint
+          cfn-lint src/aws/cloudformation.yaml

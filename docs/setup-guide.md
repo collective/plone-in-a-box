@@ -13,10 +13,10 @@ Plone in a Box works the same on all three; the differences are in how you set i
 
 | | Linode (Akamai) | DigitalOcean | Amazon AWS |
 |---|---|---|---|
-| Setting it up | Easiest: a form with labelled fields for the password, domain and versions | Paste the launcher script and set the password in it | The most steps: disk size, network settings, then paste the launcher script |
+| Setting it up | Easiest: a form with labelled fields for the password, domain and versions | Paste the launcher script and set the password in it | Easy: the Launch Stack button opens a form like Linode's |
 | Smallest server for a small site | 1 GB (Nanode) | 1 GB Droplet | `t3.small` (2 GB) |
 | Monthly cost of that server | Among the lowest | About the same as Linode | Noticeably higher |
-| Address for a domain name | Fixed | Fixed | Changes if the server is stopped, unless you add an Elastic IP |
+| Address for a domain name | Fixed | Fixed | Fixed (the stack adds an Elastic IP) |
 | Browser console for the password | LISH Console | Droplet Console | EC2 Instance Connect |
 | Pricing | [linode.com/pricing](https://www.linode.com/pricing/) | [digitalocean.com/pricing](https://www.digitalocean.com/pricing) | [aws.amazon.com/ec2/pricing](https://aws.amazon.com/ec2/pricing/) |
 
@@ -69,7 +69,32 @@ Use the AWS console, with no command line ([Console deployment](#console-deploym
 
 ### Console deployment (easiest)
 
-No command line is needed if you choose the admin password here. In the AWS console, pick a region, then
+No command line is needed.
+
+1. Sign in to the [AWS console](https://console.aws.amazon.com/). A new AWS account works as is.
+2. Click [**Launch Stack**](https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&stackName=plone-in-a-box). It opens CloudFormation's **Quick create stack** page in N. Virginia
+   (us-east-1); to use another region, switch it at the top right of that page before continuing.
+3. Fill in the form:
+   * **Plone admin password** (required, at least 12 characters).
+   * **Site time zone**, **Server size** (default `t3.small`, the smallest that runs Plone well) and **Disk size**.
+   * **Domain name** and **Email for Let's Encrypt**, if you want HTTPS and your domain's DNS already points to the
+     server. You can also add HTTPS later.
+   * **SSH key pair** and **Allow SSH from**: optional, only if you want to log in from your own computer.
+   * Leave the **Advanced** settings as they are.
+4. Click **Create stack**. After a minute or two the stack shows `CREATE_COMPLETE`.
+5. Open the **Outputs** tab and click the **SiteURL**. You'll see the setup progress page, which turns into your
+   Plone site when it's ready (about 10 minutes). Log in as `admin` with the password you chose.
+
+The stack creates a server, a firewall (security group) allowing ports 22, 80 and 443, and a fixed IP address (Elastic
+IP), so the address stays the same if you stop and start the server. **PublicIP** on the Outputs tab is the address to
+point a domain at. Forgot the password? Open **InstanceConnect** on the Outputs tab, click **Connect**, and run
+`sudo cat /root/plone-credentials.txt` or `sudo plone-reset-admin-password`.
+
+To remove everything, select the stack in CloudFormation and click **Delete**.
+
+#### Or launch the server yourself
+
+If you'd rather not use CloudFormation, you can launch the server in the EC2 console yourself. Pick a region, then
 **EC2 → Launch instance**:
 
 1. **Name**: for example `plone-in-a-box`.
@@ -269,7 +294,11 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
 * **AWS** or **DigitalOcean** with Terraform: `terraform destroy` from `src/aws/` or `src/digitalocean/`, with the
   same `-var` options (or `terraform.tfvars`) and, for DigitalOcean, the same `DIGITALOCEAN_TOKEN`.
 * **DigitalOcean** without Terraform: destroy the Droplet in the control panel.
-  Delete the AWS access key or DigitalOcean API token if you no longer need it.
+* **AWS** with the Launch Stack button: in CloudFormation, select the stack and click **Delete**. That removes the
+  server, its disk, the firewall and the fixed IP address.
+* **AWS** launched yourself in EC2: terminate the instance, and release its Elastic IP if you allocated one.
+
+If you used Terraform, delete the AWS access key or DigitalOcean API token when you no longer need it.
 
 ## Troubleshooting
 
@@ -282,6 +311,7 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
 | Terraform: `Value for undeclared variable` | You're running an old configuration. `git pull`, then `terraform init -upgrade` in `src/aws/`. |
 | AWS console: the address doesn't load at all | The security group doesn't allow HTTP. Select the instance, **Security → Security groups → Edit inbound rules**, and add HTTP (80) and HTTPS (443) from `0.0.0.0/0`. Also make sure you opened `http://`, not `https://`. |
 | AWS console: **EC2 Instance Connect** fails to connect | The security group only allows SSH from your IP. Allow SSH (22) from `0.0.0.0/0` (the server's own firewall still applies), or use SSH from your computer. |
+| AWS Launch Stack: `No default VPC for this user` or `VPCIdNotSpecified` | The stack uses the region's default VPC. Switch to a region that has one (new accounts have one in every region), or create it under **VPC → Your VPCs → Actions → Create default VPC**. |
 | DigitalOcean: `SSH Key is already in use on your account` | Pass `-var 'ssh_key_fingerprint=...'` with the existing key's fingerprint. |
 | DigitalOcean: `Unable to authenticate you` | `DIGITALOCEAN_TOKEN` isn't set in this terminal, or the token lacks write scope. |
 | DigitalOcean: `You are missing the required permission tag:create` (or another `...:create`) | The token has custom scopes. Create one with **Full Access**, export it, and run `terraform apply` again. |

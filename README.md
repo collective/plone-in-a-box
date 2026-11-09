@@ -26,7 +26,7 @@ Pick a cloud provider. You'll need an account with them and a way to pay.
 **Which one?** If you don't already use one of these, choose **Linode**: it has the simplest setup (a form with
 labelled fields, nothing to paste) and among the lowest prices for a small site. Choose **DigitalOcean** if you
 already have an account there; it costs about the same. Choose **AWS** if your organization already runs things
-there; it takes the most steps, and a small site costs noticeably more. The setup guide
+there; its Launch Stack button opens a similar form, but a small site costs noticeably more. The setup guide
 [compares them](docs/setup-guide.md#choosing-a-provider).
 
 A 1 GB server is enough for a small site on Linode and DigitalOcean (choose 2 GB or more for a busier one); on AWS,
@@ -60,13 +60,11 @@ Details: [setup guide, DigitalOcean](docs/setup-guide.md#console-deployment-easi
 
 ### Amazon AWS
 
-1. Open the launcher script, [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh),
-   and copy all of it.
-2. In the AWS console, **EC2 → Launch instance**: choose **Ubuntu Server 24.04 LTS** and `t3.small`, allow HTTP and
-   HTTPS traffic in **Network settings**, and change the disk to 20 GiB.
-3. Under **Advanced details → User data**, paste the launcher. **Set the admin password between the quotes on its
-   first setting line.**
-4. Launch the instance, then open its public IPv4 address (with `http://`) in your browser.
+1. Sign in to the [AWS console](https://console.aws.amazon.com/), then click
+   [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&stackName=plone-in-a-box)
+2. Fill in the form: set the **Plone admin password** (at least 12 characters); everything else is optional.
+3. Click **Create stack**. When it shows `CREATE_COMPLETE` (a minute or two), open the **SiteURL** on its
+   **Outputs** tab.
 
 Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easiest).
 
