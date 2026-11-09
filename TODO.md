@@ -8,25 +8,6 @@
   it away from other servers. Consider a separate DigitalOcean team with no other Droplets in it for testing.
 - [ ] Renew the tokens when they expire (Linode: 1 month, DigitalOcean: 30 days), and rotate the AWS access key.
 
-## Support Hetzner Cloud
-
-- [ ] **No command line:** in the Hetzner Cloud Console's **Create server** page, choose Ubuntu 26.04 and paste
-  `src/user-data.sh` into the **Cloud config** (user data) box, like DigitalOcean and AWS. Check that the launcher
-  works there unchanged, and which plan is the smallest that's comfortable.
-- [ ] **Terraform:** `src/hetzner/main.tf` with the `hcloud` provider (server, SSH key, Hetzner Firewall allowing
-  only TCP 22, 80 and 443), running the same script as user data, with the same variables as the AWS and
-  DigitalOcean configurations. Add it to the CI matrix.
-- [ ] How to read or reset the admin password without SSH (the Cloud Console's browser console), the server's
-  address for a domain (Primary IPs), and backups/snapshots.
-- [ ] README, setup guide ("Option D: Hetzner"), RELEASING.md test steps, and a test deploy (both routes; amd64
-  and Arm plans).
-
-## Clean up old images and snapshots
-
-- [ ] Check the AWS and DigitalOcean accounts for images or snapshots used with the previous version of
-  Plone in a Box™ (for example AMIs and their EBS snapshots, or DigitalOcean snapshots), and delete the ones that
-  are no longer needed. Check every AWS region the project was deployed in, since AMIs are per region.
-
 ## Support custom Plone projects (e.g. from cookieplone)
 
 Keep the official `plone/plone-backend` and `plone/plone-frontend` images as the default, so most people

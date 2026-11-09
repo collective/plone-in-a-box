@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Deploy a throwaway Plone in a Box test server on Linode, DigitalOcean or
-# AWS, run the checks from RELEASING.md against it, and delete it again.
+# Deploy a throwaway Plone in a Box test server on Linode, DigitalOcean, AWS
+# or Hetzner, run the checks from RELEASING.md against it, and delete it again.
 #
 # Usage:
-#   scripts/test-deploy.sh linode|digitalocean|aws [options]
-#   scripts/test-deploy.sh list|cleanup linode|digitalocean|aws
+#   scripts/test-deploy.sh linode|digitalocean|aws|hetzner [options]
+#   scripts/test-deploy.sh list|cleanup linode|digitalocean|aws|hetzner
 #
 # Options:
 #   --ref REF              branch, tag or commit to test (default: the current
@@ -19,16 +19,17 @@
 # Only servers tagged piab-test are ever touched.
 #
 # Needs: curl, jq, ssh, git, nc, and the AWS CLI for aws. API tokens come from
-# the macOS Keychain (services piab-linode-token and piab-do-token) or from
-# LINODE_TOKEN / DIGITALOCEAN_TOKEN. AWS access keys come from the Keychain
+# the macOS Keychain (services piab-linode-token, piab-do-token and
+# piab-hetzner-token) or from LINODE_TOKEN / DIGITALOCEAN_TOKEN / HCLOUD_TOKEN. AWS access keys come from the Keychain
 # (piab-aws-access-key-id and piab-aws-secret-access-key), or from the usual
 # AWS_PROFILE / AWS_ACCESS_KEY_ID settings. The test servers get the SSH key
 # ~/.ssh/piab_test_ed25519 (or PIAB_TEST_SSH_KEY). Optional: PIAB_TEST_REGION,
 # PIAB_LINODE_FIREWALL_ID, PIAB_AWS_INSTANCE_TYPE (default t3.small),
-# PIAB_TEST_UBUNTU (Ubuntu release: 26.04, the default, or 24.04).
+# PIAB_TEST_UBUNTU (Ubuntu release: 26.04, the default, or 24.04),
+# PIAB_HETZNER_SERVER_TYPE (default cpx02; an Arm type, cax..., works too).
 #
 # Linode deploys use the private StackScript "plone-in-a-box-test", which this
-# script overwrites with src/StackScript from REF. DigitalOcean and AWS deploys
+# script overwrites with src/StackScript from REF. DigitalOcean, AWS and Hetzner deploys
 # paste src/user-data.sh from REF as user data, set to download src/StackScript
 # from the same commit. On AWS, the script also creates (once) a key pair and a
 # security group named piab-test in the default VPC, allowing SSH, HTTP and
@@ -58,12 +59,12 @@ check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else
 usage() { sed -n '3,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
-  linode|digitalocean|aws) PROVIDER=$1 ;;
+  linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
   list|cleanup) ACTION=$1; PROVIDER=${2:-}; shift ;;
   *) usage ;;
 esac
 shift
-[[ "$PROVIDER" == linode || "$PROVIDER" == digitalocean || "$PROVIDER" == aws ]] || usage
+case "$PROVIDER" in linode|digitalocean|aws|hetzner) ;; *) usage ;; esac
 while (( $# )); do
   case "$1" in
     --ref) REF=${2:?--ref needs a value}; shift ;;
@@ -92,6 +93,9 @@ if [[ "$PROVIDER" == linode ]]; then
 elif [[ "$PROVIDER" == digitalocean ]]; then
   TOKEN="${DIGITALOCEAN_TOKEN:-$(keychain_token piab-do-token || true)}"
   API=https://api.digitalocean.com/v2
+elif [[ "$PROVIDER" == hetzner ]]; then
+  TOKEN="${HCLOUD_TOKEN:-$(keychain_token piab-hetzner-token || true)}"
+  API=https://api.hetzner.cloud/v1
 else
   if [[ -z "${AWS_PROFILE:-}" && -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
     AWS_ACCESS_KEY_ID=$(keychain_token piab-aws-access-key-id || true)
@@ -122,7 +126,7 @@ api() {
   code=${out##*$'\n'}
   body=${out%$'\n'*}
   if (( code >= 300 )); then
-    echo "$method $path: HTTP $code: $(jq -c '.errors // .message // .' <<<"$body" 2>/dev/null || echo "$body")" >&2
+    echo "$method $path: HTTP $code: $(jq -c '.errors // .error // .message // .' <<<"$body" 2>/dev/null || echo "$body")" >&2
     return 1
   fi
   printf '%s' "$body"
@@ -132,6 +136,9 @@ list_servers() {
   if [[ "$PROVIDER" == linode ]]; then
     api GET /linode/instances '' "X-Filter: {\"tags\": \"$TAG\"}" \
       | jq -r '.data[] | "\(.id)\t\(.label)\t\(.ipv4[0])\t\(.status)"'
+  elif [[ "$PROVIDER" == hetzner ]]; then
+    api GET "/servers?label_selector=$TAG&per_page=50" \
+      | jq -r '.servers[] | "\(.id)\t\(.name)\t\(.public_net.ipv4.ip // "-")\t\(.status)"'
   elif [[ "$PROVIDER" == digitalocean ]]; then
     api GET "/droplets?tag_name=$TAG&per_page=200" \
       | jq -r '.droplets[] | "\(.id)\t\(.name)\t\((.networks.v4[] | select(.type == "public") | .ip_address) // "-")\t\(.status)"'
@@ -146,6 +153,8 @@ list_servers() {
 delete_server() {
   if [[ "$PROVIDER" == linode ]]; then
     api DELETE "/linode/instances/$1" >/dev/null
+  elif [[ "$PROVIDER" == hetzner ]]; then
+    api DELETE "/servers/$1" >/dev/null
   elif [[ "$PROVIDER" == digitalocean ]]; then
     api DELETE "/droplets/$1" >/dev/null
   else
@@ -184,7 +193,8 @@ git branch -r --contains "$SHA" 2>/dev/null | grep -q 'origin/' \
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/piab-test.XXXXXX")
 chmod 700 "$WORK"
-NAME="$TAG-$PROVIDER-$(date +%Y%m%d-%H%M%S)"
+# The random suffix keeps names unique when several runs start at once.
+NAME="$TAG-$PROVIDER-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 ADMIN_PASSWORD=""
 (( GENERATED )) || ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
 
@@ -242,6 +252,26 @@ if [[ "$PROVIDER" == linode ]]; then
   created=$(api POST /linode/instances "$body")
   SERVER_ID=$(jq -r '.id' <<<"$created")
   IP=$(jq -r '.ipv4[0]' <<<"$created")
+elif [[ "$PROVIDER" == hetzner ]]; then
+  REGION=${PIAB_TEST_REGION:-hel1}
+  fingerprint=$(ssh-keygen -l -E md5 -f "$SSH_KEY.pub" | awk '{print $2}' | sed 's/^MD5://')
+  key_id=$(api GET "/ssh_keys?fingerprint=$fingerprint" | jq -r '.ssh_keys[0].id // empty')
+  if [[ -z "$key_id" ]]; then
+    say "Adding the test SSH key to the Hetzner project as $TAG"
+    # If another run adds the key at the same moment, use the one it added.
+    key_id=$(api POST /ssh_keys "$(jq -nc --arg k "$(cat "$SSH_KEY.pub")" --arg tag "$TAG" \
+        '{name: $tag, public_key: $k, labels: {($tag): "true"}}')" 2>/dev/null | jq -r '.ssh_key.id') \
+      || key_id=$(api GET "/ssh_keys?fingerprint=$fingerprint" | jq -r '.ssh_keys[0].id // empty')
+    [[ -n "$key_id" ]] || die "couldn't add the SSH key to the Hetzner project"
+  fi
+  body=$(jq -nc --arg location "$REGION" --arg name "$NAME" --arg tag "$TAG" --argjson key "$key_id" \
+      --arg type "${PIAB_HETZNER_SERVER_TYPE:-cpx02}" --arg ubuntu "$UBUNTU" --arg ud "$(launcher)" \
+      '{name: $name, server_type: $type, image: ("ubuntu-" + $ubuntu), location: $location,
+        ssh_keys: [$key], user_data: $ud, labels: {($tag): "true"},
+        public_net: {enable_ipv4: true, enable_ipv6: true}}')
+  created=$(api POST /servers "$body")
+  SERVER_ID=$(jq -r '.server.id' <<<"$created")
+  IP=$(jq -r '.server.public_net.ipv4.ip' <<<"$created")
 elif [[ "$PROVIDER" == digitalocean ]]; then
   REGION=${PIAB_TEST_REGION:-tor1}
   fingerprint=$(ssh-keygen -l -E md5 -f "$SSH_KEY.pub" | awk '{print $2}' | sed 's/^MD5://')

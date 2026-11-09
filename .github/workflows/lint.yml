@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        provider: [aws, digitalocean]
+        provider: [aws, digitalocean, hetzner]
     defaults:
       run:
         working-directory: src/${{ matrix.provider }}
