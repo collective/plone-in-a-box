@@ -9,19 +9,20 @@ password when deploying, or one is generated for you; there is no `admin`/`admin
 
 ## Choosing a provider
 
-Plone in a Box works the same on all three; the differences are in how you set it up and what it costs.
+Plone in a Box works the same on all four; the differences are in how you set it up and what it costs.
 
-| | Linode (Akamai) | DigitalOcean | Amazon AWS |
-|---|---|---|---|
-| Setting it up | Easiest: a form with labelled fields for the password, domain and versions | Paste the launcher script and set the password in it | Easy: the Launch Stack button opens a form like Linode's |
-| Smallest server for a small site | 1 GB (Nanode) | 1 GB Droplet | `t3.small` (2 GB) |
-| Monthly cost of that server | Among the lowest | About the same as Linode | Noticeably higher |
-| Address for a domain name | Fixed | Fixed | Fixed (the stack adds an Elastic IP) |
-| Browser console for the password | LISH Console | Droplet Console | EC2 Instance Connect |
-| Pricing | [linode.com/pricing](https://www.linode.com/pricing/) | [digitalocean.com/pricing](https://www.digitalocean.com/pricing) | [aws.amazon.com/ec2/pricing](https://aws.amazon.com/ec2/pricing/) |
+| | Linode (Akamai) | DigitalOcean | Amazon AWS | Hetzner |
+|---|---|---|---|---|
+| Setting it up | Easiest: a form with labelled fields for the password, domain and versions | Paste the launcher script and set the password in it | Easy: the Launch Stack button opens a form like Linode's | Paste the launcher script and set the password in it, like DigitalOcean |
+| Smallest server for a small site | 1 GB (Nanode) | 1 GB Droplet | `t3.small` (2 GB) | 1 GB (CPX02) |
+| Monthly cost of that server | Among the lowest | About the same as Linode | Noticeably higher | About the same as Linode |
+| Address for a domain name | Fixed | Fixed | Fixed (the stack adds an Elastic IP) | Fixed |
+| Browser console for the password | LISH Console | Droplet Console | EC2 Instance Connect | Console |
+| Pricing | [linode.com/pricing](https://www.linode.com/pricing/) | [digitalocean.com/pricing](https://www.digitalocean.com/pricing) | [aws.amazon.com/ec2/pricing](https://aws.amazon.com/ec2/pricing/) | [hetzner.com/cloud](https://www.hetzner.com/cloud/) |
 
 If you don't already use one of them, choose Linode. Choose DigitalOcean or AWS if you, or your organization,
-already has an account and billing set up there. All three offer automatic server backups for an extra charge; see
+already has an account and billing set up there. Choose Hetzner if you prefer a European provider; most of its
+locations are in Germany and Finland. All four offer automatic server backups for an extra charge; see
 **Backups** under [Day-to-day administration](#day-to-day-administration).
 
 ## Before you start
@@ -218,6 +219,66 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
 /var/log/plone-in-a-box.log`), then continue with [After provisioning](#after-provisioning).
 
+## Option D: Hetzner
+
+Use the Hetzner Console, with no command line ([Console deployment](#console-deployment-easiest-2)), or
+Terraform ([Terraform deployment](#terraform-deployment-automated-more-technical-2)). Hetzner organizes servers in
+projects; use an existing one, or create one (for example `plone`) with **+ New project**.
+
+### Console deployment (easiest)
+
+No command line is needed if you choose the admin password here. In the
+[Hetzner Console](https://console.hetzner.com), open your project and click **Create server**:
+
+1. **Type**: under **Shared Resources**, choose **Regular Performance** and **CPX02** (1 vCPU, 1 GB), which is enough
+   for a small site, as on Linode and DigitalOcean; CPX12 (2 GB) or larger for a busier one. CPX02 isn't offered in
+   the US locations; there, choose **CPX11** (2 GB). Arm plans (**Cost-Optimized**, such as CAX11) work too, in the
+   German and Finnish locations that have them in stock.
+2. **Location**: Nuremberg, Falkenstein or Helsinki in Europe; Ashburn or Hillsboro in the US; or Singapore (which
+   costs a little more).
+3. **Image**: on the **OS Images** tab, **Ubuntu**, with **26.04** chosen in its version menu.
+4. **Networking**: keep **Public IPv4** and **Public IPv6** ticked. You need the IPv4 address to open the site (Hetzner
+   charges a little extra for it).
+5. **SSH keys**: add yours if you want to log in from your own computer. Without one, Hetzner emails you a root
+   password, which you'd only need for the browser console.
+6. **Firewalls** are optional. If you add one, allow inbound TCP 22, 80 and 443. (The server's own firewall allows
+   only those ports either way.) **Backups** are optional too, for 20% of the server's price.
+7. **Cloud config**: paste into the box (it says "Cloud-init configuration") the contents of
+   [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh). **Set the admin password on the first
+   setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone and versions. Keep each
+   value inside its single quotes.
+8. **Name** is filled in for you; change it if you like (for example `plone`). Click **Create & Buy now**, then open
+   the server's IPv4 address (with `http://`) to watch the setup progress page, which turns into your Plone site
+   when it's ready.
+
+Forgot to set the password? You still don't need SSH: open the server and click the **Console** button (`>_`) at the
+top right. Log in as `root` (with the password Hetzner emailed you, or after **Rescue → Reset Root Password**), and run
+`cat /root/plone-credentials.txt` to read the generated one, or `plone-reset-admin-password` to choose a new one.
+
+The server keeps its IPv4 address (a Primary IP) for as long as it exists, so you can point a domain at it.
+
+### Terraform deployment (automated, more technical)
+
+1. Install Terraform (see [One-time setup](#one-time-setup) under AWS) and create an API token: in your Hetzner
+   project, go to **Security → API tokens → Generate API token**, choose **Read & Write**, and copy it. It's shown
+   only once, and it only works for that project.
+2. Deploy:
+   ```
+   export HCLOUD_TOKEN=<your token>
+   git clone https://github.com/tkimnguyen/plone-in-a-box
+   cd plone-in-a-box/src/hetzner
+   terraform init
+   terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
+   ```
+   Options go in `src/hetzner/terraform.tfvars` the same way as for AWS. Variables include `location` (default
+   `hel1`), `server_type` (default `cpx02`, 1 GB; `cpx11` in `ash` and `hil`; Arm types such as `cax11` work too),
+   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions.
+3. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server also gets a Hetzner Firewall that
+   allows only ports 22, 80 and 443.
+
+Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
+/var/log/plone-in-a-box.log`), then continue with [After provisioning](#after-provisioning).
+
 ## After provisioning
 
 1. If you didn't choose an admin password when deploying, read the generated one:
@@ -272,7 +333,8 @@ sudo reboot
 Plone starts again by itself; the site is down for a minute or two. Don't run `do-release-upgrade` to move to a new
 Ubuntu release: deploy a new server instead.
 
-**Backups**: turn on your provider's server backups (Linode Backups, DigitalOcean Backups, or EBS snapshots on AWS), and/or dump the
+**Backups**: turn on your provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or
+Hetzner Backups), and/or dump the
 database regularly:
 
 ```
@@ -297,17 +359,20 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
 * **AWS** with the Launch Stack button: in CloudFormation, select the stack and click **Delete**. That removes the
   server, its disk, the firewall and the fixed IP address.
 * **AWS** launched yourself in EC2: terminate the instance, and release its Elastic IP if you allocated one.
+* **Hetzner**: delete the server in the Hetzner Console (**Delete** on the server's page), or `terraform destroy` from
+  `src/hetzner/` with the same `HCLOUD_TOKEN`.
 
-If you used Terraform, delete the AWS access key or DigitalOcean API token when you no longer need it.
+If you used Terraform, delete the AWS access key, DigitalOcean API token or Hetzner API token when you no longer
+need it.
 
 ## Troubleshooting
 
 | Problem | Fix |
 | --- | --- |
 | `ssh: connect ... Operation timed out` on Linode | A Cloud Firewall is blocking port 22. Allow TCP 22, 80, 443, or detach it. |
-| Forgot the admin password | Log in to the server as root (SSH, or your provider's console: Linode **Launch LISH Console**, DigitalOcean **Access → Launch Droplet Console**, which needs no password) and run `sudo plone-reset-admin-password`, or `cat /root/plone-credentials.txt` if a password was generated and you never read it. Forgot the root password too? On Linode, power off and use **Reset Root Password**; on DigitalOcean, **Access → Reset root password**. |
+| Forgot the admin password | Log in to the server as root (SSH, or your provider's console: Linode **Launch LISH Console**, DigitalOcean **Access → Launch Droplet Console**, which needs no password; Hetzner **Console**) and run `sudo plone-reset-admin-password`, or `cat /root/plone-credentials.txt` if a password was generated and you never read it. Forgot the root password too? On Linode, power off and use **Reset Root Password**; on DigitalOcean, **Access → Reset root password**; on Hetzner, **Rescue → Reset Root Password**. |
 | The page says "Setup didn't finish" | It shows which step failed. Usually a temporary download problem: delete the server and deploy again. To see details, log in as root and read `/var/log/plone-in-a-box.log`. |
-| No setup page, or no `/root/plone-credentials.txt` after 15 minutes | Read `/var/log/plone-in-a-box.log` (or, if it's missing, `/var/log/cloud-init-output.log` on AWS and DigitalOcean), and check `sudo docker compose --project-directory /opt/plone ps`. |
+| No setup page, or no `/root/plone-credentials.txt` after 15 minutes | Read `/var/log/plone-in-a-box.log` (or, if it's missing, `/var/log/cloud-init-output.log` on AWS, DigitalOcean and Hetzner), and check `sudo docker compose --project-directory /opt/plone ps`. |
 | Terraform: `Value for undeclared variable` | You're running an old configuration. `git pull`, then `terraform init -upgrade` in `src/aws/`. |
 | AWS console: the address doesn't load at all | The security group doesn't allow HTTP. Select the instance, **Security → Security groups → Edit inbound rules**, and add HTTP (80) and HTTPS (443) from `0.0.0.0/0`. Also make sure you opened `http://`, not `https://`. |
 | AWS console: **EC2 Instance Connect** fails to connect | The security group only allows SSH from your IP. Allow SSH (22) from `0.0.0.0/0` (the server's own firewall still applies), or use SSH from your computer. |
@@ -315,6 +380,8 @@ If you used Terraform, delete the AWS access key or DigitalOcean API token when 
 | DigitalOcean: `SSH Key is already in use on your account` | Pass `-var 'ssh_key_fingerprint=...'` with the existing key's fingerprint. |
 | DigitalOcean: `Unable to authenticate you` | `DIGITALOCEAN_TOKEN` isn't set in this terminal, or the token lacks write scope. |
 | DigitalOcean: `You are missing the required permission tag:create` (or another `...:create`) | The token has custom scopes. Create one with **Full Access**, export it, and run `terraform apply` again. |
+| Hetzner: `unsupported location for server type` | That plan isn't offered in that location. Choose another plan or location; the Create server page shows which plans each location offers. In the US locations (`ash`, `hil`), use `cpx11`. |
+| Hetzner: `SSH key with the same fingerprint already exists` (Terraform) | The key is already in the project. Delete it under **Security → SSH keys**, or use a different key. |
 | Terraform: `no file exists at .../id_ed25519.pub` | Pass your key's path with `-var 'ssh_public_key_path=...'`, for `destroy` too. |
 | Terraform on a Mac: `lookup sts.<region>.amazonaws.com: no such host` | Turn off iCloud Private Relay and retry. |
 | Linode: "A UDF is missing the required 'name' attribute" | The script was modified with a `<UDF>` tag that has no `name`. Use the current `src/StackScript`. |

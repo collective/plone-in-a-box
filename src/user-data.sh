@@ -11,9 +11,10 @@ export ADMIN_PASSWORD=''
 # (or set a new one with: sudo plone-reset-admin-password)
 #   DigitalOcean: the Droplet's Access > Launch Droplet Console
 #   AWS: the instance's Connect > EC2 Instance Connect (user "ubuntu")
+#   Hetzner: the server's Console button (>_)
 
 #
-# Plone in a Box(TM) without Terraform, for DigitalOcean and Amazon AWS.
+# Plone in a Box(TM) without Terraform, for DigitalOcean, Amazon AWS and Hetzner.
 #
 # Create an Ubuntu 26.04 server, paste this whole file into its user data box,
 # and edit the settings in it. Keep each value inside its single quotes.
@@ -21,6 +22,7 @@ export ADMIN_PASSWORD=''
 #     (free)" > "Enter your scripts or data".
 #   AWS: EC2 > Launch instance > Advanced details > "User data". In Network
 #     settings, also allow HTTP and HTTPS traffic from the internet.
+#   Hetzner: Cloud Console > Create server > "Cloud config".
 #
 # Open the server's address a minute or two after it boots to watch the setup
 # progress page, which turns into your Plone site when it's ready (about
