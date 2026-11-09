@@ -1,4 +1,4 @@
-2.6 (unreleased)
+2.6 (2026-11-08)
 ----------------
 
 - AWS without the command line, the easy way: a Launch Stack button
