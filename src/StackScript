@@ -17,6 +17,7 @@
 # <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
 # <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.2" />
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
+# <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -36,6 +37,11 @@ SITE_TIMEZONE="${SITE_TIMEZONE:-UTC}"
 PLONE_VERSION="${PLONE_VERSION:-6.2}"
 VOLTO_VERSION="${VOLTO_VERSION:-19}"
 POSTGRES_VERSION="${POSTGRES_VERSION:-17}"
+# Backend add-ons: Python packages that the plone/plone-backend image installs
+# with pip each time the backend container starts (its ADDONS variable).
+# Split on any whitespace, without expanding wildcards such as "==1.*".
+read -ra ADDON_LIST <<< "$(printf '%s' "${ADDONS:-}" | tr '\n\r\t' '   ')"
+ADDONS="${ADDON_LIST[*]}"
 
 APP_DIR=/opt/plone
 CREDENTIALS_FILE=/root/plone-credentials.txt
@@ -215,7 +221,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -295,12 +301,25 @@ if [[ ! -f "$APP_DIR/.env" ]]; then
   if [[ -z "$ADMIN_PASSWORD" ]]; then
     ADMIN_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
   fi
+  # Only package names with optional extras and version specifiers, such as
+  # collective.easyform or collective.easyform==4.2.0: nothing pip would read
+  # as an option, a URL or a file.
+  ADDONS_NOTE=""
+  for addon in "${ADDON_LIST[@]}"; do
+    if [[ ! "$addon" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9._,-]+\])?([~=!<>]=?=?[A-Za-z0-9.*+!_-]+)?(,[~=!<>]=?=?[A-Za-z0-9.*+!_-]+)*$ ]]; then
+      log "Not installing the backend add-ons: \"$addon\" isn't a Python package name"
+      ADDONS_NOTE="The add-ons ($ADDONS) were not installed: \"$addon\" isn't a Python package name."
+      ADDONS=""
+      break
+    fi
+  done
   umask 077
   cat > "$APP_DIR/.env" <<EOF
 PLONE_VERSION=${PLONE_VERSION}
 VOLTO_VERSION=${VOLTO_VERSION}
 POSTGRES_VERSION=${POSTGRES_VERSION}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+ADDONS='${ADDONS}'
 EOF
   umask 022
   NEW_ADMIN_PASSWORD_SET=0
@@ -310,7 +329,12 @@ else
   ADMIN_PASSWORD_CHOSEN=0
   PASSWORD_NOTE=""
   NEW_ADMIN_PASSWORD_SET=1
+  ADDONS_NOTE=""
+  ADDONS=$(sed -n "s/^ADDONS='\(.*\)'\$/\1/p" "$APP_DIR/.env")
 fi
+# Docker Compose prefers an exported variable over the .env file; .env is what
+# the site keeps using after setup, so let Compose read it from there.
+export -n ADDONS
 
 # --- Docker Compose stack ----------------------------------------------------
 
@@ -333,6 +357,14 @@ services:
     image: plone/plone-backend:${PLONE_VERSION}
     environment:
       RELSTORAGE_DSN: "dbname='plone' user='plone' host='db' password='${POSTGRES_PASSWORD}'"
+      # Add-ons are installed with pip each time the container starts, held to
+      # the versions this Plone release was tested with.
+      ADDONS: ${ADDONS:-}
+      PIP_PARAMS: "-c /app/constraints.txt --no-cache-dir"
+    # The image's own health check, but with time for installing add-ons
+    # before Plone starts: failed checks only count after five minutes.
+    healthcheck:
+      start_period: 5m
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"
@@ -473,6 +505,19 @@ progress 4
 log "Pulling images (Plone ${PLONE_VERSION}, Volto ${VOLTO_VERSION}, PostgreSQL ${POSTGRES_VERSION})"
 compose pull --quiet
 
+# A misspelled or incompatible add-on would stop the backend from starting,
+# so try installing the add-ons in a throwaway container first, and leave
+# them out if that fails.
+if [[ -n "$ADDONS" ]]; then
+  log "Checking that the backend add-ons install: ${ADDONS}"
+  if ! compose run --rm --no-deps backend true; then
+    log "The backend add-ons couldn't be installed (see the pip messages above); continuing without them"
+    ADDONS_NOTE="The add-ons ($ADDONS) couldn't be installed, so the site runs without them. The reason is in /var/log/plone-in-a-box.log."
+    ADDONS=""
+    sed -i "s/^ADDONS=.*/ADDONS=''/" "$APP_DIR/.env"
+  fi
+fi
+
 progress 5
 log "Starting PostgreSQL"
 compose up -d --wait db
@@ -480,13 +525,13 @@ compose up -d --wait db
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
   log "Setting the Zope admin password"
   NEW_ADMIN_PASSWORD="$ADMIN_PASSWORD" compose run --rm --no-deps \
-    -e NEW_ADMIN_PASSWORD \
+    -e NEW_ADMIN_PASSWORD -e ADDONS= \
     -v "$APP_DIR/set_admin_password.py:/app/scripts/set_admin_password.py:ro" \
     backend run /app/scripts/set_admin_password.py
 fi
 
 log "Creating the Plone site (skipped if it already exists)"
-compose run --rm --no-deps \
+compose run --rm --no-deps -e ADDONS= \
   -e SITE_ID=Plone \
   -e TIMEZONE="$SITE_TIMEZONE" \
   backend create-site
@@ -587,6 +632,7 @@ Site:      ${SITE_URL}
 Username:  admin
 Password:  ${PASSWORD_LINE}
 ${PASSWORD_NOTE}
+${ADDONS:+Backend add-ons: ${ADDONS} (activate them in Site Setup > Add-ons)}${ADDONS_NOTE}
 Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF
@@ -608,6 +654,12 @@ if [[ -f /var/run/reboot-required ]]; then
   log "Some updates need a restart to take effect; restart the server when convenient (sudo reboot). Plone starts again by itself."
 fi
 
+if [[ -n "$ADDONS" ]]; then
+  log "Backend add-ons installed: ${ADDONS}. Activate them in Site Setup > Add-ons."
+fi
+if [[ -n "$ADDONS_NOTE" ]]; then
+  log "$ADDONS_NOTE"
+fi
 if [[ "$ADMIN_PASSWORD_CHOSEN" == 1 ]]; then
   log "Finished. Site: ${SITE_URL} -- log in as admin with the password you chose"
 else

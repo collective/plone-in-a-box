@@ -99,6 +99,12 @@ variable "volto_version" {
   default     = "19"
 }
 
+variable "addons" {
+  description = "Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup > Add-ons."
+  type        = string
+  default     = ""
+}
+
 # Reads the API token from the DIGITALOCEAN_TOKEN environment variable.
 provider "digitalocean" {}
 
@@ -133,6 +139,7 @@ resource "digitalocean_droplet" "plone" {
     "export SITE_TIMEZONE=${jsonencode(var.site_timezone)}",
     "export PLONE_VERSION=${jsonencode(var.plone_version)}",
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
+    "export ADDONS=\"$(echo ${base64encode(var.addons)} | base64 -d)\"",
     file("${path.module}/../StackScript"),
   ])
 }

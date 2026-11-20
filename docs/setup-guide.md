@@ -49,6 +49,7 @@ locations are in Germany and Finland. All four offer automatic server backups fo
    * **Domain name** and **Email for Lets Encrypt**: both are needed for HTTPS.
    * **Site time zone**, for example `America/Chicago` (default `UTC`).
    * **Plone backend image tag** and **Volto frontend image tag** (defaults `6.2` and `19`).
+   * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
 4. Choose **Ubuntu 26.04 LTS** as the image (24.04 also works), a region, and a plan: a 1 GB **Nanode** is enough
    for a small site, 2 GB or more for a busier one.
 5. Set a root password, add your **SSH key**, and click **Create Linode**.
@@ -83,6 +84,7 @@ No command line is needed.
    * **Domain name** and **Email for Let's Encrypt**, if you want HTTPS and your domain's DNS already points to the
      server. You can also add HTTPS later.
    * **SSH key pair** and **Allow SSH from**: optional, only if you want to log in from your own computer.
+   * **Backend add-ons**: optional, for example `collective.easyform` (see [Add-ons](#add-ons)).
    * Leave the **Advanced** settings as they are.
 4. Click **Create stack**. After a minute or two the stack shows `CREATE_COMPLETE`.
 5. Open the **Outputs** tab and click the **SiteURL**. You'll see the setup progress page, which turns into your
@@ -111,8 +113,8 @@ If you'd rather not use CloudFormation, you can launch the server in the EC2 con
 6. **Configure storage**: change the default 8 GiB to **20 GiB** (gp3). 8 GiB is too small for the Docker images.
 7. **Advanced details → User data**: paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh). **Set the admin password on
-   the first setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone and versions.
-   Keep each value inside its single quotes.
+   the first setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone, versions and
+   add-ons. Keep each value inside its single quotes.
 8. **Launch instance**. Open the instance's **Public IPv4 address** (use `http://`) to watch the setup progress
    page, which turns into your Plone site when it's ready.
 9. Forgot to set the password? You still don't need SSH: select the instance, choose **Connect → EC2 Instance
@@ -158,6 +160,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # domain            = "plone.example.org"
 # letsencrypt_email = "you@example.org"
 # site_timezone     = "America/Chicago"
+# addons            = "collective.easyform"
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -193,7 +196,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.7/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
-   domain and Let's Encrypt email for HTTPS, the time zone, versions), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
+   domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
    and fill in its setting lines.
 3. Create the Droplet. If you add a Cloud Firewall, allow inbound TCP 22, 80 and 443. (The server's own firewall
    allows only those ports either way.)
@@ -258,7 +261,7 @@ No command line is needed if you choose the admin password here. In the
    export ADMIN_PASSWORD='CHANGE-ME'
    curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.7/src/StackScript && bash /root/plone-in-a-box.sh
    ```
-   For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions), paste the contents of
+   For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
 8. **Name** is filled in for you; change it if you like (for example `plone`). Click **Create & Buy now**, then open
    the server's IPv4 address (with `http://`) to watch the setup progress page, which turns into your Plone site
@@ -354,6 +357,31 @@ database regularly:
 sudo docker compose --project-directory /opt/plone exec -T db pg_dump -U plone plone | gzip > plone-$(date +%F).sql.gz
 ```
 
+## Add-ons
+
+Backend add-ons are Python packages that add features to Plone, for example `collective.easyform` (forms). List them,
+separated by spaces, in the **Backend add-ons** setting when you deploy (the `ADDONS` line in `src/user-data.sh`, or
+the `addons` Terraform variable). A version can be pinned, for example `collective.easyform==4.2.0`. When the site is
+up, log in as `admin` and activate each one in **Site Setup → Add-ons**.
+
+The `plone/plone-backend` image installs them with pip each time the backend starts, held to the versions the Plone
+release was tested with, so a restart takes a little longer with add-ons. Setup tries the install first: if a name
+is misspelled or a package doesn't work with this Plone version, the site is set up without the add-ons, and
+`/root/plone-credentials.txt` and `/var/log/plone-in-a-box.log` say why.
+
+To add or remove add-ons later, edit the `ADDONS='...'` line in `/opt/plone/.env` (deactivate an add-on in Site
+Setup before removing it), then restart the backend:
+
+```
+sudo docker compose --project-directory /opt/plone up -d backend
+sudo docker compose --project-directory /opt/plone logs -f backend   # watch pip install them
+```
+
+This needs a server set up with Plone in a Box 2.10 or later. If the backend doesn't come back, the pip messages
+in the log say why: fix or remove the name and run `up -d backend` again.
+
+Only backend add-ons work this way. Volto (frontend) add-ons need a custom frontend image.
+
 ## Adding HTTPS later
 
 Point your domain's DNS at the server, wait until `dig +short <domain>` shows the server's IP, then:
@@ -397,6 +425,7 @@ need it.
 | Hetzner: `SSH key with the same fingerprint already exists` (Terraform) | The key is already in the project. Delete it under **Security → SSH keys**, or use a different key. |
 | Terraform: `no file exists at .../id_ed25519.pub` | Pass your key's path with `-var 'ssh_public_key_path=...'`, for `destroy` too. |
 | Terraform on a Mac: `lookup sts.<region>.amazonaws.com: no such host` | Turn off iCloud Private Relay and retry. |
+| An add-on isn't listed in **Site Setup → Add-ons** | Read `/root/plone-credentials.txt` and `grep add-ons /var/log/plone-in-a-box.log`: setup leaves the add-ons out if pip can't install them. Packages without an install profile don't appear there, since there's nothing to activate. See [Add-ons](#add-ons). |
 | Linode: "A UDF is missing the required 'name' attribute" | The script was modified with a `<UDF>` tag that has no `name`. Use the current `src/StackScript`. |
 
 The [2020 Plone Conference guide](archive/) describes the original Plone 5.2 version and is kept for reference.

@@ -40,8 +40,8 @@ The [setup guide](docs/setup-guide.md) has step-by-step instructions for each pr
 1. Log in to [Cloud Manager](https://cloud.linode.com), open the
    [Plone in a Box StackScript](https://cloud.linode.com/stackscripts/931893) (by **nguyen-plone**), and click
    **Deploy New Linode**.
-2. Fill in the form. Set the **Plone admin password** (at least 12 characters); the domain name, time zone and
-   versions are optional.
+2. Fill in the form. Set the **Plone admin password** (at least 12 characters); the domain name, time zone,
+   versions and backend add-ons are optional.
 3. Choose **Ubuntu 26.04 LTS** (24.04 also works), a region and a plan (a 1 GB Nanode is enough for a small
    site), set a root password, and pick **No firewall** if Cloud Manager asks for one (the server has its own).
 4. Click **Create Linode**, then open the Linode's IP address in your browser.
@@ -61,7 +61,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    ```
 3. Create the Droplet, then open its IP address in your browser.
 
-For more settings (a domain for HTTPS, the time zone, versions), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
+For more settings (a domain for HTTPS, the time zone, versions, add-ons), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
 
 Details: [setup guide, DigitalOcean](docs/setup-guide.md#console-deployment-easiest-1).
 
@@ -89,7 +89,7 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
    ```
 3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
 
-For more settings (a domain for HTTPS, the time zone, versions), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
+For more settings (a domain for HTTPS, the time zone, versions, add-ons), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
 
 Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2).
 
@@ -106,6 +106,9 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
   see [Adding HTTPS later](docs/setup-guide.md#adding-https-later).
 * **Removing the site:** delete the server in your provider's control panel. This deletes the site's content too.
 
+* **Add-ons:** backend add-ons such as `collective.easyform` can be installed when deploying, or later; see
+  [Add-ons](docs/setup-guide.md#add-ons).
+
 The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
 
 ## For developers and system administrators
@@ -121,7 +124,8 @@ terraform init
 terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub' -var 'admin_password=...'
 ```
 
-See the variables at the top of each `main.tf` for region, size, domain and versions, and the
+See the variables at the top of each `main.tf` for region, size, domain, versions and
+backend add-ons, and the
 [setup guide](docs/setup-guide.md#terraform-deployment-automated-more-technical) for account setup. Pass the same `-var` options to
 `terraform destroy`, or put them in `terraform.tfvars`. If Terraform fails with
 `lookup sts.<region>.amazonaws.com: no such host` on a Mac, turn off iCloud Private Relay and retry.

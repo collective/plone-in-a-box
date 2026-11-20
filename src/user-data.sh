@@ -40,6 +40,11 @@ export SITE_TIMEZONE='UTC'
 export PLONE_VERSION='6.2'
 export VOLTO_VERSION='19'
 
+# Backend add-ons, optional: Python package names separated by spaces, for
+# example 'collective.easyform'. Activate them afterwards in the site's
+# Site Setup > Add-ons.
+export ADDONS=''
+
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.

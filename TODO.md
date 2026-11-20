@@ -22,7 +22,10 @@ still deploy with no build step. Add optional settings for people who need more:
   them on a box.
   - Decide how private registries authenticate (registry URL, username and token as optional fields?).
   - Document how this interacts with `PLONE_VERSION` / `VOLTO_VERSION` (ignored when custom images are set?).
-- [ ] **Backend add-ons without a custom build.** Expose the `plone/plone-backend` image's `ADDONS`
+  - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
+    its backend package hides it from Site Setup → Add-ons unless the frontend includes `volto-juizi-dashboard`,
+    and (as of 2026-11-19) it isn't on PyPI, so the backend add-ons setting can't install it either.
+- [x] **Backend add-ons without a custom build.** Expose the `plone/plone-backend` image's `ADDONS`
   environment variable (pip-installs add-ons at container startup) as an optional setting.
 - [ ] **Check frontend add-on support.** Find out whether the current `plone/plone-frontend` image can take
   Volto add-ons without a rebuild. If not, document that frontend add-ons need custom images.

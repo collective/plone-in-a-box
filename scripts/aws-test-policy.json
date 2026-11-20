@@ -37,7 +37,7 @@
         "arn:aws:ec2:*:*:subnet/*",
         "arn:aws:ec2:*:*:network-interface/*",
         "arn:aws:ec2:*:*:security-group/*",
-        "arn:aws:ec2:*:*:key-pair/piab-test"
+        "arn:aws:ec2:*:*:key-pair/piab-test*"
       ]
     },
     {
@@ -77,7 +77,7 @@
         "ec2:CreateSecurityGroup"
       ],
       "Resource": [
-        "arn:aws:ec2:*:*:key-pair/piab-test",
+        "arn:aws:ec2:*:*:key-pair/piab-test*",
         "arn:aws:ec2:*:*:security-group/*"
       ],
       "Condition": {

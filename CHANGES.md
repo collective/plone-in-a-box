@@ -1,3 +1,20 @@
+2.10 (unreleased)
+-----------------
+
+- Backend add-ons without a custom build: an optional setting (the Linode
+  StackScript's "Backend add-ons" field, ADDONS in src/user-data.sh, the
+  Launch Stack template's Addons parameter and the Terraform addons variable)
+  lists Python packages, such as collective.easyform, for the plone-backend
+  image to install. Activate them afterwards in Site Setup > Add-ons. Setup
+  tries the install first and continues without the add-ons if it fails, and
+  says so in the credentials file and the log. Frontend (Volto) add-ons still
+  need a custom image.
+- scripts/test-deploy.sh: --addons "PKG ..." checks the add-ons can be
+  activated and stay active after restarts; --expect-addons-skipped checks
+  that bad names are left out.
+  [tkimnguyen]
+
+
 2.9 (2026-11-09)
 ----------------
 

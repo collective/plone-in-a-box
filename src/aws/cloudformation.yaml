@@ -33,6 +33,10 @@ Metadata:
           - KeyName
           - SSHLocation
       - Label:
+          default: Add-ons (optional)
+        Parameters:
+          - Addons
+      - Label:
           default: Advanced (leave as is)
         Parameters:
           - PloneVersion
@@ -56,6 +60,8 @@ Metadata:
         default: SSH key pair
       SSHLocation:
         default: Allow SSH from
+      Addons:
+        default: Backend add-ons
       PloneVersion:
         default: Plone backend image tag
       VoltoVersion:
@@ -121,6 +127,14 @@ Parameters:
     Description: >-
       Addresses allowed to connect over SSH (port 22). Keep 0.0.0.0/0 to use EC2 Instance Connect in
       the browser; use your own IP followed by /32 if you'll only use SSH from your computer.
+  Addons:
+    Type: String
+    Default: ""
+    AllowedPattern: '^[A-Za-z0-9 ._,\[\]~=!<>*+-]*$'
+    ConstraintDescription: Must be Python package names separated by spaces.
+    Description: >-
+      Python package names separated by spaces, for example collective.easyform. Activate them
+      afterwards in Site Setup > Add-ons.
   PloneVersion:
     Type: String
     Default: "6.2"
@@ -211,7 +225,8 @@ Resources:
             SITE_TIMEZONE="$(d '${TimezoneB64}')"
             PLONE_VERSION='${PloneVersion}'
             VOLTO_VERSION='${VoltoVersion}'
-            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION
+            ADDONS="$(d '${AddonsB64}')"
+            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)
             if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \
@@ -224,6 +239,7 @@ Resources:
             DomainB64: !Base64 {Ref: Domain}
             EmailB64: !Base64 {Ref: LetsEncryptEmail}
             TimezoneB64: !Base64 {Ref: SiteTimezone}
+            AddonsB64: !Base64 {Ref: Addons}
 
   # A fixed address, so the site keeps the same IP after the server is stopped
   # and started, and DNS for a domain only needs setting once.
