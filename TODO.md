@@ -11,6 +11,29 @@
 - [ ] Ask Linode support (from the tknguyen2 account) to remove the public StackScript 692002, a duplicate of
   nguyen-plone's 931893. Once it's gone, drop it from step 3 of RELEASING.md.
 
+## Keep the Plone images up to date
+
+Ubuntu installs its security updates automatically, nginx's included, but nothing updates the Docker images. A site
+whose owner never logs in stays on the Plone, Volto and PostgreSQL patch release it was set up with, even though the
+floating tags (`plone/plone-backend:6.2`, `plone/plone-frontend:19`, `postgres:17`) move on. Today the fix is a manual
+`docker compose pull` and `up -d` (setup guide, "Day-to-day administration").
+
+- [ ] **Tell the admin when newer images exist.** A daily systemd timer compares the local image digests with the
+  registry (`docker compose pull --dry-run`, or the registry API), and writes the result to the login message
+  (`/etc/update-motd.d/`), for example "Newer Plone images are available: run `sudo plone-update`". It changes
+  nothing, so it can be on by default. Also a `plone-update` command that takes a database dump, then runs `pull`
+  and `up -d`.
+- [ ] **Optional automatic image updates.** A setting (`AUTO_UPDATE_IMAGES`, off by default) for a weekly timer that
+  runs `plone-update` at night. Questions to settle first:
+  - Only within the configured tags, never across Plone, Volto or PostgreSQL releases. PostgreSQL within a major
+    version only.
+  - Keep the previous images and the last dump, and roll back if the backend's health check fails after the update.
+  - Where to report what happened: the login message, the setup log, an email?
+  - A ready-made frontend image's backend add-on is pinned by its labels. Re-read the labels after a pull, so a
+    rebuilt image with a newer add-on version doesn't get out of step with the backend.
+- [ ] **Plone hotfixes.** Document adding a `Products.PloneHotfix…` package to `ADDONS` when the Plone security
+  team publishes one, and link to the security announcements (plone.org/security).
+
 ## Support custom Plone projects (e.g. from cookieplone)
 
 Keep the official `plone/plone-backend` and `plone/plone-frontend` images as the default, so most people
