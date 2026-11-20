@@ -57,7 +57,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.10/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.11/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Create the Droplet, then open its IP address in your browser.
 
@@ -85,7 +85,7 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.10/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.11/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
 

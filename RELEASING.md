@@ -61,6 +61,11 @@ One-time setup for `scripts/test-deploy.sh`:
   `security add-generic-password -a "$USER" -s piab-aws-access-key-id -w` and
   `security add-generic-password -a "$USER" -s piab-aws-secret-access-key -w`. Tests run in `us-east-1` unless
   `PIAB_TEST_REGION` is set; the first run in a region adds the key pair and the security group there.
+  For Launch Stack tests, also create a managed policy (IAM → **Policies → Create policy**; the user's inline
+  policies are at their size limit) from
+  [`scripts/aws-test-cloudformation-policy.json`](scripts/aws-test-cloudformation-policy.json), and attach it to
+  `piab-test`. It allows only stacks named `piab-test-*`. Create test stacks with the stack tag `piab-test=true`
+  (`aws cloudformation create-stack --tags Key=piab-test,Value=true`), so their instance and Elastic IP carry it.
 
 Tokens stay in the macOS Keychain; never paste them into chats or commit them. Remove one with
 `security delete-generic-password -s piab-linode-token` (or `piab-do-token`, `piab-hetzner-token`, or the two AWS
