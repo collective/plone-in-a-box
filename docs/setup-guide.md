@@ -384,8 +384,9 @@ sudo docker compose --project-directory /opt/plone logs -f backend   # watch pip
 This needs a server set up with Plone in a Box 2.10 or later. If the backend doesn't come back, the pip messages
 in the log say why: fix or remove the name and run `up -d backend` again.
 
-Only backend add-ons work this way. Volto (frontend) add-ons and themes are built into the frontend image; see
-[Themes and frontend images](#themes-and-frontend-images).
+Only packages on PyPI work this way. For a package from GitHub, or your own code, use a
+[custom backend image](#custom-backend-image). Volto (frontend) add-ons and themes are built into the frontend
+image; see [Themes and frontend images](#themes-and-frontend-images).
 
 ## Themes and frontend images
 
@@ -400,13 +401,17 @@ A ready-made image brings its backend half: setup installs and activates the mat
 Theme, `kitconcept.voltolighttheme`) and turns on its site settings. Edit the home page to find them: the logo,
 colours, header and footer settings sit with the site's own fields.
 
-If the image can't be pulled (a typo, or a private image), or its backend add-on can't be installed, the site is set
-up with the standard Volto image instead, and `/root/plone-credentials.txt` and `/var/log/plone-in-a-box.log` say
+The ready-made images are built for x86 servers; on Hetzner's Arm servers (`cax…`) setup uses the standard Volto
+image.
+
+If the image can't be pulled (a typo, a private image, or no build for the server's processor), or its backend
+add-on can't be installed, the site is set up with the standard Volto image instead, and `/root/plone-credentials.txt` and `/var/log/plone-in-a-box.log` say
 why.
 
-You can also give the name of an image you built yourself, for example with other Volto add-ons; see
-[`frontend-image/`](../frontend-image/README.md) for how the ready-made ones are built. It has to be public: setup
-can't log in to a registry. When a frontend image is set, `VOLTO_VERSION` doesn't apply to the frontend; the image's
+You can also give the name of an image you built yourself, with other Volto add-ons: fork this repository, add
+your add-ons to one file, and GitHub builds and publishes the image for you. See
+[Building your own](../frontend-image/README.md#building-your-own). It has to be public: setup can't log in to a
+registry. When a frontend image is set, `VOLTO_VERSION` doesn't apply to the frontend; the image's
 tag decides.
 
 To change the frontend image on an existing server, edit the `FRONTEND_IMAGE='...'` line in `/opt/plone/.env`, then:
@@ -418,6 +423,44 @@ sudo docker compose --project-directory /opt/plone up -d frontend
 This needs a server set up with Plone in a Box 2.11 or later. Changing it this way doesn't install the image's
 backend add-on: add it to `ADDONS` (see [Add-ons](#add-ons)), activate it in Site Setup → Add-ons, and enable its
 behaviors under Site Setup → Content Types → Plone Site → Behaviors.
+
+## Custom backend image
+
+Most sites don't need one: the [Backend add-ons](#add-ons) setting installs any package from PyPI. Build your own
+backend image when you need a package that isn't on PyPI (for example straight from GitHub), or your own project's
+code.
+
+Start from the official image of the Plone version your server runs (`6.2` unless you changed **Plone version**),
+and install your packages with its pip, held to the versions that Plone release was tested with:
+
+```dockerfile
+FROM plone/plone-backend:6.2
+RUN /app/bin/pip install --no-cache-dir -c /app/constraints.txt \
+    "git+https://github.com/<owner>/<package>.git@<tag or commit>"
+```
+
+Pin a tag or commit, so a rebuild installs the same code. Build it for `linux/amd64` (`linux/arm64` for Hetzner's
+Arm servers), and push it to a registry, for example the GitHub Container Registry:
+
+```
+docker login ghcr.io
+docker buildx build --platform linux/amd64 --push -t ghcr.io/<you>/plone-backend:6.2-1 .
+```
+
+There's no setting for a backend image yet. On a running server, edit the backend's `image:` line in
+`/opt/plone/docker-compose.yml` (the one that says `plone/plone-backend:${PLONE_VERSION}`), then:
+
+```
+sudo docker compose --project-directory /opt/plone up -d backend
+```
+
+Then activate the package in **Site Setup → Add-ons**. The site and its content stay as they are; they live in the
+database, not in the image. The **Backend add-ons** setting still works on top of a custom image. If the image is
+private, run `sudo docker login ghcr.io` on the server first. To go back, restore the original `image:` line and run
+the same command.
+
+Keep the image on the same Plone version as the server, or a newer patch release: a site can't move back to an
+older Plone.
 
 ## Adding HTTPS later
 
