@@ -18,6 +18,7 @@
 # <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.2" />
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
+# <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -29,6 +30,11 @@ export DEBIAN_FRONTEND=noninteractive
 # Keep a copy of all output in one place on every provider.
 LOG_FILE=/var/log/plone-in-a-box.log
 exec > >(tee -a "$LOG_FILE") 2>&1
+LOG_TEE_PID=$!
+# On exit, wait for tee to write the last lines: when setup resumes after a
+# restart, systemd stops everything in the service as soon as this script ends.
+flush_log() { exec >/dev/null 2>&1; wait "$LOG_TEE_PID" 2>/dev/null || true; }
+trap flush_log EXIT
 
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DOMAIN="${DOMAIN:-}"
@@ -42,6 +48,10 @@ POSTGRES_VERSION="${POSTGRES_VERSION:-17}"
 # Split on any whitespace, without expanding wildcards such as "==1.*".
 read -ra ADDON_LIST <<< "$(printf '%s' "${ADDONS:-}" | tr '\n\r\t' '   ')"
 ADDONS="${ADDON_LIST[*]}"
+# Frontend image: replaces plone/plone-frontend:${VOLTO_VERSION}. Ready-made
+# Plone in a Box images say in their labels which backend add-ons and site
+# behaviors they need; setup installs and activates those too.
+FRONTEND_IMAGE="$(printf '%s' "${FRONTEND_IMAGE:-}" | tr -d ' \t\r\n')"
 
 APP_DIR=/opt/plone
 CREDENTIALS_FILE=/root/plone-credentials.txt
@@ -52,6 +62,17 @@ RESUME_DIR=/root/.plone-in-a-box-resume
 RESUME_UNIT=/etc/systemd/system/plone-in-a-box-resume.service
 
 log() { echo "[plone-in-a-box] $*"; }
+
+# A Python package name with optional extras and version specifiers, such as
+# collective.easyform or collective.easyform==4.2.0: nothing pip would read as
+# an option, a URL or a file.
+valid_addon() {
+  [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9._,-]+\])?([~=!<>]=?=?[A-Za-z0-9.*+!_-]+)?(,[~=!<>]=?=?[A-Za-z0-9.*+!_-]+)*$ ]]
+}
+# A container image reference: [registry[:port]/]path[:tag][@sha256:digest].
+valid_image() {
+  [[ "$1" =~ ^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-]+[a-z0-9]+)*)*(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?(@sha256:[a-f0-9]{64})?$ ]]
+}
 
 # If this run is the continuation after that restart, make sure it only
 # happens once, and remove the saved settings (they include the password).
@@ -221,7 +242,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -301,18 +322,21 @@ if [[ ! -f "$APP_DIR/.env" ]]; then
   if [[ -z "$ADMIN_PASSWORD" ]]; then
     ADMIN_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
   fi
-  # Only package names with optional extras and version specifiers, such as
-  # collective.easyform or collective.easyform==4.2.0: nothing pip would read
-  # as an option, a URL or a file.
   ADDONS_NOTE=""
   for addon in "${ADDON_LIST[@]}"; do
-    if [[ ! "$addon" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9._,-]+\])?([~=!<>]=?=?[A-Za-z0-9.*+!_-]+)?(,[~=!<>]=?=?[A-Za-z0-9.*+!_-]+)*$ ]]; then
+    if ! valid_addon "$addon"; then
       log "Not installing the backend add-ons: \"$addon\" isn't a Python package name"
       ADDONS_NOTE="The add-ons ($ADDONS) were not installed: \"$addon\" isn't a Python package name."
       ADDONS=""
       break
     fi
   done
+  FRONTEND_NOTE=""
+  if [[ -n "$FRONTEND_IMAGE" ]] && ! valid_image "$FRONTEND_IMAGE"; then
+    log "Not using the frontend image \"$FRONTEND_IMAGE\": it isn't an image name; using the standard Volto image"
+    FRONTEND_NOTE="The frontend image \"$FRONTEND_IMAGE\" isn't an image name, so the site uses the standard Volto image."
+    FRONTEND_IMAGE=""
+  fi
   umask 077
   cat > "$APP_DIR/.env" <<EOF
 PLONE_VERSION=${PLONE_VERSION}
@@ -320,6 +344,7 @@ VOLTO_VERSION=${VOLTO_VERSION}
 POSTGRES_VERSION=${POSTGRES_VERSION}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 ADDONS='${ADDONS}'
+FRONTEND_IMAGE='${FRONTEND_IMAGE}'
 EOF
   umask 022
   NEW_ADMIN_PASSWORD_SET=0
@@ -331,10 +356,12 @@ else
   NEW_ADMIN_PASSWORD_SET=1
   ADDONS_NOTE=""
   ADDONS=$(sed -n "s/^ADDONS='\(.*\)'\$/\1/p" "$APP_DIR/.env")
+  FRONTEND_NOTE=""
+  FRONTEND_IMAGE=$(sed -n "s/^FRONTEND_IMAGE='\(.*\)'\$/\1/p" "$APP_DIR/.env")
 fi
 # Docker Compose prefers an exported variable over the .env file; .env is what
 # the site keeps using after setup, so let Compose read it from there.
-export -n ADDONS
+export -n ADDONS FRONTEND_IMAGE
 
 # --- Docker Compose stack ----------------------------------------------------
 
@@ -343,7 +370,8 @@ name: plone
 
 services:
   frontend:
-    image: plone/plone-frontend:${VOLTO_VERSION}
+    # FRONTEND_IMAGE in .env replaces the standard Volto image.
+    image: ${FRONTEND_IMAGE:-plone/plone-frontend:${VOLTO_VERSION}}
     environment:
       RAZZLE_INTERNAL_API_PATH: http://backend:8080/Plone
     restart: unless-stopped
@@ -446,6 +474,40 @@ transaction.commit()
 print("Zope admin user is set up")
 EOF
 
+# Activates the add-ons a frontend image needs and enables its behaviors on the
+# Plone Site type, so its settings (logo, colours, footer) appear on the site.
+cat > "$APP_DIR/activate_frontend_addons.py" <<'EOF'
+import os
+import sys
+import transaction
+from AccessControl.SecurityManagement import newSecurityManager
+from plone.base.utils import get_installer
+from zope.component.hooks import setSite
+
+app = globals()["app"]
+site = app["Plone"]
+setSite(site)
+admin = app.acl_users.getUser("admin") or site.acl_users.getUser("admin")
+newSecurityManager(None, admin.__of__(app.acl_users))
+
+installer = get_installer(site)
+for name in os.environ.get("SITE_ADDONS", "").split():
+    if not installer.is_product_installed(name):
+        if not installer.install_product(name):
+            transaction.abort()
+            sys.exit(f"Couldn't activate {name}")
+    print(f"Activated {name}")
+
+fti = site.portal_types["Plone Site"]
+behaviors = list(fti.behaviors)
+for name in os.environ.get("SITE_BEHAVIORS", "").split():
+    if name not in behaviors:
+        behaviors.append(name)
+fti.behaviors = tuple(behaviors)
+transaction.commit()
+print("Frontend add-ons are set up")
+EOF
+
 # Command for resetting the admin password later: sudo plone-reset-admin-password
 cat > /usr/local/bin/plone-reset-admin-password <<'EOF'
 #!/bin/bash
@@ -502,7 +564,44 @@ cd "$APP_DIR"
 compose() { docker compose --project-directory "$APP_DIR" "$@"; }
 
 progress 4
-log "Pulling images (Plone ${PLONE_VERSION}, Volto ${VOLTO_VERSION}, PostgreSQL ${POSTGRES_VERSION})"
+# A frontend image that can't be pulled (misspelled, private, gone) is left
+# out, so the site still starts with the standard Volto image. A ready-made
+# image's labels name the backend add-ons and site behaviors it needs.
+IMAGE_ADDONS="" IMAGE_BEHAVIORS="" IMAGE_ACTIVATED=0
+if [[ -n "$FRONTEND_IMAGE" ]]; then
+  log "Pulling the frontend image ${FRONTEND_IMAGE}"
+  if docker pull --quiet "$FRONTEND_IMAGE"; then
+    label() { docker image inspect -f "{{index .Config.Labels \"org.plone-in-a-box.$1\"}}" "$FRONTEND_IMAGE" 2>/dev/null || true; }
+    for addon in $(label backend-addons); do
+      if valid_addon "$addon"; then
+        IMAGE_ADDONS+="${IMAGE_ADDONS:+ }$addon"
+      fi
+    done
+    # Not again if setup runs a second time with the same .env.
+    missing=""
+    for addon in $IMAGE_ADDONS; do
+      [[ " $ADDONS " == *" $addon "* ]] || missing+="${missing:+ }$addon"
+    done
+    for behavior in $(label site-behaviors); do
+      if [[ "$behavior" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        IMAGE_BEHAVIORS+="${IMAGE_BEHAVIORS:+ }$behavior"
+      fi
+    done
+    if [[ -n "$IMAGE_ADDONS" ]]; then
+      log "The frontend image needs the backend add-ons ${IMAGE_ADDONS}"
+      if [[ -n "$missing" ]]; then
+        ADDONS="${ADDONS:+$ADDONS }${missing}"
+        sed -i "s/^ADDONS=.*/ADDONS='${ADDONS}'/" "$APP_DIR/.env"
+      fi
+    fi
+  else
+    log "The frontend image ${FRONTEND_IMAGE} couldn't be pulled; using the standard Volto image"
+    FRONTEND_NOTE="The frontend image ${FRONTEND_IMAGE} couldn't be pulled, so the site uses the standard Volto image. The reason is in /var/log/plone-in-a-box.log."
+    FRONTEND_IMAGE=""
+    sed -i "s/^FRONTEND_IMAGE=.*/FRONTEND_IMAGE=''/" "$APP_DIR/.env"
+  fi
+fi
+log "Pulling images (Plone ${PLONE_VERSION}, ${FRONTEND_IMAGE:-Volto ${VOLTO_VERSION}}, PostgreSQL ${POSTGRES_VERSION})"
 compose pull --quiet
 
 # A misspelled or incompatible add-on would stop the backend from starting,
@@ -515,6 +614,13 @@ if [[ -n "$ADDONS" ]]; then
     ADDONS_NOTE="The add-ons ($ADDONS) couldn't be installed, so the site runs without them. The reason is in /var/log/plone-in-a-box.log."
     ADDONS=""
     sed -i "s/^ADDONS=.*/ADDONS=''/" "$APP_DIR/.env"
+    # The frontend image needs its backend half; without it, use the standard one.
+    if [[ -n "$IMAGE_ADDONS" ]]; then
+      log "The frontend image ${FRONTEND_IMAGE} needs those add-ons; using the standard Volto image"
+      FRONTEND_NOTE="The frontend image ${FRONTEND_IMAGE} needs backend add-ons that couldn't be installed, so the site uses the standard Volto image."
+      FRONTEND_IMAGE="" IMAGE_ADDONS="" IMAGE_BEHAVIORS=""
+      sed -i "s/^FRONTEND_IMAGE=.*/FRONTEND_IMAGE=''/" "$APP_DIR/.env"
+    fi
   fi
 fi
 
@@ -535,6 +641,39 @@ compose run --rm --no-deps -e ADDONS= \
   -e SITE_ID=Plone \
   -e TIMEZONE="$SITE_TIMEZONE" \
   backend create-site
+
+if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && ( -n "$IMAGE_ADDONS" || -n "$IMAGE_BEHAVIORS" ) ]]; then
+  log "Activating what the frontend image needs: ${IMAGE_ADDONS} ${IMAGE_BEHAVIORS}"
+  site_addons=""
+  for addon in $IMAGE_ADDONS; do site_addons+=" ${addon%%[[~=!<>]*}"; done
+  if compose run --rm --no-deps -e SITE_ADDONS="$site_addons" -e SITE_BEHAVIORS="$IMAGE_BEHAVIORS" \
+      -v "$APP_DIR/activate_frontend_addons.py:/app/scripts/activate_frontend_addons.py:ro" \
+      backend run /app/scripts/activate_frontend_addons.py; then
+    IMAGE_ACTIVATED=1
+  else
+    log "Activating them failed (see above); activate them in Site Setup > Add-ons and enable the behaviors in Site Setup > Content Types > Plone Site"
+    FRONTEND_NOTE="Activating the add-ons the frontend image needs failed: activate ${IMAGE_ADDONS} in Site Setup > Add-ons, and enable ${IMAGE_BEHAVIORS} in Site Setup > Content Types > Plone Site > Behaviors."
+  fi
+fi
+
+# Add-ons left for the admin to activate: not those setup activated for the
+# frontend image.
+ADDONS_TODO="$ADDONS"
+if [[ "$IMAGE_ACTIVATED" == 1 ]]; then
+  ADDONS_TODO=""
+  for addon in $ADDONS; do
+    [[ " $IMAGE_ADDONS " == *" $addon "* ]] || ADDONS_TODO+="${ADDONS_TODO:+ }$addon"
+  done
+fi
+if [[ -z "$ADDONS" ]]; then
+  ADDONS_LINE=""
+elif [[ -z "$ADDONS_TODO" ]]; then
+  ADDONS_LINE="Backend add-ons: ${ADDONS} (activated for the frontend image)"
+elif [[ "$ADDONS_TODO" == "$ADDONS" ]]; then
+  ADDONS_LINE="Backend add-ons: ${ADDONS} (activate them in Site Setup > Add-ons)"
+else
+  ADDONS_LINE="Backend add-ons: ${ADDONS} (activate ${ADDONS_TODO} in Site Setup > Add-ons; the others are activated for the frontend image)"
+fi
 
 progress 6
 log "Starting Plone"
@@ -632,7 +771,8 @@ Site:      ${SITE_URL}
 Username:  admin
 Password:  ${PASSWORD_LINE}
 ${PASSWORD_NOTE}
-${ADDONS:+Backend add-ons: ${ADDONS} (activate them in Site Setup > Add-ons)}${ADDONS_NOTE}
+${ADDONS_LINE}${ADDONS_NOTE}
+${FRONTEND_IMAGE:+Frontend image: ${FRONTEND_IMAGE}}${FRONTEND_NOTE}
 Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF
@@ -654,11 +794,17 @@ if [[ -f /var/run/reboot-required ]]; then
   log "Some updates need a restart to take effect; restart the server when convenient (sudo reboot). Plone starts again by itself."
 fi
 
-if [[ -n "$ADDONS" ]]; then
-  log "Backend add-ons installed: ${ADDONS}. Activate them in Site Setup > Add-ons."
+if [[ -n "$ADDONS_LINE" ]]; then
+  log "$ADDONS_LINE"
 fi
 if [[ -n "$ADDONS_NOTE" ]]; then
   log "$ADDONS_NOTE"
+fi
+if [[ -n "$FRONTEND_IMAGE" ]]; then
+  log "Frontend image: ${FRONTEND_IMAGE}"
+fi
+if [[ -n "$FRONTEND_NOTE" ]]; then
+  log "$FRONTEND_NOTE"
 fi
 if [[ "$ADMIN_PASSWORD_CHOSEN" == 1 ]]; then
   log "Finished. Site: ${SITE_URL} -- log in as admin with the password you chose"

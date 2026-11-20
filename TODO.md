@@ -16,20 +16,19 @@
 Keep the official `plone/plone-backend` and `plone/plone-frontend` images as the default, so most people
 still deploy with no build step. Add optional settings for people who need more:
 
-- [ ] **Custom image names.** Add optional backend and frontend image settings to the StackScript (UDF fields),
-  `src/aws/main.tf` and `src/digitalocean/main.tf`. When set, the Compose file uses those images instead of
-  the stock ones. This lets someone build a project with cookieplone, push its images to a registry, and run
-  them on a box.
+- [x] **Custom frontend image.** `FRONTEND_IMAGE`, with ready-made images built in this repository (2.11).
+- [ ] **Self-built frontend images, documented.** A template repository or a guide for building your own, with
+  other Volto add-ons.
+- [ ] **Custom backend image** (for example a cookieplone project's backend), if `ADDONS` isn't enough.
   - Decide how private registries authenticate (registry URL, username and token as optional fields?).
-  - Document how this interacts with `PLONE_VERSION` / `VOLTO_VERSION` (ignored when custom images are set?).
   - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
     its backend package hides it from Site Setup → Add-ons unless the frontend includes `volto-juizi-dashboard`,
     and (as of 2026-11-19) it isn't on PyPI, so the backend add-ons setting can't install it either.
 - [x] **Backend add-ons without a custom build.** Expose the `plone/plone-backend` image's `ADDONS`
   environment variable (pip-installs add-ons at container startup) as an optional setting.
-- [ ] **Check frontend add-on support.** Find out whether the current `plone/plone-frontend` image can take
-  Volto add-ons without a rebuild. If not, document that frontend add-ons need custom images.
-- [ ] Update `README.md` and `docs/setup-guide.md` for the new options.
+- [x] **Check frontend add-on support.** The `plone/plone-frontend` image can't take Volto add-ons without a
+  rebuild; they need a frontend image (see above).
+- [x] Update `README.md` and `docs/setup-guide.md` for the new options.
 
 ### Why not switch the whole project to cookieplone
 

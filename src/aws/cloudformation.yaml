@@ -33,9 +33,10 @@ Metadata:
           - KeyName
           - SSHLocation
       - Label:
-          default: Add-ons (optional)
+          default: Add-ons and themes (optional)
         Parameters:
           - Addons
+          - FrontendImage
       - Label:
           default: Advanced (leave as is)
         Parameters:
@@ -62,6 +63,8 @@ Metadata:
         default: Allow SSH from
       Addons:
         default: Backend add-ons
+      FrontendImage:
+        default: Frontend image
       PloneVersion:
         default: Plone backend image tag
       VoltoVersion:
@@ -135,6 +138,15 @@ Parameters:
     Description: >-
       Python package names separated by spaces, for example collective.easyform. Activate them
       afterwards in Site Setup > Add-ons.
+  FrontendImage:
+    Type: String
+    Default: ""
+    AllowedPattern: '^[A-Za-z0-9./:@_-]*$'
+    ConstraintDescription: Must be a container image name, such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt.
+    Description: >-
+      A ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt
+      (Volto Light Theme; its backend add-on is installed and activated too), or your own. Leave empty
+      for the standard Volto image.
   PloneVersion:
     Type: String
     Default: "6.2"
@@ -226,7 +238,8 @@ Resources:
             PLONE_VERSION='${PloneVersion}'
             VOLTO_VERSION='${VoltoVersion}'
             ADDONS="$(d '${AddonsB64}')"
-            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS
+            FRONTEND_IMAGE="$(d '${FrontendImageB64}')"
+            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)
             if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \
@@ -240,6 +253,7 @@ Resources:
             EmailB64: !Base64 {Ref: LetsEncryptEmail}
             TimezoneB64: !Base64 {Ref: SiteTimezone}
             AddonsB64: !Base64 {Ref: Addons}
+            FrontendImageB64: !Base64 {Ref: FrontendImage}
 
   # A fixed address, so the site keeps the same IP after the server is stopped
   # and started, and DNS for a domain only needs setting once.

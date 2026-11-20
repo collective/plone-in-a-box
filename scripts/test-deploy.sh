@@ -21,6 +21,13 @@
 #                          with --addons: expect setup to leave the add-ons out
 #                          (a misspelled or invalid name), and check the site
 #                          works without them and the credentials file says why
+#   --frontend-image IMAGE use this frontend image, then check the frontend runs
+#                          it, and that the backend add-ons and site behaviors
+#                          its labels name are active, also after the restarts
+#   --expect-frontend-fallback
+#                          with --frontend-image: expect setup to use the
+#                          standard Volto image instead (a bad image name), and
+#                          check the credentials file says why
 #
 # "list" shows the test servers that exist; "cleanup" deletes all of them.
 # Only servers tagged piab-test are ever touched.
@@ -59,7 +66,7 @@ esac
 LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
-PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0
+PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0
 SERVER_ID="" IP="" FAILURES=0
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -68,7 +75,7 @@ pass() { say "PASS  $*"; }
 fail() { say "FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else fail "$what"; fi; }
 
-usage() { sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,34p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
   linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
@@ -84,6 +91,8 @@ while (( $# )); do
     --keep) KEEP=1 ;;
     --addons) ADDONS=${2:?--addons needs a value}; shift ;;
     --expect-addons-skipped) ADDONS_SKIPPED=1 ;;
+    --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
+    --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
     *) usage ;;
   esac
   shift
@@ -218,9 +227,12 @@ say "Notes, passwords and logs: $WORK"
   echo "ref=$REF sha=$SHA name=$NAME"
   (( GENERATED )) && echo "admin password: generated on the server" || echo "admin password: $ADMIN_PASSWORD"
   [[ -z "$ADDONS" ]] || echo "add-ons: $ADDONS"
+  [[ -z "$FRONTEND_IMAGE" ]] || echo "frontend image: $FRONTEND_IMAGE"
 } > "$WORK/notes.txt"
 [[ "$ADDONS" != *"'"* ]] || die "--addons can't contain a single quote"
 (( ! ADDONS_SKIPPED )) || [[ -n "$ADDONS" ]] || die "--expect-addons-skipped needs --addons"
+[[ "$FRONTEND_IMAGE" != *[\'\|\&]* ]] || die "--frontend-image can't contain ', | or &"
+(( ! FRONTEND_FALLBACK )) || [[ -n "$FRONTEND_IMAGE" ]] || die "--expect-frontend-fallback needs --frontend-image"
 
 cleanup_on_exit() {
   local status=$?
@@ -245,15 +257,19 @@ launcher() {
     printf '%s\n' '#!/bin/bash' \
       "export ADMIN_PASSWORD='${ADMIN_PASSWORD:-CHANGE-ME}'" \
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
+      ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
       "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
     return
   fi
   text=$(git show "$SHA:src/user-data.sh" \
     | sed -e "s/^export ADMIN_PASSWORD=''$/export ADMIN_PASSWORD='$ADMIN_PASSWORD'/" \
           -e "s|^export ADDONS=''$|export ADDONS='${ADDONS//&/\\&}'|" \
+          -e "s|^export FRONTEND_IMAGE=''$|export FRONTEND_IMAGE='$FRONTEND_IMAGE'|" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")
   grep -q "^PIAB_RELEASE='$SHA'$" <<<"$text" || die "couldn't set PIAB_RELEASE in src/user-data.sh"
   [[ -z "$ADDONS" ]] || grep -qF "export ADDONS='$ADDONS'" <<<"$text" || die "couldn't set ADDONS in src/user-data.sh"
+  [[ -z "$FRONTEND_IMAGE" ]] || grep -qF "export FRONTEND_IMAGE='$FRONTEND_IMAGE'" <<<"$text" \
+    || die "couldn't set FRONTEND_IMAGE in src/user-data.sh"
   printf '%s\n' "$text"
 }
 
@@ -272,10 +288,10 @@ if [[ "$PROVIDER" == linode ]]; then
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
-      --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" \
+      --arg frontend "$FRONTEND_IMAGE" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
-        stackscript_data: {ADMIN_PASSWORD: $pw, ADDONS: $addons}, booted: true}
+        stackscript_data: {ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend}, booted: true}
        + (if $fw == "" then {} else {firewall_id: ($fw | tonumber)} end)')
   created=$(api POST /linode/instances "$body")
   SERVER_ID=$(jq -r '.id' <<<"$created")
@@ -375,7 +391,7 @@ START=$SECONDS
 
 # --- Helpers for the checks ----------------------------------------------------
 
-SSH_OPTS=(-i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR
+SSH_OPTS=(-i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o LogLevel=ERROR
           -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$WORK/known_hosts")
 # Linode and DigitalOcean log in as root; AWS as ubuntu, with sudo.
 # Commands are expanded locally on purpose (they include values from here).
@@ -418,7 +434,7 @@ login() {
 }
 old_password_rejected() { ! login "$ADMIN_PASSWORD"; }
 # The add-on names without versions or extras, e.g. collective.easyform.
-addon_names() { for a in $ADDONS; do a=${a%%[[~=!<>]*}; echo "$a"; done; }
+addon_names() { for a in ${1-$ADDONS}; do a=${a%%[[~=!<>]*}; echo "$a"; done; }
 # Every add-on is offered in Site Setup > Add-ons (or is already activated).
 addons_listed() {
   local token ids name
@@ -436,11 +452,25 @@ addons_activate() {
   done
 }
 addons_active() {
-  local token installed name
+  local token installed name list=${2-$ADDONS}
   token=$(login "$1") || return 1
   installed=$(curl -s -m 30 "http://$IP/++api++/@addons" -H 'Accept: application/json' \
     -H "Authorization: Bearer $token" | jq -r '.items[] | select(.is_installed) | .id') || return 1
-  for name in $(addon_names); do grep -qx "$name" <<<"$installed" || return 1; done
+  for name in $(addon_names "$list"); do grep -qx "$name" <<<"$installed" || return 1; done
+}
+# The frontend image's labels, read on the server.
+image_label() {
+  rssh "docker image inspect -f '{{index .Config.Labels \"org.plone-in-a-box.$1\"}}' '$FRONTEND_IMAGE'" 2>/dev/null
+}
+frontend_runs() {
+  [[ "$(rssh "docker compose --project-directory /opt/plone ps --format '{{.Image}}' frontend")" == "$1" ]]
+}
+behaviors_enabled() {
+  local token data name
+  token=$(login "$1") || return 1
+  data=$(curl -s -m 30 "http://$IP/++api++/@controlpanels/dexterity-types/Plone%20Site" \
+    -H 'Accept: application/json' -H "Authorization: Bearer $token" | jq -c .data) || return 1
+  for name in $2; do jq -e --arg n "$name" '.[$n] == true' <<<"$data" >/dev/null || return 1; done
 }
 site_is_plone() { ! page | grep -q 'Plone in a Box</title>' && curl -sf -m 10 "http://$IP/++api++/" | jq -e '."@id"' >/dev/null; }
 port_closed() {
@@ -454,7 +484,11 @@ count_in_log() { rssh "grep -c '^\[plone-in-a-box\] $1' /var/log/plone-in-a-box.
 # --- Setup -------------------------------------------------------------------------
 
 wait_until "progress page is up" 600 progress_page_up || true
-wait_until "setup finished or failed" 2400 setup_done_or_failed || exit 1
+if ! wait_until "setup finished or failed" 2400 setup_done_or_failed; then
+  rssh 'cat /var/log/plone-in-a-box.log' > "$WORK/setup.log" 2>/dev/null \
+    && say "Setup log so far saved to $WORK/setup.log; last lines:" && tail -5 "$WORK/setup.log" | sed 's/^/      /'
+  exit 1
+fi
 rssh 'cat /var/log/plone-in-a-box.log' > "$WORK/setup.log" 2>/dev/null || true
 if setup_failed; then
   fail "setup failed; log saved to $WORK/setup.log"
@@ -510,6 +544,29 @@ elif [[ -n "$ADDONS" ]]; then
   check "add-ons are active" addons_active "$NEW_PASSWORD"
 fi
 
+# --- Frontend image ------------------------------------------------------------------
+
+IMAGE_ADDONS="" IMAGE_BEHAVIORS=""
+if (( FRONTEND_FALLBACK )); then
+  grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'frontend' | sed 's/^/      /' || true
+  check "the frontend runs the standard Volto image" rssh \
+    "docker compose --project-directory /opt/plone ps --format '{{.Image}}' frontend | grep -q '^plone/plone-frontend:'"
+  check "credentials file says why" rssh "grep -qi 'frontend image .* standard Volto image' /root/plone-credentials.txt"
+  check "no frontend image is configured in /opt/plone/.env" rssh "grep -qx \"FRONTEND_IMAGE=''\" /opt/plone/.env"
+elif [[ -n "$FRONTEND_IMAGE" ]]; then
+  grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'frontend' | sed 's/^/      /' || true
+  check "the frontend runs $FRONTEND_IMAGE" frontend_runs "$FRONTEND_IMAGE"
+  IMAGE_ADDONS=$(image_label backend-addons || true)
+  IMAGE_BEHAVIORS=$(image_label site-behaviors || true)
+  say "      image labels: add-ons '${IMAGE_ADDONS}', behaviors '${IMAGE_BEHAVIORS}'"
+  if [[ -n "$IMAGE_ADDONS" ]]; then
+    check "the image's backend add-ons are active" addons_active "$NEW_PASSWORD" "$IMAGE_ADDONS"
+  fi
+  if [[ -n "$IMAGE_BEHAVIORS" ]]; then
+    check "the image's site behaviors are enabled" behaviors_enabled "$NEW_PASSWORD" "$IMAGE_BEHAVIORS"
+  fi
+fi
+
 # --- Network -------------------------------------------------------------------------
 
 for port in 5432 8080 3000; do
@@ -544,6 +601,12 @@ check "setup didn't run again after the restart" test "$(count_in_log 'Continuin
 check "setup finished exactly once" test "$(count_in_log 'Finished')" = 1
 if [[ -n "$ADDONS" ]] && (( ! ADDONS_SKIPPED )); then
   check "add-ons are still active after the restarts" addons_active "$NEW_PASSWORD"
+fi
+if [[ -n "$FRONTEND_IMAGE" ]] && (( ! FRONTEND_FALLBACK )); then
+  check "the frontend still runs $FRONTEND_IMAGE after the restarts" frontend_runs "$FRONTEND_IMAGE"
+  if [[ -n "$IMAGE_ADDONS" ]]; then
+    check "the image's backend add-ons are still active" addons_active "$NEW_PASSWORD" "$IMAGE_ADDONS"
+  fi
 fi
 
 # --- Result -------------------------------------------------------------------------------

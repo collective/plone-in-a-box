@@ -50,6 +50,8 @@ locations are in Germany and Finland. All four offer automatic server backups fo
    * **Site time zone**, for example `America/Chicago` (default `UTC`).
    * **Plone backend image tag** and **Volto frontend image tag** (defaults `6.2` and `19`).
    * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
+   * **Frontend image**, for example `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` for Volto Light Theme
+     (see [Themes and frontend images](#themes-and-frontend-images)).
 4. Choose **Ubuntu 26.04 LTS** as the image (24.04 also works), a region, and a plan: a 1 GB **Nanode** is enough
    for a small site, 2 GB or more for a busier one.
 5. Set a root password, add your **SSH key**, and click **Create Linode**.
@@ -84,7 +86,8 @@ No command line is needed.
    * **Domain name** and **Email for Let's Encrypt**, if you want HTTPS and your domain's DNS already points to the
      server. You can also add HTTPS later.
    * **SSH key pair** and **Allow SSH from**: optional, only if you want to log in from your own computer.
-   * **Backend add-ons**: optional, for example `collective.easyform` (see [Add-ons](#add-ons)).
+   * **Backend add-ons** and **Frontend image**: optional (see [Add-ons](#add-ons) and
+     [Themes and frontend images](#themes-and-frontend-images)).
    * Leave the **Advanced** settings as they are.
 4. Click **Create stack**. After a minute or two the stack shows `CREATE_COMPLETE`.
 5. Open the **Outputs** tab and click the **SiteURL**. You'll see the setup progress page, which turns into your
@@ -161,6 +164,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # letsencrypt_email = "you@example.org"
 # site_timezone     = "America/Chicago"
 # addons            = "collective.easyform"
+# frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -196,7 +200,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.10/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
-   domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
+   domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
    and fill in its setting lines.
 3. Create the Droplet. If you add a Cloud Firewall, allow inbound TCP 22, 80 and 443. (The server's own firewall
    allows only those ports either way.)
@@ -261,7 +265,7 @@ No command line is needed if you choose the admin password here. In the
    export ADMIN_PASSWORD='CHANGE-ME'
    curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.10/src/StackScript && bash /root/plone-in-a-box.sh
    ```
-   For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons), paste the contents of
+   For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
 8. **Name** is filled in for you; change it if you like (for example `plone`). Click **Create & Buy now**, then open
    the server's IPv4 address (with `http://`) to watch the setup progress page, which turns into your Plone site
@@ -380,7 +384,40 @@ sudo docker compose --project-directory /opt/plone logs -f backend   # watch pip
 This needs a server set up with Plone in a Box 2.10 or later. If the backend doesn't come back, the pip messages
 in the log say why: fix or remove the name and run `up -d backend` again.
 
-Only backend add-ons work this way. Volto (frontend) add-ons need a custom frontend image.
+Only backend add-ons work this way. Volto (frontend) add-ons and themes are built into the frontend image; see
+[Themes and frontend images](#themes-and-frontend-images).
+
+## Themes and frontend images
+
+The **Frontend image** setting replaces the standard Volto image (the `FRONTEND_IMAGE` line in `src/user-data.sh`, or
+the `frontend_image` Terraform variable). Plone in a Box publishes ready-made images, rebuilt every week:
+
+| Frontend image | What you get |
+| --- | --- |
+| `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` | [Volto Light Theme](https://github.com/kitconcept/volto-light-theme) 8.1.4 on Volto 19 |
+
+A ready-made image brings its backend half: setup installs and activates the matching backend add-on (for Volto Light
+Theme, `kitconcept.voltolighttheme`) and turns on its site settings. Edit the home page to find them: the logo,
+colours, header and footer settings sit with the site's own fields.
+
+If the image can't be pulled (a typo, or a private image), or its backend add-on can't be installed, the site is set
+up with the standard Volto image instead, and `/root/plone-credentials.txt` and `/var/log/plone-in-a-box.log` say
+why.
+
+You can also give the name of an image you built yourself, for example with other Volto add-ons; see
+[`frontend-image/`](../frontend-image/README.md) for how the ready-made ones are built. It has to be public: setup
+can't log in to a registry. When a frontend image is set, `VOLTO_VERSION` doesn't apply to the frontend; the image's
+tag decides.
+
+To change the frontend image on an existing server, edit the `FRONTEND_IMAGE='...'` line in `/opt/plone/.env`, then:
+
+```
+sudo docker compose --project-directory /opt/plone up -d frontend
+```
+
+This needs a server set up with Plone in a Box 2.11 or later. Changing it this way doesn't install the image's
+backend add-on: add it to `ADDONS` (see [Add-ons](#add-ons)), activate it in Site Setup → Add-ons, and enable its
+behaviors under Site Setup → Content Types → Plone Site → Behaviors.
 
 ## Adding HTTPS later
 
@@ -425,6 +462,7 @@ need it.
 | Hetzner: `SSH key with the same fingerprint already exists` (Terraform) | The key is already in the project. Delete it under **Security → SSH keys**, or use a different key. |
 | Terraform: `no file exists at .../id_ed25519.pub` | Pass your key's path with `-var 'ssh_public_key_path=...'`, for `destroy` too. |
 | Terraform on a Mac: `lookup sts.<region>.amazonaws.com: no such host` | Turn off iCloud Private Relay and retry. |
+| The site has the standard look although a frontend image was set | Read `/root/plone-credentials.txt` and `grep -i frontend /var/log/plone-in-a-box.log`: setup uses the standard Volto image if the frontend image can't be pulled or its backend add-on can't be installed. See [Themes and frontend images](#themes-and-frontend-images). |
 | An add-on isn't listed in **Site Setup → Add-ons** | Read `/root/plone-credentials.txt` and `grep add-ons /var/log/plone-in-a-box.log`: setup leaves the add-ons out if pip can't install them. Packages without an install profile don't appear there, since there's nothing to activate. See [Add-ons](#add-ons). |
 | Linode: "A UDF is missing the required 'name' attribute" | The script was modified with a `<UDF>` tag that has no `name`. Use the current `src/StackScript`. |
 
