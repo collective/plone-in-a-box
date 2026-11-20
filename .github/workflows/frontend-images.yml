@@ -1,0 +1,77 @@
+name: Frontend images
+
+# Builds the ready-made frontend images from frontend-image/Dockerfile and
+# publishes them to ghcr.io/<owner>/plone-in-a-box-frontend: the real images
+# from collective/plone-in-a-box, test images from forks. Pull requests only
+# build. A failed build publishes nothing, so the previous image stays.
+
+on:
+  push:
+    branches: [main]
+    paths: [frontend-image/**, .github/workflows/frontend-images.yml]
+  pull_request:
+    paths: [frontend-image/**, .github/workflows/frontend-images.yml]
+  schedule:
+    # Weekly, to pick up Volto patch releases in the builder image.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # One entry per image. Pin exact versions, and keep the frontend and
+          # backend halves of an add-on at matching versions.
+          - variant: vlt
+            volto: "19"
+            description: Volto Light Theme
+            packages: "@kitconcept/volto-light-theme@8.1.4"
+            addons: "@kitconcept/volto-light-theme"
+            theme: "@kitconcept/volto-light-theme"
+            backend_addons: "kitconcept.voltolighttheme==8.1.4"
+            site_behaviors: "voltolighttheme.header voltolighttheme.theme voltolighttheme.footer"
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/plone-in-a-box-frontend
+      TAG: ${{ matrix.volto }}-${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tags
+        id: tags
+        run: |
+          {
+            echo "list<<EOF"
+            echo "$IMAGE:$TAG"
+            echo "$IMAGE:$TAG-$(date -u +%Y-%m-%d)"
+            echo "$IMAGE:$TAG-${GITHUB_SHA::7}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: frontend-image
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            VOLTO_VERSION=${{ matrix.volto }}
+            PACKAGES=${{ matrix.packages }}
+            ADDONS=${{ matrix.addons }}
+            THEME=${{ matrix.theme }}
+            BACKEND_ADDONS=${{ matrix.backend_addons }}
+            SITE_BEHAVIORS=${{ matrix.site_behaviors }}
+          tags: ${{ steps.tags.outputs.list }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Plone in a Box frontend: plone/plone-frontend ${{ matrix.volto }} with ${{ matrix.description }}
