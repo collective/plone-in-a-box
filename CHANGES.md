@@ -1,4 +1,4 @@
-2.10 (unreleased)
+2.10 (2026-11-20)
 -----------------
 
 - Backend add-ons without a custom build: an optional setting (the Linode
@@ -11,7 +11,10 @@
   need a custom image.
 - scripts/test-deploy.sh: --addons "PKG ..." checks the add-ons can be
   activated and stay active after restarts; --expect-addons-skipped checks
-  that bad names are left out.
+  that bad names are left out. PIAB_LINODE_TYPE and PIAB_DO_SIZE pick the
+  server size. Test SSH keys on Hetzner and AWS are named after their
+  fingerprint, so several computers can run the tests (update the AWS test
+  user's inline policy from scripts/aws-test-policy.json).
   [tkimnguyen]
 
 
