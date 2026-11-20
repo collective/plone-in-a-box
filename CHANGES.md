@@ -1,3 +1,14 @@
+2.12 (unreleased)
+-----------------
+
+- Docs: building your own frontend image with other Volto add-ons (fork, add
+  an entry to the workflow, and GitHub Actions builds and publishes it), and
+  using a custom backend image on a running server, for packages that aren't
+  on PyPI. Ready-made frontend images are x86 only; on Arm servers setup uses
+  the standard Volto image.
+  [tkimnguyen]
+
+
 2.11 (2026-11-20)
 -----------------
 

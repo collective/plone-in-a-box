@@ -17,9 +17,11 @@ Keep the official `plone/plone-backend` and `plone/plone-frontend` images as the
 still deploy with no build step. Add optional settings for people who need more:
 
 - [x] **Custom frontend image.** `FRONTEND_IMAGE`, with ready-made images built in this repository (2.11).
-- [ ] **Self-built frontend images, documented.** A template repository or a guide for building your own, with
-  other Volto add-ons.
-- [ ] **Custom backend image** (for example a cookieplone project's backend), if `ADDONS` isn't enough.
+- [x] **Self-built frontend images, documented.** Fork, add a matrix entry, and GitHub Actions builds and
+  publishes it (`frontend-image/README.md`).
+- [x] **Custom backend image, documented** for a running server: build on `plone/plone-backend`, and change the
+  backend's `image:` line (setup guide, "Custom backend image").
+- [ ] **Custom backend image setting** (for example a cookieplone project's backend), like `FRONTEND_IMAGE`.
   - Decide how private registries authenticate (registry URL, username and token as optional fields?).
   - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
     its backend package hides it from Site Setup → Add-ons unless the frontend includes `volto-juizi-dashboard`,
