@@ -1,4 +1,4 @@
-2.11 (unreleased)
+2.11 (2026-11-20)
 -----------------
 
 - Volto Light Theme, and other frontend images: a new optional setting (the
@@ -13,8 +13,16 @@
 - Ready-made frontend images, built by .github/workflows/frontend-images.yml
   and published from collective/plone-in-a-box. Their labels name the backend
   add-ons and site behaviors they need. Rebuilt every week.
+- Fixed: when setup continued after a restart for updates, the last lines of
+  its log, "Finished" among them, could be lost, although setup had
+  completed.
+- The credentials file and the log no longer ask you to activate add-ons that
+  setup already activated for the frontend image.
 - scripts/test-deploy.sh: --frontend-image IMAGE and
-  --expect-frontend-fallback.
+  --expect-frontend-fallback. SSH keepalives, so a hung connection can't
+  stall a test, and the setup log is kept when setup times out.
+- scripts/aws-test-cloudformation-policy.json: a managed policy that lets the
+  AWS test user run Launch Stack tests (stacks named piab-test-*).
   [tkimnguyen]
 
 

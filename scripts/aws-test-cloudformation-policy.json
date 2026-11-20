@@ -1,0 +1,110 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TestStacks",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack",
+        "cloudformation:DeleteStack",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:TagResource"
+      ],
+      "Resource": "arn:aws:cloudformation:*:*:stack/piab-test-*/*"
+    },
+    {
+      "Sid": "StackReads",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ListStacks",
+        "cloudformation:ValidateTemplate",
+        "cloudformation:GetTemplateSummary",
+        "ec2:DescribeAddresses",
+        "ec2:DescribeInstanceStatus"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "UbuntuAmiLookup",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameters",
+        "ssm:GetParameter"
+      ],
+      "Resource": "arn:aws:ssm:*::parameter/aws/service/canonical/*"
+    },
+    {
+      "Sid": "TestElasticIPs",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AllocateAddress"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/piab-test": "true"
+        }
+      }
+    },
+    {
+      "Sid": "TestElasticIPsUse",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AssociateAddress",
+        "ec2:DisassociateAddress",
+        "ec2:ReleaseAddress"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/piab-test": "true"
+        }
+      }
+    },
+    {
+      "Sid": "TestSecurityGroupCleanup",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DeleteSecurityGroup"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/piab-test": "true"
+        }
+      }
+    },
+    {
+      "Sid": "StackInstanceVolumes",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances"
+      ],
+      "Resource": "arn:aws:ec2:*:*:volume/*"
+    },
+    {
+      "Sid": "TagNewElasticIPs",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateTags"
+      ],
+      "Resource": "arn:aws:ec2:*:*:elastic-ip/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:CreateAction": "AllocateAddress"
+        }
+      }
+    },
+    {
+      "Sid": "ElasticIPInterfaces",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AssociateAddress",
+        "ec2:DisassociateAddress"
+      ],
+      "Resource": "arn:aws:ec2:*:*:network-interface/*"
+    }
+  ]
+}
