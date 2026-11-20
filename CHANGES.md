@@ -1,3 +1,23 @@
+2.11 (unreleased)
+-----------------
+
+- Volto Light Theme, and other frontend images: a new optional setting (the
+  Linode StackScript's "Frontend image" field, FRONTEND_IMAGE in
+  src/user-data.sh, the Launch Stack template's FrontendImage parameter and
+  the Terraform frontend_image variable) replaces the standard Volto image.
+  With ghcr.io/collective/plone-in-a-box-frontend:19-vlt the site runs Volto
+  Light Theme: setup also installs and activates its backend add-on and turns
+  on its site settings (logo, colours, footer). An image that can't be pulled,
+  or whose backend add-ons can't be installed, is left out, and the site uses
+  the standard Volto image; the credentials file and the log say why.
+- Ready-made frontend images, built by .github/workflows/frontend-images.yml
+  and published from collective/plone-in-a-box. Their labels name the backend
+  add-ons and site behaviors they need. Rebuilt every week.
+- scripts/test-deploy.sh: --frontend-image IMAGE and
+  --expect-frontend-fallback.
+  [tkimnguyen]
+
+
 2.10 (2026-11-20)
 -----------------
 

@@ -45,6 +45,12 @@ export VOLTO_VERSION='19'
 # Site Setup > Add-ons.
 export ADDONS=''
 
+# Frontend image, optional: a ready-made Plone in a Box image such as
+# 'ghcr.io/collective/plone-in-a-box-frontend:19-vlt' (Volto Light Theme; its
+# backend add-on is installed and activated too), or your own. Leave empty for
+# the standard Volto image.
+export FRONTEND_IMAGE=''
+
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.

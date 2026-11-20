@@ -41,7 +41,7 @@ The [setup guide](docs/setup-guide.md) has step-by-step instructions for each pr
    [Plone in a Box StackScript](https://cloud.linode.com/stackscripts/931893) (by **nguyen-plone**), and click
    **Deploy New Linode**.
 2. Fill in the form. Set the **Plone admin password** (at least 12 characters); the domain name, time zone,
-   versions and backend add-ons are optional.
+   versions, backend add-ons and a theme are optional.
 3. Choose **Ubuntu 26.04 LTS** (24.04 also works), a region and a plan (a 1 GB Nanode is enough for a small
    site), set a root password, and pick **No firewall** if Cloud Manager asks for one (the server has its own).
 4. Click **Create Linode**, then open the Linode's IP address in your browser.
@@ -61,7 +61,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    ```
 3. Create the Droplet, then open its IP address in your browser.
 
-For more settings (a domain for HTTPS, the time zone, versions, add-ons), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
+For more settings (a domain for HTTPS, the time zone, versions, add-ons, a theme), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
 
 Details: [setup guide, DigitalOcean](docs/setup-guide.md#console-deployment-easiest-1).
 
@@ -89,7 +89,7 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
    ```
 3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
 
-For more settings (a domain for HTTPS, the time zone, versions, add-ons), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
+For more settings (a domain for HTTPS, the time zone, versions, add-ons, a theme), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
 
 Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2).
 
@@ -108,6 +108,8 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
 
 * **Add-ons:** backend add-ons such as `collective.easyform` can be installed when deploying, or later; see
   [Add-ons](docs/setup-guide.md#add-ons).
+* **Volto Light Theme:** set the frontend image to `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` when
+  deploying; see [Themes and frontend images](docs/setup-guide.md#themes-and-frontend-images).
 
 The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
 

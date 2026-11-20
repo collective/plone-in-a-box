@@ -88,6 +88,12 @@ variable "addons" {
   default     = ""
 }
 
+variable "frontend_image" {
+  description = "Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image."
+  type        = string
+  default     = ""
+}
+
 variable "volume_size_gb" {
   description = "Size of the root disk in GB."
   type        = number
@@ -190,6 +196,7 @@ resource "aws_instance" "app_server" {
     "export PLONE_VERSION=${jsonencode(var.plone_version)}",
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
     "export ADDONS=\"$(echo ${base64encode(var.addons)} | base64 -d)\"",
+    "export FRONTEND_IMAGE=\"$(echo ${base64encode(var.frontend_image)} | base64 -d)\"",
     file("${path.module}/../StackScript"),
   ]))
   user_data_replace_on_change = true
