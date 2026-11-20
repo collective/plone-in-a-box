@@ -14,6 +14,13 @@
 #                          one (default: set a random one when deploying)
 #   --keep                 don't delete the server at the end (delete it later
 #                          with "cleanup")
+#   --addons "PKG ..."     install these backend add-ons, then check they are
+#                          offered in Site Setup, can be activated, and survive
+#                          recreating the backend and restarting the server
+#   --expect-addons-skipped
+#                          with --addons: expect setup to leave the add-ons out
+#                          (a misspelled or invalid name), and check the site
+#                          works without them and the credentials file says why
 #
 # "list" shows the test servers that exist; "cleanup" deletes all of them.
 # Only servers tagged piab-test are ever touched.
@@ -24,7 +31,8 @@
 # (piab-aws-access-key-id and piab-aws-secret-access-key), or from the usual
 # AWS_PROFILE / AWS_ACCESS_KEY_ID settings. The test servers get the SSH key
 # ~/.ssh/piab_test_ed25519 (or PIAB_TEST_SSH_KEY). Optional: PIAB_TEST_REGION,
-# PIAB_LINODE_FIREWALL_ID, PIAB_AWS_INSTANCE_TYPE (default t3.small),
+# PIAB_LINODE_FIREWALL_ID, PIAB_LINODE_TYPE (default g6-nanode-1), PIAB_DO_SIZE (default s-1vcpu-1gb),
+# PIAB_AWS_INSTANCE_TYPE (default t3.small),
 # PIAB_TEST_UBUNTU (Ubuntu release: 26.04, the default, or 24.04),
 # PIAB_HETZNER_SERVER_TYPE (default cpx02; an Arm type, cax..., works too),
 # PIAB_TEST_LAUNCHER=short (DigitalOcean, AWS, Hetzner: use the three-line
@@ -34,8 +42,9 @@
 # Linode deploys use the private StackScript "plone-in-a-box-test", which this
 # script overwrites with src/StackScript from REF. DigitalOcean, AWS and Hetzner deploys
 # paste src/user-data.sh from REF as user data, set to download src/StackScript
-# from the same commit. On AWS, the script also creates (once) a key pair and a
-# security group named piab-test in the default VPC, allowing SSH, HTTP and
+# from the same commit. On AWS, the script also creates (once) a key pair named
+# piab-test-<fingerprint> for this computer's key, and a security group named
+# piab-test in the default VPC, allowing SSH, HTTP and
 # HTTPS.
 
 set -euo pipefail
@@ -50,7 +59,7 @@ esac
 LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
-PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0
+PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0
 SERVER_ID="" IP="" FAILURES=0
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -59,7 +68,7 @@ pass() { say "PASS  $*"; }
 fail() { say "FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else fail "$what"; fi; }
 
-usage() { sed -n '3,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
   linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
@@ -73,6 +82,8 @@ while (( $# )); do
     --ref) REF=${2:?--ref needs a value}; shift ;;
     --generated-password) GENERATED=1 ;;
     --keep) KEEP=1 ;;
+    --addons) ADDONS=${2:?--addons needs a value}; shift ;;
+    --expect-addons-skipped) ADDONS_SKIPPED=1 ;;
     *) usage ;;
   esac
   shift
@@ -206,7 +217,10 @@ say "Notes, passwords and logs: $WORK"
 {
   echo "ref=$REF sha=$SHA name=$NAME"
   (( GENERATED )) && echo "admin password: generated on the server" || echo "admin password: $ADMIN_PASSWORD"
+  [[ -z "$ADDONS" ]] || echo "add-ons: $ADDONS"
 } > "$WORK/notes.txt"
+[[ "$ADDONS" != *"'"* ]] || die "--addons can't contain a single quote"
+(( ! ADDONS_SKIPPED )) || [[ -n "$ADDONS" ]] || die "--expect-addons-skipped needs --addons"
 
 cleanup_on_exit() {
   local status=$?
@@ -230,13 +244,16 @@ launcher() {
     # The three-line launcher from the README and setup guide.
     printf '%s\n' '#!/bin/bash' \
       "export ADMIN_PASSWORD='${ADMIN_PASSWORD:-CHANGE-ME}'" \
+      ${ADDONS:+"export ADDONS='$ADDONS'"} \
       "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
     return
   fi
   text=$(git show "$SHA:src/user-data.sh" \
     | sed -e "s/^export ADMIN_PASSWORD=''$/export ADMIN_PASSWORD='$ADMIN_PASSWORD'/" \
+          -e "s|^export ADDONS=''$|export ADDONS='${ADDONS//&/\\&}'|" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")
   grep -q "^PIAB_RELEASE='$SHA'$" <<<"$text" || die "couldn't set PIAB_RELEASE in src/user-data.sh"
+  [[ -z "$ADDONS" ]] || grep -qF "export ADDONS='$ADDONS'" <<<"$text" || die "couldn't set ADDONS in src/user-data.sh"
   printf '%s\n' "$text"
 }
 
@@ -254,10 +271,11 @@ if [[ "$PROVIDER" == linode ]]; then
   ROOT_PASS=$(openssl rand -base64 33 | tr -d '\n')
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
-      --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" \
-      '{region: $region, type: "g6-nanode-1", image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
+      --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
+      --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" \
+      '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
-        stackscript_data: {ADMIN_PASSWORD: $pw}, booted: true}
+        stackscript_data: {ADMIN_PASSWORD: $pw, ADDONS: $addons}, booted: true}
        + (if $fw == "" then {} else {firewall_id: ($fw | tonumber)} end)')
   created=$(api POST /linode/instances "$body")
   SERVER_ID=$(jq -r '.id' <<<"$created")
@@ -267,10 +285,13 @@ elif [[ "$PROVIDER" == hetzner ]]; then
   fingerprint=$(ssh-keygen -l -E md5 -f "$SSH_KEY.pub" | awk '{print $2}' | sed 's/^MD5://')
   key_id=$(api GET "/ssh_keys?fingerprint=$fingerprint" | jq -r '.ssh_keys[0].id // empty')
   if [[ -z "$key_id" ]]; then
-    say "Adding the test SSH key to the Hetzner project as $TAG"
+    # Named after the fingerprint, since key names must be unique in a project
+    # and each computer running these tests has its own key.
+    key_name="$TAG-$(tr -d : <<<"$fingerprint" | cut -c1-8)"
+    say "Adding the test SSH key to the Hetzner project as $key_name"
     # If another run adds the key at the same moment, use the one it added.
-    key_id=$(api POST /ssh_keys "$(jq -nc --arg k "$(cat "$SSH_KEY.pub")" --arg tag "$TAG" \
-        '{name: $tag, public_key: $k, labels: {($tag): "true"}}')" 2>/dev/null | jq -r '.ssh_key.id') \
+    key_id=$(api POST /ssh_keys "$(jq -nc --arg k "$(cat "$SSH_KEY.pub")" --arg tag "$TAG" --arg name "$key_name" \
+        '{name: $name, public_key: $k, labels: {($tag): "true"}}')" 2>/dev/null | jq -r '.ssh_key.id') \
       || key_id=$(api GET "/ssh_keys?fingerprint=$fingerprint" | jq -r '.ssh_keys[0].id // empty')
     [[ -n "$key_id" ]] || die "couldn't add the SSH key to the Hetzner project"
   fi
@@ -291,8 +312,8 @@ elif [[ "$PROVIDER" == digitalocean ]]; then
   fi
   user_data=$(launcher)
   body=$(jq -nc --arg region "$REGION" --arg name "$NAME" --arg tag "$TAG" --arg fp "$fingerprint" \
-      --arg ud "$user_data" --arg ubuntu "$UBUNTU" \
-      '{name: $name, region: $region, size: "s-1vcpu-1gb", image: ("ubuntu-" + ($ubuntu | sub("\\."; "-")) + "-x64"),
+      --arg ud "$user_data" --arg ubuntu "$UBUNTU" --arg size "${PIAB_DO_SIZE:-s-1vcpu-1gb}" \
+      '{name: $name, region: $region, size: $size, image: ("ubuntu-" + ($ubuntu | sub("\\."; "-")) + "-x64"),
         ssh_keys: [$fp], tags: [$tag], user_data: $ud}')
   SERVER_ID=$(api POST /droplets "$body" | jq -r '.droplet.id')
   deadline=$((SECONDS + 300))
@@ -309,9 +330,16 @@ else
                 Name=state,Values=available Name=virtualization-type,Values=hvm \
     | jq -r '.Images | sort_by(.CreationDate) | last | .ImageId // empty')
   [[ -n "$ami" ]] || die "couldn't find the Ubuntu $UBUNTU AMI in $AWS_DEFAULT_REGION"
-  if ! ec2 describe-key-pairs --key-names "$TAG" >/dev/null 2>&1; then
-    say "Adding the test SSH key to AWS as key pair $TAG"
-    ec2 import-key-pair --key-name "$TAG" --public-key-material "fileb://$SSH_KEY.pub" \
+  # One key pair per computer, named after its key's fingerprint (as on Hetzner).
+  key_name="$TAG-$(ssh-keygen -l -E md5 -f "$SSH_KEY.pub" | awk '{print $2}' | sed 's/^MD5://' | tr -d : | cut -c1-8)"
+  local_fp=$(ssh-keygen -l -E sha256 -f "$SSH_KEY.pub" | awk '{print $2}' | sed 's/^SHA256://')
+  if aws_fp=$(ec2 describe-key-pairs --key-names "$key_name" 2>/dev/null | jq -r '.KeyPairs[0].KeyFingerprint'); then
+    # AWS pads the base64 SHA-256 fingerprint of an ed25519 key with "=".
+    [[ "${aws_fp%%=*}" == "$local_fp" ]] \
+      || die "AWS key pair $key_name doesn't match $SSH_KEY.pub; delete it in EC2 > Key pairs ($AWS_DEFAULT_REGION) and run again"
+  else
+    say "Adding the test SSH key to AWS as key pair $key_name"
+    ec2 import-key-pair --key-name "$key_name" --public-key-material "fileb://$SSH_KEY.pub" \
       --tag-specifications "ResourceType=key-pair,Tags=[{Key=$TAG,Value=true}]" >/dev/null
   fi
   sg=$(ec2 describe-security-groups --filters "Name=group-name,Values=$TAG" "Name=vpc-id,Values=$vpc" \
@@ -327,7 +355,7 @@ else
   fi
   launcher > "$WORK/user-data.sh"
   SERVER_ID=$(ec2 run-instances --image-id "$ami" --instance-type "${PIAB_AWS_INSTANCE_TYPE:-t3.small}" \
-      --key-name "$TAG" --security-group-ids "$sg" --user-data "file://$WORK/user-data.sh" \
+      --key-name "$key_name" --security-group-ids "$sg" --user-data "file://$WORK/user-data.sh" \
       --block-device-mappings '[{"DeviceName": "/dev/sda1", "Ebs": {"VolumeSize": 20, "VolumeType": "gp3", "DeleteOnTermination": true}}]' \
       --metadata-options HttpTokens=required \
       --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$NAME},{Key=$TAG,Value=true}]" \
@@ -389,6 +417,31 @@ login() {
     | jq -er '.token'
 }
 old_password_rejected() { ! login "$ADMIN_PASSWORD"; }
+# The add-on names without versions or extras, e.g. collective.easyform.
+addon_names() { for a in $ADDONS; do a=${a%%[[~=!<>]*}; echo "$a"; done; }
+# Every add-on is offered in Site Setup > Add-ons (or is already activated).
+addons_listed() {
+  local token ids name
+  token=$(login "$1") || return 1
+  ids=$(curl -s -m 30 "http://$IP/++api++/@addons" -H 'Accept: application/json' \
+    -H "Authorization: Bearer $token" | jq -r '.items[].id') || return 1
+  for name in $(addon_names); do grep -qx "$name" <<<"$ids" || return 1; done
+}
+addons_activate() {
+  local token name
+  token=$(login "$1") || return 1
+  for name in $(addon_names); do
+    curl -sf -m 120 -X POST "http://$IP/++api++/@addons/$name/install" -H 'Accept: application/json' \
+      -H "Authorization: Bearer $token" >/dev/null || return 1
+  done
+}
+addons_active() {
+  local token installed name
+  token=$(login "$1") || return 1
+  installed=$(curl -s -m 30 "http://$IP/++api++/@addons" -H 'Accept: application/json' \
+    -H "Authorization: Bearer $token" | jq -r '.items[] | select(.is_installed) | .id') || return 1
+  for name in $(addon_names); do grep -qx "$name" <<<"$installed" || return 1; done
+}
 site_is_plone() { ! page | grep -q 'Plone in a Box</title>' && curl -sf -m 10 "http://$IP/++api++/" | jq -e '."@id"' >/dev/null; }
 port_closed() {
   local timeout=(-w 5)
@@ -439,6 +492,24 @@ check "plone-reset-admin-password reports success" grep -q 'has been changed' <<
 check "the new password works" login "$NEW_PASSWORD"
 check "the old password no longer works" old_password_rejected
 
+# --- Add-ons -------------------------------------------------------------------------
+
+if (( ADDONS_SKIPPED )); then
+  grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'add-ons' | sed 's/^/      /' || true
+  check "setup log says the add-ons were left out" \
+    grep -qE "^\[plone-in-a-box\] (Not installing the backend add-ons|The backend add-ons couldn't be installed)" "$WORK/setup.log"
+  check "credentials file says the add-ons weren't installed" \
+    rssh "grep -qE 'add-ons .* (were not|couldn.t be) installed' /root/plone-credentials.txt"
+  check "no add-ons are configured in /opt/plone/.env" rssh "grep -qx \"ADDONS=''\" /opt/plone/.env"
+  check "the backend container has no add-ons" \
+    rssh "test -z \"\$(docker compose --project-directory /opt/plone exec -T backend printenv ADDONS)\""
+elif [[ -n "$ADDONS" ]]; then
+  grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'add-ons' | sed 's/^/      /' || true
+  check "add-ons are offered in Site Setup > Add-ons" addons_listed "$NEW_PASSWORD"
+  check "add-ons can be activated" addons_activate "$NEW_PASSWORD"
+  check "add-ons are active" addons_active "$NEW_PASSWORD"
+fi
+
 # --- Network -------------------------------------------------------------------------
 
 for port in 5432 8080 3000; do
@@ -471,6 +542,9 @@ wait_until "SSH is back after the restart" 600 rssh true || exit 1
 wait_until "site works after the restart" 600 login "$NEW_PASSWORD" || true
 check "setup didn't run again after the restart" test "$(count_in_log 'Continuing setup')" = "$continued"
 check "setup finished exactly once" test "$(count_in_log 'Finished')" = 1
+if [[ -n "$ADDONS" ]] && (( ! ADDONS_SKIPPED )); then
+  check "add-ons are still active after the restarts" addons_active "$NEW_PASSWORD"
+fi
 
 # --- Result -------------------------------------------------------------------------------
 
