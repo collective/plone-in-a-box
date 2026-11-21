@@ -1,4 +1,4 @@
-2.13 (2026-11-21)
+2.14 (unreleased)
 -----------------
 
 - Email: new optional settings for an email relay service (SMTP server, port,
@@ -13,6 +13,9 @@
   email relay service, with a comparison of SMTP2GO, Brevo, Mailgun, Amazon
   SES, Postmark and Resend, and how to set it up in Site Setup > Mail.
   [tkimnguyen]
+
+2.13 (2026-11-21)
+-----------------
 
 - Demo login: an optional setting (DEMO_USER and DEMO_ROLE in
   src/user-data.sh, the Linode StackScript's "Demo login" fields, the
