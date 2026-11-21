@@ -1,3 +1,22 @@
+2.13 (unreleased)
+-----------------
+
+- Demo login: an optional setting (DEMO_USER and DEMO_ROLE in
+  src/user-data.sh, the Linode StackScript's "Demo login" fields, the
+  DemoUser and DemoRole parameters, the demo_user and demo_role Terraform
+  variables). Setup creates a second Plone login with that role (Site
+  Administrator by default) and a generated password, saved in
+  /root/plone-credentials.txt, for people you let try the site.
+- "Try it" buttons for add-ons (docs/try-it-buttons.md): a link that sets up
+  a server with an add-on and a demo login. On AWS the Launch Stack link
+  fills in the parameters; on Linode, scripts/linode-addon-stackscript.sh
+  prints a StackScript for one add-on, with its settings filled in, that
+  downloads the latest release.
+- A ready-made frontend image with Juizi Dashboard (an activity record and
+  dashboard for site administrators): ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard.
+- scripts/test-deploy.sh: --demo-user and --demo-role check the demo login;
+  --linode-script tests such a StackScript.
+
 2.12 (2026-11-21)
 -----------------
 
