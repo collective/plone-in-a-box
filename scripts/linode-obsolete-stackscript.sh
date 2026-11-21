@@ -18,6 +18,8 @@
 # <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
 # <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back" oneOf="yes,no" default="yes" />
 # <UDF name="NOTIFY_URL" label="Notification URL, optional: update reports go here, for example https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook" default="" />
+# <UDF name="DEMO_USER" label="Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password" default="" />
+# <UDF name="DEMO_ROLE" label="Role of the demo login" oneOf="Site Administrator,Editor,Contributor,Reviewer,Member" default="Site Administrator" />
 
 NOTICE="This server was created with an obsolete copy of the Plone in a Box StackScript (692002). Next time, use StackScript 931893: https://cloud.linode.com/stackscripts/931893"
 echo "[plone-in-a-box] $NOTICE" >> /var/log/plone-in-a-box.log
@@ -26,10 +28,10 @@ printf '\n%s\n\n' "$NOTICE" > /etc/motd
 # The latest release, or this one if GitHub can't be asked.
 PIAB_RELEASE=$(curl -fsS -m 20 https://api.github.com/repos/tkimnguyen/plone-in-a-box/releases/latest 2>/dev/null \
   | sed -n 's/^  "tag_name": "\([0-9][0-9.]*\)",$/\1/p')
-PIAB_RELEASE=${PIAB_RELEASE:-2.12}
+PIAB_RELEASE=${PIAB_RELEASE:-2.13}
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
-export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE AUTO_UPDATE NOTIFY_URL
+export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_ROLE
 set -uo pipefail
 SCRIPT=$(mktemp)
 if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \

@@ -1,4 +1,4 @@
-2.13 (unreleased)
+2.13 (2026-11-21)
 -----------------
 
 - Email: new optional settings for an email relay service (SMTP server, port,
@@ -29,6 +29,7 @@
   dashboard for site administrators): ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard.
 - scripts/test-deploy.sh: --demo-user and --demo-role check the demo login;
   --linode-script tests such a StackScript.
+- The obsolete Linode StackScript 692002 has the demo login fields too.
 
 2.12 (2026-11-21)
 -----------------
