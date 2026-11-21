@@ -1,4 +1,4 @@
-2.12 (unreleased)
+2.12 (2026-11-21)
 -----------------
 
 - Automatic updates: a new setting (the Linode StackScript's "Automatic
