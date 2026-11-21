@@ -1,6 +1,41 @@
 2.12 (unreleased)
 -----------------
 
+- Automatic updates: a new setting (the Linode StackScript's "Automatic
+  updates" field, AUTO_UPDATE in src/user-data.sh, the Launch Stack template's
+  AutoUpdate parameter and the Terraform auto_update variable), on by default.
+  Every week the server installs newer images of the same Plone, Volto and
+  PostgreSQL versions (patch releases and security fixes). If there's
+  anything new, it first saves a database dump in /var/backups/plone, then
+  checks that the site comes back, and goes back to the previous images if it
+  doesn't. The result is in the login message, and is emailed to the site's
+  address when Site Setup > Mail is set up; it also says when a newer Plone
+  release is out, which stays a manual upgrade. sudo plone-update runs it by
+  hand. scripts/test-deploy.sh --updates tests it.
+- Notification URL: an optional setting (NOTIFY_URL, the NotifyUrl
+  parameter, the notify_url Terraform variable) where update reports are
+  posted: ntfy (https://ntfy.sh/<topic>) for phone notifications, or a Slack,
+  Discord, Google Chat, Mattermost or Microsoft Teams (workflow) webhook.
+  Setup sends a first notice when the site is ready. Only root can read the URL on the server.
+- Servers set up before 2.12 (2.0 or later) get automatic updates with one
+  command on the server: curl ... src/add-updates.sh | sudo bash (setup guide,
+  "Servers set up before 2.12"). It installs the same update tools as setup,
+  taken from the release's provisioning script, optionally with a
+  notification URL, and runs plone-update once. Running it again updates the
+  tools.
+- Fix: Terraform on Hetzner would fail, because the provisioning script grew
+  past Hetzner's 32 KiB user data limit; on AWS it was close to EC2's 16 KB.
+  The DigitalOcean and Hetzner configurations now send the script compressed
+  and unpack it on the server, and the AWS one leaves out its comment lines
+  before compressing. CI checks the sizes.
+- scripts/test-deploy.sh: --notify-url URL sends the notices to a topic you
+  watch. On a Mac it keeps the computer awake while it runs (caffeinate), since
+  idle sleep stalled the checks and failed them. On Linode it sends only the
+  settings that are set, so older releases (--ref 2.9) can be deployed.
+- scripts/test-notify.sh sends sample update notices to real Teams, Slack,
+  Discord, Google Chat, Mattermost or ntfy channels, with webhook URLs kept in
+  the Keychain. Tested with all of them.
+- Docs: knowing when the site is down, with an uptime check.
 - Docs: building your own frontend image with other Volto add-ons (fork, add
   an entry to the workflow, and GitHub Actions builds and publishes it), and
   using a custom backend image on a running server, for packages that aren't

@@ -94,6 +94,19 @@ variable "frontend_image" {
   default     = ""
 }
 
+variable "notify_url" {
+  description = "Notification URL, optional: update reports are posted here, for example https://ntfy.sh/a-long-random-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "auto_update" {
+  description = "Install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back."
+  type        = bool
+  default     = true
+}
+
 variable "volume_size_gb" {
   description = "Size of the root disk in GB."
   type        = number
@@ -185,8 +198,9 @@ resource "aws_instance" "app_server" {
   }
 
   # Same provisioning script as the Linode StackScript, with its settings
-  # passed as environment variables. Compressed, because EC2 limits user data
-  # to 16 KB and the script is larger; cloud-init decompresses it.
+  # passed as environment variables. Compressed and without its comment lines,
+  # because EC2 limits user data to 16 KB and the script is larger; cloud-init
+  # decompresses it.
   user_data_base64 = base64gzip(join("\n", [
     "#!/bin/bash",
     "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
@@ -197,7 +211,9 @@ resource "aws_instance" "app_server" {
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
     "export ADDONS=\"$(echo ${base64encode(var.addons)} | base64 -d)\"",
     "export FRONTEND_IMAGE=\"$(echo ${base64encode(var.frontend_image)} | base64 -d)\"",
-    file("${path.module}/../StackScript"),
+    "export AUTO_UPDATE=${var.auto_update ? "yes" : "no"}",
+    "export NOTIFY_URL=\"$(echo ${base64encode(var.notify_url)} | base64 -d)\"",
+    replace(file("${path.module}/../StackScript"), "/(?m)^[ \t]*#[^!\n].*\n/", ""),
   ]))
   user_data_replace_on_change = true
 

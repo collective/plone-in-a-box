@@ -11,16 +11,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ShellCheck
-        run: shellcheck src/StackScript src/user-data.sh scripts/test-deploy.sh
+        run: shellcheck src/StackScript src/user-data.sh src/add-updates.sh scripts/test-deploy.sh scripts/test-notify.sh
       - name: Launchers download the same release
         run: |
           release=$(sed -n "s/^PIAB_RELEASE='\(.*\)'$/\1/p" src/user-data.sh)
           template=$(grep -A3 '^  Release:' src/aws/cloudformation.yaml | sed -n 's/.*Default: "\(.*\)"/\1/p')
-          echo "src/user-data.sh: $release, src/aws/cloudformation.yaml: $template"
-          test -n "$release" && test "$template" = "$release"
-          bad=$(grep -Hno 'plone-in-a-box/[^/ ]*/src/StackScript' README.md docs/setup-guide.md \
-            | grep -v "plone-in-a-box/$release/src/StackScript" || true)
+          add_updates=$(sed -n "s/^  local PIAB_RELEASE='\(.*\)'$/\1/p" src/add-updates.sh)
+          echo "src/user-data.sh: $release, src/aws/cloudformation.yaml: $template, src/add-updates.sh: $add_updates"
+          test -n "$release" && test "$template" = "$release" && test "$add_updates" = "$release"
+          bad=$(grep -HnoE 'plone-in-a-box/[A-Za-z0-9._-]*/src/(StackScript|add-updates\.sh)' README.md docs/setup-guide.md src/add-updates.sh \
+            | grep -vE "plone-in-a-box/$release/src/(StackScript|add-updates\.sh)" || true)
           if [ -n "$bad" ]; then echo "Launchers in the docs download another release:"; echo "$bad"; exit 1; fi
+
+      - name: The script fits in the Terraform user data
+        run: |
+          # src/*/main.tf embed src/StackScript compressed. EC2 allows 16384 bytes
+          # (sent without comment lines), Hetzner 32768 (as base64); leave room for
+          # the settings.
+          aws=$(grep -vE '^[[:space:]]*#[^!]' src/StackScript | gzip -9 | wc -c)
+          hetzner=$(gzip -9 < src/StackScript | base64 -w0 | wc -c)
+          echo "AWS: $aws of 15000 bytes, Hetzner: $hetzner of 30000 bytes"
+          test "$aws" -lt 15000 && test "$hetzner" -lt 30000
 
   terraform:
     runs-on: ubuntu-latest
