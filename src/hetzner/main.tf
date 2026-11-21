@@ -104,6 +104,19 @@ variable "frontend_image" {
   default     = ""
 }
 
+variable "notify_url" {
+  description = "Notification URL, optional: update reports are posted here, for example https://ntfy.sh/a-long-random-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "auto_update" {
+  description = "Install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back."
+  type        = bool
+  default     = true
+}
+
 # Reads the API token from the HCLOUD_TOKEN environment variable.
 provider "hcloud" {}
 
@@ -155,7 +168,8 @@ resource "hcloud_server" "plone" {
   }
 
   # Same provisioning script as the Linode StackScript, with its settings
-  # passed as environment variables. Hetzner accepts up to 32 KiB of user data.
+  # passed as environment variables. The script is compressed, because Hetzner
+  # accepts up to 32 KiB of user data, and unpacked on the server.
   user_data = join("\n", [
     "#!/bin/bash",
     "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
@@ -166,7 +180,10 @@ resource "hcloud_server" "plone" {
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
     "export ADDONS=\"$(echo ${base64encode(var.addons)} | base64 -d)\"",
     "export FRONTEND_IMAGE=\"$(echo ${base64encode(var.frontend_image)} | base64 -d)\"",
-    file("${path.module}/../StackScript"),
+    "export AUTO_UPDATE=${var.auto_update ? "yes" : "no"}",
+    "export NOTIFY_URL=\"$(echo ${base64encode(var.notify_url)} | base64 -d)\"",
+    "echo '${base64gzip(file("${path.module}/../StackScript"))}' | base64 -d | gunzip > /root/plone-in-a-box.sh || exit 1",
+    "exec bash /root/plone-in-a-box.sh",
   ])
 }
 

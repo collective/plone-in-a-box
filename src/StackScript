@@ -19,6 +19,8 @@
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
 # <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
+# <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back" oneOf="yes,no" default="yes" />
+# <UDF name="NOTIFY_URL" label="Notification URL, optional: update reports go here, for example https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook" default="" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -52,6 +54,13 @@ ADDONS="${ADDON_LIST[*]}"
 # Plone in a Box images say in their labels which backend add-ons and site
 # behaviors they need; setup installs and activates those too.
 FRONTEND_IMAGE="$(printf '%s' "${FRONTEND_IMAGE:-}" | tr -d ' \t\r\n')"
+# Notification URL: reports from setup and plone-update are posted here.
+NOTIFY_URL="$(printf '%s' "${NOTIFY_URL:-}" | tr -d ' \t\r\n')"
+# Automatic updates (plone-update.timer): on unless set to no.
+case "${AUTO_UPDATE:-yes}" in
+  [Nn]|[Nn][Oo]|[Ff]alse|0|[Oo]ff) AUTO_UPDATE=no ;;
+  *) AUTO_UPDATE=yes ;;
+esac
 
 APP_DIR=/opt/plone
 CREDENTIALS_FILE=/root/plone-credentials.txt
@@ -242,7 +251,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE AUTO_UPDATE NOTIFY_URL STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -560,6 +569,332 @@ fi
 EOF
 chmod 755 /usr/local/bin/plone-reset-admin-password
 
+# >>> update tools
+# From here to "<<< update tools", src/add-updates.sh installs the same files on
+# servers set up before 2.12. Only APP_DIR may be used here.
+# Posts a notice to the notification URL, if one was set: JSON for Slack,
+# Google Chat, Mattermost and Discord webhooks, an Adaptive Card for Microsoft
+# Teams workflows, plain text with a title for anything else (such as ntfy).
+# Exit 0: sent; 1: failed; 3: no URL set.
+install -d -m 755 /usr/local/lib/plone-in-a-box
+cat > /usr/local/lib/plone-in-a-box/notify <<'EOF'
+#!/bin/bash
+# Usage: notify <title> <message>
+set -uo pipefail
+url=$(cat /var/lib/plone-in-a-box/notify-url 2>/dev/null) || exit 3
+[[ -n "$url" ]] || exit 3
+title=$1 message=$2
+# json <key> <value> [flags]: a JSON object; Discord's flags 4 turns off link previews.
+json() { python3 -c 'import json, sys; d = {sys.argv[1]: sys.argv[2]}; d.update({"flags": int(sys.argv[3])} if len(sys.argv) > 3 else {}); print(json.dumps(d))' "$@"; }
+# Teams workflows ("Send webhook alerts to a channel") take
+# an Adaptive Card: the title in bold, then a text block per line.
+card() {
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+title, message = sys.argv[1:3]
+body = [{"type": "TextBlock", "text": title, "weight": "Bolder", "size": "Medium", "wrap": True}]
+gap = True
+for line in message.split("\n"):
+    if not line.strip():
+        gap = True
+        continue
+    body.append({"type": "TextBlock", "text": line, "wrap": True, "spacing": "Medium" if gap else "None"})
+    gap = False
+print(json.dumps({"type": "message", "attachments": [{
+    "contentType": "application/vnd.microsoft.card.adaptive", "contentUrl": None,
+    "content": {"$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard", "version": "1.4", "msteams": {"width": "Full"}, "body": body}}]}))
+PY
+}
+case "$url" in
+  https://*.logic.azure.com[:/]*|https://*.powerplatform.com[:/]*|https://*.webhook.office.com[:/]*)
+    body=$(card "$title" "$message") type=application/json ;;
+  https://discord.com/api/webhooks/*|https://discordapp.com/api/webhooks/*)
+    body=$(json content "**${title}**"$'\n'"${message:0:1800}" 4) type=application/json ;;
+  https://hooks.slack.com/*|https://chat.googleapis.com/*)
+    body=$(json text "*${title}*"$'\n'"${message}") type=application/json ;;
+  https://*/hooks/*)  # Mattermost
+    body=$(json text "**${title}**"$'\n'"${message}") type=application/json ;;
+  *)
+    body=$message type="text/plain; charset=utf-8" ;;
+esac
+curl -fsS -m 30 --retry 3 -o /dev/null -X POST -H "Content-Type: ${type}" -H "Title: ${title}" \
+  --data-binary "$body" "$url"
+EOF
+chmod 755 /usr/local/lib/plone-in-a-box/notify
+
+# Updates: sudo plone-update, and weekly through plone-update.timer when
+# automatic updates are on. It installs newer images of the same Plone, Volto
+# and PostgreSQL versions (the tags in .env stay as they are), after a
+# database dump, and goes back to the previous images if the site doesn't
+# come back. The result goes to the login message, and by email to the site's
+# address when Site Setup > Mail has one.
+cat > /usr/local/bin/plone-update <<'PLONE_UPDATE_EOF'
+#!/bin/bash
+# Install newer images of the same Plone, Volto and PostgreSQL versions: patch
+# releases and security fixes. Takes a database dump first, and goes back to the
+# previous images if the site doesn't come back.
+# Usage: sudo plone-update   (also run every week by plone-update.timer, if on)
+set -uo pipefail
+if [[ $EUID -ne 0 ]]; then
+  echo "Please run this with sudo: sudo plone-update" >&2
+  exit 1
+fi
+APP_DIR=/opt/plone
+STATE_DIR=/var/lib/plone-in-a-box
+BACKUP_DIR=/var/backups/plone
+LOG_FILE=/var/log/plone-update.log
+# Seconds to wait for the site after updating; add-ons are installed first.
+HEALTH_TIMEOUT=${PLONE_UPDATE_HEALTH_TIMEOUT:-600}
+# And after going back to the previous images.
+ROLLBACK_TIMEOUT=600
+SERVICES=(db backend frontend)
+GUIDE=https://github.com/collective/plone-in-a-box/blob/main/docs/setup-guide.md#updates
+
+mkdir -p "$STATE_DIR"
+exec 9>"$STATE_DIR/update.lock"
+if ! flock -n 9; then
+  echo "plone-update is already running" >&2
+  exit 1
+fi
+exec > >(tee -a "$LOG_FILE") 2>&1
+LOG_TEE_PID=$!
+trap 'exec >/dev/null 2>&1; wait "$LOG_TEE_PID" 2>/dev/null || true' EXIT
+
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+compose() { docker compose --project-directory "$APP_DIR" "$@"; }
+SITE_URL=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+cd "$APP_DIR" || exit 1
+
+versions() {
+  local plone volto pg
+  plone=$(compose exec -T backend /app/bin/python -c \
+    'from importlib.metadata import version; print(version("Products.CMFPlone"))' 2>/dev/null) || plone="?"
+  volto=$(compose exec -T frontend node -p 'require("@plone/volto/package.json").version' 2>/dev/null) || volto="?"
+  pg=$(compose exec -T db postgres --version 2>/dev/null | awk '{print $3}') || pg="?"
+  echo "Plone ${plone:-?}, Volto ${volto:-?}, PostgreSQL ${pg:-?}"
+}
+
+site_ok() {
+  curl -fsS -m 10 -o /dev/null http://127.0.0.1:8080/ok && curl -fsS -m 30 -o /dev/null http://127.0.0.1:3000/
+}
+
+# A newer Plone release than the one in .env: a manual upgrade, so only say so.
+NOTICE=""
+check_releases() {
+  local current next
+  current=$(sed -n 's/^PLONE_VERSION=//p' "$APP_DIR/.env")
+  [[ "$current" =~ ^([0-9]+)\.([0-9]+)$ ]] || return 0
+  for next in "${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1))" "$((BASH_REMATCH[1] + 1)).0"; do
+    if curl -fs -m 20 -o /dev/null "https://hub.docker.com/v2/repositories/plone/plone-backend/tags/${next}"; then
+      NOTICE="Plone ${next} is available. This server stays on Plone ${current}: moving to ${next} is a manual upgrade, see ${GUIDE}"
+      return 0
+    fi
+  done
+}
+
+send_report() {  # send_report <subject> <body>
+  local out
+  out=$(compose run --rm --no-deps -T -e MAIL_SUBJECT="$1" -e MAIL_BODY="$2" \
+    -v "$APP_DIR/send_mail.py:/app/scripts/send_mail.py:ro" \
+    backend run /app/scripts/send_mail.py 2>&1)
+  case "$out" in
+    *MAIL_SENT*) say "Emailed this report to the site's email address" ;;
+    *NO_MAIL_SETTINGS*) say "Not emailed: the site has no email address in Site Setup > Mail" ;;
+    *) say "Emailing this report failed:"; tail -3 <<<"$out" ;;
+  esac
+}
+
+# finish <exit code> <summary> [details]: record the result for the login
+# message, and email it unless nothing happened or it was already reported.
+finish() {
+  local code=$1 summary=$2 details=${3:-} report
+  say "$summary"
+  [[ -n "$details" ]] && printf '%s\n' "$details"
+  printf '%s  %s\n' "$(date '+%F %H:%M')" "$summary" > "$STATE_DIR/update-status"
+  printf '%s\n' "$NOTICE" > "$STATE_DIR/update-notice"
+  report=$(printf '%s\n\n%s\n\n%s' "$summary" "$details" "$NOTICE")
+  if [[ "$summary" != "Up to date"* || -n "$NOTICE" ]] \
+     && [[ "$report" != "$(cat "$STATE_DIR/last-report" 2>/dev/null)" ]]; then
+    local subject body
+    subject="Plone in a Box: ${summary%%:*} (${SITE_URL})"
+    body=$(printf '%s\n\n%s\n\nThe log is in %s on the server. Turn automatic updates off: sudo systemctl disable --now plone-update.timer\nUpdates and backups: %s' \
+      "$SITE_URL" "$report" "$LOG_FILE" "$GUIDE")
+    send_report "$subject" "$body"
+    /usr/local/lib/plone-in-a-box/notify "$subject" "$body"
+    case $? in
+      0) say "Sent this report to the notification URL" ;;
+      3) ;;
+      *) say "Sending this report to the notification URL failed" ;;
+    esac
+    printf '%s' "$report" > "$STATE_DIR/last-report"
+  fi
+  exit "$code"
+}
+
+declare -A REF OLD NEW
+CHANGED=() NOTES=()
+for s in "${SERVICES[@]}"; do
+  cid=$(compose ps -q "$s")
+  if [[ -z "$cid" ]]; then
+    finish 1 "Not updated: the $s container isn't running" "Start the site first: sudo docker compose --project-directory $APP_DIR up -d"
+  fi
+  REF[$s]=$(docker inspect -f '{{.Config.Image}}' "$cid")
+  OLD[$s]=$(docker inspect -f '{{.Image}}' "$cid")
+done
+BEFORE=$(versions)
+say "Checking for newer images (now ${BEFORE})"
+check_releases
+if ! compose pull --quiet; then
+  finish 1 "Not updated: downloading the images failed" "Nothing was changed. The reason is in $LOG_FILE."
+fi
+
+label() { docker image inspect -f '{{index .Config.Labels "org.plone-in-a-box.backend-addons"}}' "$1" 2>/dev/null; }
+for s in "${SERVICES[@]}"; do
+  NEW[$s]=$(docker image inspect -f '{{.Id}}' "${REF[$s]}")
+  [[ "${NEW[$s]}" == "${OLD[$s]}" ]] && continue
+  if grep -qxF "${NEW[$s]}" "$STATE_DIR/failed-images" 2>/dev/null; then
+    docker tag "${OLD[$s]}" "${REF[$s]}"
+    NOTES+=("Skipped the new ${s} image (${REF[$s]}): the site didn't come back with it last time.")
+    continue
+  fi
+  if [[ "$s" == frontend && "$(label "${OLD[$s]}")" != "$(label "${NEW[$s]}")" ]]; then
+    docker tag "${OLD[$s]}" "${REF[$s]}"
+    NOTES+=("Skipped the new frontend image: it needs other backend add-ons ($(label "${NEW[$s]}")), so update it by hand; see ${GUIDE}")
+    continue
+  fi
+  CHANGED+=("$s")
+done
+put_back() { for s in "${CHANGED[@]}"; do docker tag "${OLD[$s]}" "${REF[$s]}"; done; }
+
+if (( ${#CHANGED[@]} == 0 )); then
+  if (( ${#NOTES[@]} )); then
+    finish 0 "Not updated: ${BEFORE}" "$(printf '%s\n' "${NOTES[@]}")"
+  fi
+  finish 0 "Up to date: ${BEFORE}"
+fi
+
+install -d -m 700 "$BACKUP_DIR"
+DUMP="$BACKUP_DIR/plone-$(date +%F-%H%M).sql.gz"
+say "Backing up the database to ${DUMP}"
+compose exec -T db pg_dump -U plone plone | gzip > "${DUMP}.part"
+status=("${PIPESTATUS[@]}")
+if [[ "${status[0]}" != 0 || "${status[1]}" != 0 ]]; then
+  rm -f "${DUMP}.part"
+  put_back
+  finish 1 "Not updated: backing up the database failed" "Nothing was changed. The reason is in $LOG_FILE."
+fi
+mv "${DUMP}.part" "$DUMP"
+# Keep the three newest dumps (named by this script, so ls is safe).
+# shellcheck disable=SC2012
+ls -1t "$BACKUP_DIR"/plone-*.sql.gz | tail -n +4 | xargs -r rm -f
+
+say "Updating ${CHANGED[*]}"
+if compose up -d --wait --wait-timeout "$HEALTH_TIMEOUT" && site_ok; then
+  docker image prune -f >/dev/null
+  AFTER=$(versions)
+  if [[ "$AFTER" == "$BEFORE" ]]; then
+    summary="Updated: new builds of ${AFTER} (${CHANGED[*]})"
+  else
+    summary="Updated: ${BEFORE} -> ${AFTER}"
+  fi
+  finish 0 "$summary" "$(printf '%s\n' "Database backup from before the update: ${DUMP}" "${NOTES[@]}")"
+fi
+
+say "The site didn't come back; going back to the previous images"
+for s in "${CHANGED[@]}"; do echo "${NEW[$s]}" >> "$STATE_DIR/failed-images"; done
+put_back
+if (( ${#CHANGED[@]} == 1 )); then
+  undone="the new ${CHANGED[0]} image, so it runs the previous one again; that build is skipped"
+else
+  undone="the new ${CHANGED[*]} images, so it runs the previous ones again; those builds are skipped"
+fi
+if compose up -d --wait --wait-timeout "$ROLLBACK_TIMEOUT" && site_ok; then
+  finish 1 "Update failed and was undone: back on ${BEFORE}" \
+    "$(printf '%s\n' "The site didn't come back with ${undone} from now on. The reason is in ${LOG_FILE}." "Database backup from before the update: ${DUMP}")"
+fi
+finish 2 "Update failed, and going back failed too: the site may be down" \
+  "$(printf '%s\n' "Check: sudo docker compose --project-directory ${APP_DIR} ps" "Database backup from before the update: ${DUMP}" "The log is in ${LOG_FILE}.")"
+PLONE_UPDATE_EOF
+chmod 755 /usr/local/bin/plone-update
+
+# Run inside the backend by plone-update: emails its report to the site's own
+# address with the site's mail settings (Site Setup > Mail), if it has them.
+cat > "$APP_DIR/send_mail.py" <<'EOF'
+import os
+import smtplib
+from email.message import EmailMessage
+from plone.registry.interfaces import IRegistry
+from zope.component import getUtility
+from zope.component.hooks import setSite
+
+app = globals()["app"]
+setSite(app["Plone"])
+registry = getUtility(IRegistry)
+address = registry.get("plone.email_from_address")
+host = registry.get("plone.smtp_host")
+if not address or not host:
+    print("NO_MAIL_SETTINGS")
+else:
+    msg = EmailMessage()
+    msg["Subject"] = os.environ["MAIL_SUBJECT"]
+    msg["From"] = f'{registry.get("plone.email_from_name") or "Plone"} <{address}>'
+    msg["To"] = address
+    msg.set_content(os.environ["MAIL_BODY"])
+    port = registry.get("plone.smtp_port") or 25
+    user = registry.get("plone.smtp_userid")
+    try:
+        smtp_class = smtplib.SMTP_SSL if port == 465 else smtplib.SMTP
+        with smtp_class(host, port, timeout=60) as smtp:
+            smtp.ehlo()
+            if port != 465 and smtp.has_extn("starttls"):
+                smtp.starttls()
+                smtp.ehlo()
+            if user:
+                smtp.login(user, registry.get("plone.smtp_pass") or "")
+            smtp.send_message(msg)
+        print("MAIL_SENT")
+    except Exception as e:
+        print(f"MAIL_FAILED {e!r}")
+EOF
+
+cat > /etc/systemd/system/plone-update.service <<'EOF'
+[Unit]
+Description=Plone in a Box: install Plone, Volto and PostgreSQL patch releases
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/plone-update
+TimeoutStartSec=2h
+EOF
+cat > /etc/systemd/system/plone-update.timer <<'EOF'
+[Unit]
+Description=Weekly Plone in a Box update
+
+[Timer]
+# Early on Sunday morning (server time, usually UTC), at a random time
+# within three hours so that not every server updates at once.
+OnCalendar=Sun *-*-* 02:00:00
+RandomizedDelaySec=3h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+# The result of the last update check, at the top of the login message.
+cat > /etc/update-motd.d/90-plone-in-a-box <<'EOF'
+#!/bin/sh
+dir=/var/lib/plone-in-a-box
+[ -s "$dir/update-status" ] && printf '\nPlone in a Box, last update: %s\n' "$(cat "$dir/update-status")"
+[ -s "$dir/update-notice" ] && cat "$dir/update-notice"
+exit 0
+EOF
+chmod 755 /etc/update-motd.d/90-plone-in-a-box
+systemctl daemon-reload
+# <<< update tools
+
 cd "$APP_DIR"
 compose() { docker compose --project-directory "$APP_DIR" "$@"; }
 
@@ -755,6 +1090,38 @@ if [[ -n "$DOMAIN" ]]; then
   fi
 fi
 
+# --- Updates -------------------------------------------------------------------
+
+install -d -m 755 /var/lib/plone-in-a-box
+printf '%s\n' "$SITE_URL" > /var/lib/plone-in-a-box/site-url
+if [[ "$AUTO_UPDATE" == yes ]]; then
+  systemctl enable --now plone-update.timer
+  UPDATES_LINE="Updates:   Plone, Volto and PostgreSQL patch releases install automatically every week (sudo plone-update to run it now)"
+else
+  systemctl disable --now plone-update.timer 2>/dev/null || true
+  UPDATES_LINE="Updates:   automatic updates are off; run sudo plone-update to install patch releases"
+fi
+
+# The notification URL works like a password, so only root can read it, and
+# it isn't logged. A first notice says the site is ready, and shows it works.
+NOTIFY_LINE=""
+if [[ -n "$NOTIFY_URL" ]]; then
+  if [[ ! "$NOTIFY_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[^[:space:]\'\"]*)?$ ]]; then
+    log "Not using the notification URL: it has to start with https:// and can't contain spaces or quotes"
+    NOTIFY_LINE="Notices:   the notification URL wasn't used: it has to start with https://"
+  elif [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
+    (umask 077; printf '%s\n' "$NOTIFY_URL" > /var/lib/plone-in-a-box/notify-url)
+    if /usr/local/lib/plone-in-a-box/notify "Plone in a Box is ready (${SITE_URL})" \
+        "Your Plone site is ready: ${SITE_URL}"$'\n'"Log in as admin. Update reports will be sent here."; then
+      log "Sent a notice to the notification URL"
+      NOTIFY_LINE="Notices:   update reports go to the notification URL (a first notice was sent)"
+    else
+      log "Sending a notice to the notification URL failed; check the URL in /var/lib/plone-in-a-box/notify-url"
+      NOTIFY_LINE="Notices:   sending to the notification URL failed; check it in /var/lib/plone-in-a-box/notify-url"
+    fi
+  fi
+fi
+
 # --- Done ----------------------------------------------------------------------
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
@@ -773,6 +1140,8 @@ Password:  ${PASSWORD_LINE}
 ${PASSWORD_NOTE}
 ${ADDONS_LINE}${ADDONS_NOTE}
 ${FRONTEND_IMAGE:+Frontend image: ${FRONTEND_IMAGE}}${FRONTEND_NOTE}
+${UPDATES_LINE}
+${NOTIFY_LINE}
 Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF
@@ -806,6 +1175,7 @@ fi
 if [[ -n "$FRONTEND_NOTE" ]]; then
   log "$FRONTEND_NOTE"
 fi
+log "${UPDATES_LINE#Updates:   }"
 if [[ "$ADMIN_PASSWORD_CHOSEN" == 1 ]]; then
   log "Finished. Site: ${SITE_URL} -- log in as admin with the password you chose"
 else

@@ -66,10 +66,26 @@ One-time setup for `scripts/test-deploy.sh`:
   [`scripts/aws-test-cloudformation-policy.json`](scripts/aws-test-cloudformation-policy.json), and attach it to
   `piab-test`. It allows only stacks named `piab-test-*`. Create test stacks with the stack tag `piab-test=true`
   (`aws cloudformation create-stack --tags Key=piab-test,Value=true`), so their instance and Elastic IP carry it.
+* **Chat notices**, for `scripts/test-notify.sh`, which sends sample update notices to real channels when the
+  notify script changes: a webhook in a test channel per service, stored as `piab-webhook-<service>`
+  (`teams`, `slack`, `discord`, `gchat`, `mattermost` or `ntfy`). Copy the URL, then
+  `security add-generic-password -U -a "$USER" -s piab-webhook-teams -w "$(pbpaste)"`; the interactive `-w`
+  prompt cuts input off at 128 characters, too short for Teams. Where to create them:
+  * Teams: the channel's **•••** menu → **Workflows** → **Send webhook alerts to a channel**
+  * Slack: [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **Pick features**, with only the
+    `incoming-webhook` scope and no events → **Create and Install** → pick the channel → **Allow**; the URL is
+    under **Incoming Webhooks**
+  * Discord: the channel's **Edit Channel** → **Integrations** → **Create Webhook**, then click it → **Copy Webhook URL**
+    (on a community server, make the test channel private first)
+  * Google Chat (Google Workspace only): the space's name → **Apps & integrations** → **Add webhooks** → **Save**
+  * Mattermost: **Integrations → Incoming Webhooks → Add Incoming Webhook**. Without a server, a throwaway one
+    works: `mattermost/mattermost-preview` in Docker behind Caddy at `<ip-with-dashes>.sslip.io` (for HTTPS) on a
+    2 GB test server; the first user created is the admin
+  * ntfy: `https://ntfy.sh/<a long random topic>`
 
 Tokens stay in the macOS Keychain; never paste them into chats or commit them. Remove one with
-`security delete-generic-password -s piab-linode-token` (or `piab-do-token`, `piab-hetzner-token`, or the two AWS
-entries). Deactivate
+`security delete-generic-password -s piab-linode-token` (or `piab-do-token`, `piab-hetzner-token`, the two AWS
+entries or a `piab-webhook-<service>`). Deactivate
 the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 
 ## 2. Release

@@ -57,7 +57,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.11/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.12/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Create the Droplet, then open its IP address in your browser.
 
@@ -85,7 +85,7 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.11/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.12/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
 
@@ -110,6 +110,10 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
   [Add-ons](docs/setup-guide.md#add-ons).
 * **Volto Light Theme:** set the frontend image to `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` when
   deploying; see [Themes and frontend images](docs/setup-guide.md#themes-and-frontend-images).
+* **Updates:** Ubuntu installs its security updates by itself, and every week the server installs Plone, Volto and
+  PostgreSQL patch releases, after a database backup, and undoes them if the site doesn't come back. Reports can go
+  to your phone (ntfy), a team chat, or by email; see [Updates](docs/setup-guide.md#updates). A server set up
+  before 2.12 gets them with [one command](docs/setup-guide.md#servers-set-up-before-212).
 
 The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
 

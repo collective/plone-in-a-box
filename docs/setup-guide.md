@@ -52,6 +52,10 @@ locations are in Germany and Finland. All four offer automatic server backups fo
    * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
    * **Frontend image**, for example `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` for Volto Light Theme
      (see [Themes and frontend images](#themes-and-frontend-images)).
+   * **Automatic updates**: `yes` (the default) installs Plone, Volto and PostgreSQL patch releases every week; see
+     [Updates](#updates).
+   * **Notification URL**, where update reports go, for example `https://ntfy.sh/<a long random topic>`; see
+     [Updates](#updates).
 4. Choose **Ubuntu 26.04 LTS** as the image (24.04 also works), a region, and a plan: a 1 GB **Nanode** is enough
    for a small site, 2 GB or more for a busier one.
 5. Set a root password, add your **SSH key**, and click **Create Linode**.
@@ -88,6 +92,8 @@ No command line is needed.
    * **SSH key pair** and **Allow SSH from**: optional, only if you want to log in from your own computer.
    * **Backend add-ons** and **Frontend image**: optional (see [Add-ons](#add-ons) and
      [Themes and frontend images](#themes-and-frontend-images)).
+   * **Automatic updates**: `yes` (the default) installs patch releases every week, and **Notification URL**, where
+     reports about them go; see [Updates](#updates).
    * Leave the **Advanced** settings as they are.
 4. Click **Create stack**. After a minute or two the stack shows `CREATE_COMPLETE`.
 5. Open the **Outputs** tab and click the **SiteURL**. You'll see the setup progress page, which turns into your
@@ -165,6 +171,8 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # site_timezone     = "America/Chicago"
 # addons            = "collective.easyform"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
+# auto_update       = false  # weekly patch releases are on by default
+# notify_url        = "https://ntfy.sh/a-long-random-topic"
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -197,7 +205,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.11/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.12/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -263,7 +271,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.11/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.12/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -333,17 +341,31 @@ only root can read. Use `sudo -i` first, or prefix each command with `sudo`:
 ```
 docker compose --project-directory /opt/plone ps                # status
 docker compose --project-directory /opt/plone logs -f backend   # logs (backend, frontend or db)
-docker compose --project-directory /opt/plone pull              # fetch newer images of the same tags
-docker compose --project-directory /opt/plone up -d             # apply them
 ```
 
-To move to a newer Plone or Volto release, change `PLONE_VERSION` / `VOLTO_VERSION` in `/opt/plone/.env`, then
-run `pull` and `up -d`. Read the Plone upgrade notes first, and take a backup. Don't change `POSTGRES_VERSION` on an
-existing server: a new PostgreSQL major version can't read the old data directory without a migration.
+For updates, see [Updates](#updates).
 
-**Ubuntu updates**: setup installs all updates and restarts the server once if they need it. Ubuntu then installs
-security updates automatically, but never restarts by itself. Every month or so, and whenever the login message
-says `*** System restart required ***`, run:
+**Backups**: turn on your provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or
+Hetzner Backups), and/or dump the
+database regularly:
+
+```
+sudo docker compose --project-directory /opt/plone exec -T db pg_dump -U plone plone | gzip > plone-$(date +%F).sql.gz
+```
+
+**Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
+the site's address every few minutes and alert you. DigitalOcean has this built in (**Monitoring → Uptime**, then
+add a check for the site's URL, with an alert to your email). On other providers, use an outside uptime service,
+many of which have a free plan.
+
+## Updates
+
+A box has two kinds of software, and each one updates differently.
+
+**Ubuntu, nginx and Docker** come from Ubuntu's packages. Setup installs all updates and restarts the server once
+if they need it. After that, Ubuntu installs security updates automatically, nginx's included, but never restarts by
+itself, and it leaves out Docker, which comes from Docker's own repository. Every month or so, and whenever the
+login message says `*** System restart required ***`, run:
 
 ```
 sudo apt update && sudo apt full-upgrade -y
@@ -353,13 +375,85 @@ sudo reboot
 Plone starts again by itself; the site is down for a minute or two. Don't run `do-release-upgrade` to move to a new
 Ubuntu release: deploy a new server instead.
 
-**Backups**: turn on your provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or
-Hetzner Backups), and/or dump the
-database regularly:
+**Plone, Volto and PostgreSQL** run from Docker images. With **Automatic updates** on (the default), every Sunday
+early in the morning (server time, usually UTC) the server installs newer images of the **same** versions: patch
+releases and security fixes, such as Plone 6.2.2 to 6.2.3, never 6.2 to 6.3. If there's anything new, it first
+saves a database backup in `/var/backups/plone/` (the three newest are kept), then updates, and checks that the
+site comes back. If it doesn't, it goes back to the previous images, and skips that build from then on. A
+ready-made frontend image whose new build needs a different backend add-on is left for you to update (see
+[Themes and frontend images](#themes-and-frontend-images)). The site is down for a minute or two during an update.
+
+You hear about it in up to three places:
+
+* **At the notification URL**, if you set one when you created the server. The easiest is
+  [ntfy](https://ntfy.sh): install the ntfy app on your phone, subscribe to a topic with a long random name that
+  only you know (anyone who knows it can read the messages), and use `https://ntfy.sh/<that topic>` as the
+  **Notification URL**. An incoming webhook URL from Slack, Discord, Google Chat, Mattermost or Microsoft Teams
+  works too, to post the reports in a team channel. For Teams, open the channel's **•••** menu, choose
+  **Workflows**, pick **Send webhook alerts to a channel** (older Teams: **Post to a channel when a webhook
+  request is received**), and copy the URL it shows at the end.
+  Setup sends a first notice when the site is ready, so you know right away that it works. To change the URL later, edit `/var/lib/plone-in-a-box/notify-url` on the server (only root can read it).
+* **By email**, if the site can send email: set the **Site 'From' address** and the mail server in **Site Setup →
+  Mail** (Plone needs these anyway, for password-reset emails). The report goes to that address, after anything
+  but a week with nothing new. Most cloud providers block sending email directly, so use your email provider's
+  SMTP server.
+* **In the login message**, when you log in to the server over SSH or in the browser console.
+
+The report also says when a new Plone release is out, such as 6.3. Moving to it is up to you (see below).
+
+To update right away, or on a server with automatic updates off:
 
 ```
-sudo docker compose --project-directory /opt/plone exec -T db pg_dump -U plone plone | gzip > plone-$(date +%F).sql.gz
+sudo plone-update
 ```
+
+To turn automatic updates off, or back on:
+
+```
+sudo systemctl disable --now plone-update.timer
+sudo systemctl enable --now plone-update.timer
+```
+
+The log is in `/var/log/plone-update.log`.
+
+### Servers set up before 2.12
+
+A server set up with an older Plone in a Box (2.0 or later) can get automatic updates too. Open its console
+(Linode's **Launch LISH Console**, DigitalOcean's **Access → Launch Droplet Console**, AWS's **Connect → EC2
+Instance Connect**, Hetzner's **Console**, or SSH) and run:
+
+```
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.12/src/add-updates.sh | sudo bash
+```
+
+It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
+then runs `sudo plone-update` once, so the site gets any patch releases it's missing (after a backup). To get the
+reports at a notification URL, put it between `sudo` and `bash`:
+
+```
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.12/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+```
+
+`AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,
+for example after a new Plone in a Box release, brings these tools up to date; the weekly updates stay on or off as
+they were.
+
+**A new Plone or Volto release** (6.2 to 6.3, Volto 19 to 20) can need content and add-on changes, so it's never
+automatic. Read the Plone upgrade notes, take a backup, change `PLONE_VERSION` and `VOLTO_VERSION` in
+`/opt/plone/.env`, then run:
+
+```
+sudo docker compose --project-directory /opt/plone pull
+sudo docker compose --project-directory /opt/plone up -d
+```
+
+Don't change `POSTGRES_VERSION` on an existing server: a new PostgreSQL major version can't read the old data
+directory without a migration.
+
+**Security fixes before a release:** the Plone security team sometimes publishes a fix as a hotfix package first,
+named like `Products.PloneHotfixYYYYMMDD`. Add it to the backend add-ons (see [Add-ons](#add-ons)), and remove it
+again after the next update includes the fix. Security announcements are at
+[plone.org/security](https://plone.org/security).
 
 ## Add-ons
 
