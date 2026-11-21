@@ -52,6 +52,8 @@ locations are in Germany and Finland. All four offer automatic server backups fo
    * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
    * **Frontend image**, for example `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` for Volto Light Theme
      (see [Themes and frontend images](#themes-and-frontend-images)).
+   * **Demo login** and its role: an extra login, for example `demo`, for people you let try the site (see
+     [Demo login](#demo-login)).
    * **Automatic updates**: `yes` (the default) installs Plone, Volto and PostgreSQL patch releases every week; see
      [Updates](#updates).
    * **Notification URL**, where update reports go, for example `https://ntfy.sh/<a long random topic>`; see
@@ -171,6 +173,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # site_timezone     = "America/Chicago"
 # addons            = "collective.easyform"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
+# demo_user         = "demo"   # demo_role = "Editor"; Site Administrator by default
 # auto_update       = false  # weekly patch releases are on by default
 # notify_url        = "https://ntfy.sh/a-long-random-topic"
 ```
@@ -490,6 +493,7 @@ the `frontend_image` Terraform variable). Plone in a Box publishes ready-made im
 | Frontend image | What you get |
 | --- | --- |
 | `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` | [Volto Light Theme](https://github.com/kitconcept/volto-light-theme) 8.1.4 on Volto 19 |
+| `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | [Juizi Dashboard](https://pypi.org/project/juizi.dashboard/) 1.0.0b2 (beta) on Volto 19: an activity record and dashboard for site administrators, in Site Setup → Activity |
 
 A ready-made image brings its backend half: setup installs and activates the matching backend add-on (for Volto Light
 Theme, `kitconcept.voltolighttheme`) and turns on its site settings. Edit the home page to find them: the logo,
@@ -517,6 +521,29 @@ sudo docker compose --project-directory /opt/plone up -d frontend
 This needs a server set up with Plone in a Box 2.11 or later. Changing it this way doesn't install the image's
 backend add-on: add it to `ADDONS` (see [Add-ons](#add-ons)), activate it in Site Setup → Add-ons, and enable its
 behaviors under Site Setup → Content Types → Plone Site → Behaviors.
+
+## Demo login
+
+The **Demo login** setting creates a second login on the site, for people you let try it: a client looking at a
+draft site, or someone trying an add-on. Give it a username, for example `demo` (the `DEMO_USER` line in
+`src/user-data.sh`, the `DemoUser` parameter, or the `demo_user` Terraform variable), and a role: **Site
+Administrator** (the default), **Editor**, **Contributor**, **Reviewer** or **Member** (`DEMO_ROLE`, `DemoRole`,
+`demo_role`).
+
+Setup creates it with a generated password and saves it in `/root/plone-credentials.txt`, next to the admin
+password:
+
+```
+Demo login: demo / 7Gq2v8xRmT4pLwZs9KcN (Site Administrator)
+```
+
+Share that username and password; whoever has them can do anything the role allows. A Site Administrator can edit
+and delete all content, change most site settings and manage the other users except `admin`. The demo login is an
+ordinary Plone user: change its password, its role, or remove it in **Site Setup → Users**. Setup creates it only
+once, when the server is created; to add one later, add a user there.
+
+Add-on authors can give their README a button that sets up a server with their add-on and a demo login; see
+[Try it buttons](try-it-buttons.md).
 
 ## Custom backend image
 

@@ -37,6 +37,14 @@ jobs:
             theme: "@kitconcept/volto-light-theme"
             backend_addons: "kitconcept.voltolighttheme==8.1.4"
             site_behaviors: "voltolighttheme.header voltolighttheme.theme voltolighttheme.footer"
+          - variant: juizi-dashboard
+            volto: "19"
+            description: the Juizi activity dashboard
+            packages: "volto-juizi-dashboard@1.0.0-beta.2"
+            addons: "volto-juizi-dashboard"
+            theme: ""
+            backend_addons: "juizi.dashboard==1.0.0b2"
+            site_behaviors: ""
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/plone-in-a-box-frontend
       TAG: ${{ matrix.volto }}-${{ matrix.variant }}
