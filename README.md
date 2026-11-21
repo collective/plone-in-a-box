@@ -114,6 +114,9 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
   PostgreSQL patch releases, after a database backup, and undoes them if the site doesn't come back. Reports can go
   to your phone (ntfy), a team chat, or by email; see [Updates](docs/setup-guide.md#updates). A server set up
   before 2.12 gets them with [one command](docs/setup-guide.md#servers-set-up-before-212).
+* **Email:** for password resets, forms and update reports, the site sends through an email relay service such as
+  SMTP2GO, Brevo or Amazon SES, with your own domain; see [Sending email](docs/setup-guide.md#sending-email), which
+  compares them.
 
 The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
 

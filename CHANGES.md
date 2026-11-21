@@ -1,3 +1,12 @@
+2.13 (unreleased)
+-----------------
+
+- Docs: sending email (password resets, forms, update reports) through an
+  email relay service, with a comparison of SMTP2GO, Brevo, Mailgun, Amazon
+  SES, Postmark and Resend, and how to set it up in Site Setup > Mail.
+  [tkimnguyen]
+
+
 2.12 (2026-11-21)
 -----------------
 

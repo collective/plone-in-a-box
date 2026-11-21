@@ -395,8 +395,8 @@ You hear about it in up to three places:
   Setup sends a first notice when the site is ready, so you know right away that it works. To change the URL later, edit `/var/lib/plone-in-a-box/notify-url` on the server (only root can read it).
 * **By email**, if the site can send email: set the **Site 'From' address** and the mail server in **Site Setup →
   Mail** (Plone needs these anyway, for password-reset emails). The report goes to that address, after anything
-  but a week with nothing new. Most cloud providers block sending email directly, so use your email provider's
-  SMTP server.
+  but a week with nothing new. Cloud providers block sending email directly, so this needs an email relay
+  service; see [Sending email](#sending-email).
 * **In the login message**, when you log in to the server over SSH or in the browser console.
 
 The report also says when a new Plone release is out, such as 6.3. Moving to it is up to you (see below).
@@ -555,6 +555,52 @@ the same command.
 
 Keep the image on the same Plone version as the server, or a newer patch release: a site can't move back to an
 older Plone.
+
+## Sending email
+
+A new site can't send email yet: password resets, form notifications and the update reports by email all need a
+mail server. Cloud providers block sending email straight from a server (port 25), and mail sent that way usually
+lands in spam anyway, so the site sends through an email relay service instead.
+
+You need a domain of your own for this: the site's "From" address uses it, and the service asks you to add a few
+DNS records (SPF and DKIM) at your domain host, so that receiving mail servers trust the mail. A site with only an
+IP address can't send email reliably through any of these services.
+
+### Choosing a service
+
+All of these work with Plone over SMTP on port 587. A small site (password resets, a contact form) stays well
+within the smaller free tiers.
+
+| Service | SMTP server | Free tier | Paid plans from | Before you can send | Good for |
+|---|---|---|---|---|---|
+| [SMTP2GO](https://www.smtp2go.com) | `mail.smtp2go.com` | 1,000 a month (200 a day), no time limit | about $10–15 a month for 10,000 | Verify your domain (only 25 an hour until then) | Small sites; SMTP is its main product |
+| [Brevo](https://www.brevo.com) | `smtp-relay.brevo.com` | 300 a day, no time limit | $9 a month for 5,000 | Brevo approves the account for sending; verify your domain | The largest free tier |
+| [Mailgun](https://www.mailgun.com) | `smtp.mailgun.org` | 100 a day | $15 a month for 10,000 | Without a card on file, it only sends to up to 5 addresses you verify | Developers who already use it |
+| [Amazon SES](https://aws.amazon.com/ses/) | `email-smtp.<region>.amazonaws.com` | None for new accounts | about $0.10–0.16 per 1,000 | Ask AWS to move the account out of the sandbox; verify your domain; create SMTP credentials | Organizations already on AWS; the cheapest at volume |
+| [Postmark](https://postmarkapp.com) | `smtp.postmarkapp.com` | 100 a month, for testing | $15 a month for 10,000 | Verify your domain; Postmark reviews the account | The best record for reaching inboxes |
+| [Resend](https://resend.com) | `smtp.resend.com` | 3,000 a month (100 a day) | $20 a month for 50,000 | Verify your domain | Developers |
+
+Prices and free tiers as of November 2026; they change often, so check the service's pricing page. For most
+sites, **SMTP2GO** or **Brevo** is the simplest start, and **Amazon SES** suits an organization that already uses
+AWS. The username is usually one the service creates for SMTP, not your login: SES has separate SMTP credentials,
+Postmark uses a server token as both username and password, and Resend uses the username `resend` with an API key as
+the password.
+
+If your cloud provider also blocks port 587, try 2525, which SMTP2GO, Mailgun and Postmark accept too.
+
+### Setting it up
+
+1. Sign up with the service, add your domain, and add the DNS records it shows at your domain host. Wait until the
+   service shows the domain as verified.
+2. Create SMTP credentials in the service, if it has a separate step for that.
+3. Log in to your Plone site as admin, go to **Site Setup → Mail**, and fill in **SMTP server**, **SMTP port**
+   (587), **ESMTP username** and **ESMTP password**, and the **Site 'From' name** and **Site 'From' address** (an
+   address at your verified domain, such as `plone@example.org`).
+4. Save, and check that email arrives (look in the spam folder too), for example with **Forgot your password?** on
+   the login page for a user with your address.
+
+From then on, password resets and forms send email, and the [update reports](#updates) go to the Site 'From'
+address as well.
 
 ## Adding HTTPS later
 
