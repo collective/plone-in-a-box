@@ -82,6 +82,9 @@ A badge in the add-on's README, linking to the Linode StackScript (or a section 
 Say what it costs and that the person deletes the server when they're done, and link to
 [Get started](../README.md#get-started) for choosing a provider.
 
+For example, [Juizi Dashboard](https://github.com/tkimnguyen/juizi.dashboard#try-it) has the public StackScript
+[2318969](https://cloud.linode.com/stackscripts/2318969).
+
 ## After the server is set up
 
 The site's address, and the admin and demo passwords, are in `/root/plone-credentials.txt` on the server
