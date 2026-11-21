@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ShellCheck
-        run: shellcheck src/StackScript src/user-data.sh src/add-updates.sh scripts/test-deploy.sh scripts/test-notify.sh scripts/linode-obsolete-stackscript.sh
+        run: shellcheck src/StackScript src/user-data.sh src/add-updates.sh scripts/test-deploy.sh scripts/test-notify.sh scripts/linode-obsolete-stackscript.sh scripts/linode-addon-stackscript.sh
       - name: Launchers download the same release
         run: |
           release=$(sed -n "s/^PIAB_RELEASE='\(.*\)'$/\1/p" src/user-data.sh)
@@ -19,7 +19,7 @@ jobs:
           add_updates=$(sed -n "s/^  local PIAB_RELEASE='\(.*\)'$/\1/p" src/add-updates.sh)
           echo "src/user-data.sh: $release, src/aws/cloudformation.yaml: $template, src/add-updates.sh: $add_updates"
           test -n "$release" && test "$template" = "$release" && test "$add_updates" = "$release"
-          bad=$(grep -HnoE 'plone-in-a-box/[A-Za-z0-9._-]*/src/(StackScript|add-updates\.sh)' README.md docs/setup-guide.md src/add-updates.sh \
+          bad=$(grep -HnoE 'plone-in-a-box/[A-Za-z0-9._-]*/src/(StackScript|add-updates\.sh)' README.md docs/setup-guide.md docs/try-it-buttons.md src/add-updates.sh \
             | grep -vE "plone-in-a-box/$release/src/(StackScript|add-updates\.sh)" || true)
           if [ -n "$bad" ]; then echo "Launchers in the docs download another release:"; echo "$bad"; exit 1; fi
 

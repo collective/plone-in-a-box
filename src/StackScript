@@ -19,6 +19,8 @@
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
 # <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
+# <UDF name="DEMO_USER" label="Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password" default="" />
+# <UDF name="DEMO_ROLE" label="Role of the demo login" oneOf="Site Administrator,Editor,Contributor,Reviewer,Member" default="Site Administrator" />
 # <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back" oneOf="yes,no" default="yes" />
 # <UDF name="NOTIFY_URL" label="Notification URL, optional: update reports go here, for example https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook" default="" />
 #
@@ -54,6 +56,10 @@ ADDONS="${ADDON_LIST[*]}"
 # Plone in a Box images say in their labels which backend add-ons and site
 # behaviors they need; setup installs and activates those too.
 FRONTEND_IMAGE="$(printf '%s' "${FRONTEND_IMAGE:-}" | tr -d ' \t\r\n')"
+# Demo login: an extra Plone user, created once at setup, for letting other
+# people try the site (DEMO_USER, with the role DEMO_ROLE).
+DEMO_USER="$(printf '%s' "${DEMO_USER:-}" | tr -d ' \t\r\n')"
+DEMO_ROLE="${DEMO_ROLE:-Site Administrator}"
 # Notification URL: reports from setup and plone-update are posted here.
 NOTIFY_URL="$(printf '%s' "${NOTIFY_URL:-}" | tr -d ' \t\r\n')"
 # Automatic updates (plone-update.timer): on unless set to no.
@@ -251,7 +257,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE AUTO_UPDATE NOTIFY_URL STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_ROLE AUTO_UPDATE NOTIFY_URL STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -515,6 +521,44 @@ for name in os.environ.get("SITE_BEHAVIORS", "").split():
 fti.behaviors = tuple(behaviors)
 transaction.commit()
 print("Frontend add-ons are set up")
+EOF
+
+# Creates the demo login (DEMO_USER) with the role DEMO_ROLE, or resets its
+# password and role if it exists. The new password is verified before
+# committing.
+cat > "$APP_DIR/create_demo_user.py" <<'EOF'
+import os
+import sys
+import transaction
+from AccessControl.SecurityManagement import newSecurityManager
+from plone import api
+from zope.component.hooks import setSite
+
+app = globals()["app"]
+site = app["Plone"]
+setSite(site)
+admin = app.acl_users.getUser("admin") or site.acl_users.getUser("admin")
+newSecurityManager(None, admin.__of__(app.acl_users))
+
+name = os.environ["DEMO_USER"]
+password = os.environ["DEMO_PASSWORD"]
+role = os.environ["DEMO_ROLE"]
+if api.user.get(username=name) is None:
+    api.user.create(
+        username=name,
+        email=f"{name}@example.invalid",
+        password=password,
+        roles=["Member", role],
+        properties={"fullname": "Demo"},
+    )
+else:
+    site.acl_users.userSetPassword(name, password)
+    api.user.grant_roles(username=name, roles=[role])
+if site.acl_users.authenticate(name, password, None) is None:
+    transaction.abort()
+    sys.exit(f"The demo login {name} could not be verified; nothing was changed")
+transaction.commit()
+print(f"Demo login {name} is set up")
 EOF
 
 # Command for resetting the admin password later: sudo plone-reset-admin-password
@@ -991,6 +1035,33 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && ( -n "$IMAGE_ADDONS" || -n "$IMAGE_BEHAV
   fi
 fi
 
+# The demo login, once: a username of lowercase letters, digits, dots,
+# hyphens and underscores, not admin, with one of the roles the form offers.
+DEMO_LINE=""
+if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
+  if [[ ! "$DEMO_USER" =~ ^[a-z][a-z0-9._-]{1,31}$ || "$DEMO_USER" == admin ]]; then
+    log "Not creating the demo login: \"$DEMO_USER\" isn't a username (lowercase letters, digits, . _ -), or is admin"
+    DEMO_LINE="Demo login: not created; \"${DEMO_USER}\" isn't a username (lowercase letters, digits, . _ -)."
+  else
+    case "$DEMO_ROLE" in
+      "Site Administrator"|Editor|Contributor|Reviewer|Member) ;;
+      *) log "The demo login's role \"$DEMO_ROLE\" isn't one of the roles offered; using Site Administrator"
+         DEMO_ROLE="Site Administrator" ;;
+    esac
+    log "Creating the demo login ${DEMO_USER} (${DEMO_ROLE})"
+    DEMO_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+    if DEMO_USER="$DEMO_USER" DEMO_PASSWORD="$DEMO_PASSWORD" DEMO_ROLE="$DEMO_ROLE" \
+        compose run --rm --no-deps -e DEMO_USER -e DEMO_PASSWORD -e DEMO_ROLE -e ADDONS= \
+        -v "$APP_DIR/create_demo_user.py:/app/scripts/create_demo_user.py:ro" \
+        backend run /app/scripts/create_demo_user.py; then
+      DEMO_LINE="Demo login: ${DEMO_USER} / ${DEMO_PASSWORD} (${DEMO_ROLE})"
+    else
+      log "Creating the demo login failed (see above); add it in Site Setup > Users"
+      DEMO_LINE="Demo login: creating ${DEMO_USER} failed; add it in Site Setup > Users. The reason is in /var/log/plone-in-a-box.log."
+    fi
+  fi
+fi
+
 # Add-ons left for the admin to activate: not those setup activated for the
 # frontend image.
 ADDONS_TODO="$ADDONS"
@@ -1140,6 +1211,7 @@ Password:  ${PASSWORD_LINE}
 ${PASSWORD_NOTE}
 ${ADDONS_LINE}${ADDONS_NOTE}
 ${FRONTEND_IMAGE:+Frontend image: ${FRONTEND_IMAGE}}${FRONTEND_NOTE}
+${DEMO_LINE}
 ${UPDATES_LINE}
 ${NOTIFY_LINE}
 Store the password in a password manager, then delete this file.

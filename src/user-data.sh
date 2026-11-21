@@ -50,6 +50,12 @@ export ADDONS=''
 # backend add-on is installed and activated too), or your own. Leave empty for
 # the standard Volto image.
 export FRONTEND_IMAGE=''
+# Demo login, optional: a username such as 'demo', for people you let try the
+# site. Setup creates it with a generated password, saved next to the admin
+# password in /root/plone-credentials.txt. Its role: 'Site Administrator',
+# 'Editor', 'Contributor', 'Reviewer' or 'Member'.
+export DEMO_USER=''
+export DEMO_ROLE='Site Administrator'
 # Automatic updates: 'yes' installs Plone, Volto and PostgreSQL patch releases
 # every week, after a database backup, and undoes them if the site doesn't come
 # back. 'no' leaves updates to you (sudo plone-update).

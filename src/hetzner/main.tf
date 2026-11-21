@@ -104,6 +104,18 @@ variable "frontend_image" {
   default     = ""
 }
 
+variable "demo_user" {
+  description = "Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password in /root/plone-credentials.txt."
+  type        = string
+  default     = ""
+}
+
+variable "demo_role" {
+  description = "Role of the demo login: Site Administrator, Editor, Contributor, Reviewer or Member."
+  type        = string
+  default     = "Site Administrator"
+}
+
 variable "notify_url" {
   description = "Notification URL, optional: update reports are posted here, for example https://ntfy.sh/a-long-random-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook."
   type        = string
@@ -180,6 +192,8 @@ resource "hcloud_server" "plone" {
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
     "export ADDONS=\"$(echo ${base64encode(var.addons)} | base64 -d)\"",
     "export FRONTEND_IMAGE=\"$(echo ${base64encode(var.frontend_image)} | base64 -d)\"",
+    "export DEMO_USER=\"$(echo ${base64encode(var.demo_user)} | base64 -d)\"",
+    "export DEMO_ROLE=\"$(echo ${base64encode(var.demo_role)} | base64 -d)\"",
     "export AUTO_UPDATE=${var.auto_update ? "yes" : "no"}",
     "export NOTIFY_URL=\"$(echo ${base64encode(var.notify_url)} | base64 -d)\"",
     "echo '${base64gzip(file("${path.module}/../StackScript"))}' | base64 -d | gunzip > /root/plone-in-a-box.sh || exit 1",
