@@ -549,8 +549,9 @@ registry["plone.smtp_port"] = int(os.environ["SMTP_PORT"])
 registry["plone.smtp_userid"] = os.environ.get("SMTP_USER") or None
 registry["plone.smtp_pass"] = os.environ.get("SMTP_PASSWORD") or None
 registry["plone.email_from_address"] = os.environ["EMAIL_FROM"]
+# A new site's title is its default front page heading, so not that.
 if not registry.get("plone.email_from_name"):
-    registry["plone.email_from_name"] = registry.get("plone.site_title") or "Plone"
+    registry["plone.email_from_name"] = "Plone"
 transaction.commit()
 print("MAIL_CONFIGURED")
 EOF

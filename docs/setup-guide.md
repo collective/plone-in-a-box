@@ -571,8 +571,10 @@ mail server. Cloud providers block sending email straight from a server (port 25
 lands in spam anyway, so the site sends through an email relay service instead.
 
 You need a domain of your own for this: the site's "From" address uses it, and the service asks you to add a few
-DNS records (SPF and DKIM) at your domain host, so that receiving mail servers trust the mail. A site with only an
-IP address can't send email reliably through any of these services.
+DNS records (SPF and DKIM) at your domain host, so that receiving mail servers trust the mail. Also add a DMARC
+record if the domain doesn't have one yet: a TXT record named `_dmarc` (or `_dmarc.<subdomain>` for a subdomain)
+with the content `v=DMARC1; p=none`. Gmail and Yahoo expect one. A site with only an IP address can't send email
+reliably through any of these services.
 
 ### Choosing a service
 
@@ -601,7 +603,8 @@ If your cloud provider also blocks port 587, try 2525, which SMTP2GO, Mailgun an
 First, with the service:
 
 1. Sign up, add your domain (or a subdomain such as `mail.example.org`), and add the DNS records it shows at your
-   domain host. Wait until the service shows the domain as verified.
+   domain host, plus the DMARC record above. If your DNS is on Cloudflare, set these records to **DNS only** (grey
+   cloud), not proxied. Wait until the service shows the domain as verified.
 2. Create SMTP credentials, if the service has a separate step for that.
 
 Then, **when you create the server**, fill in the email settings (the Linode form's **Email** fields, the Launch
