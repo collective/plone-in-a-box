@@ -12,6 +12,7 @@ every Monday, to pick up Volto patch releases.
 | Image | Frontend | Backend half |
 | --- | --- | --- |
 | `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` | Volto 19 with Volto Light Theme 8.1.4 | `kitconcept.voltolighttheme==8.1.4`, and the behaviors `voltolighttheme.header`, `.theme` and `.footer` on the site |
+| `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | Volto 19 with `volto-juizi-dashboard` 1.0.0-beta.2 | `juizi.dashboard==1.0.0b2` |
 
 Each image has three tags: `:19-vlt` (the latest build), `:19-vlt-<date>` and `:19-vlt-<commit>`
 (fixed builds).

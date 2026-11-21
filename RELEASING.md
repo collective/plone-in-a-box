@@ -92,7 +92,7 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 
 1. In `CHANGES.md`, replace `(unreleased)` with today's date. If `src/StackScript` changed, set the new version in
    `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, and
-   the three-line launchers in `README.md` and `docs/setup-guide.md` (the `.../plone-in-a-box/<version>/src/StackScript`
+   the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
    URL), so pasted launchers and the Launch Stack button download it. CI checks that they all match. Commit to `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.
@@ -147,6 +147,14 @@ each release. Its form fields are those of 2.12; if a release adds a field, copy
 script and paste it into 692002 again.
 
 Public StackScripts can't be deleted or made private by their owner; only Linode support can remove one.
+
+### Per-add-on StackScripts
+
+The "Try it" StackScripts for single add-ons ([docs/try-it-buttons.md](docs/try-it-buttons.md)), printed by
+`scripts/linode-addon-stackscript.sh`, download the latest release, so they don't need updating at each release.
+If a release adds or changes a form field (a `# <UDF` line in `src/StackScript`), print each one again with the same
+options and paste it over the old one. Test one first with
+`scripts/test-deploy.sh linode --linode-script <file>` (print it with `--ref <branch>` to test unreleased changes).
 
 ## 4. Sync `collective/plone-in-a-box`
 

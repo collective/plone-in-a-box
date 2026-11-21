@@ -38,6 +38,13 @@
 #                          setup notice, and with --updates the reports)
 #   --notify-url URL       like --notify, with this notification URL (an ntfy
 #                          topic you're subscribed to, to watch the notices)
+#   --demo-user NAME       create the demo login NAME, then check the credentials
+#                          file gives its password, it can log in with its role,
+#                          also after the restarts
+#   --demo-role ROLE       with --demo-user: its role (default: Site Administrator)
+#   --linode-script FILE   Linode: put FILE in the test StackScript instead of
+#                          src/StackScript, e.g. a per-add-on StackScript from
+#                          scripts/linode-addon-stackscript.sh --ref REF
 #   --mail ADDRESS         set up email through an SMTP relay service, with a
 #                          test email (and with --updates the reports) to
 #                          ADDRESS. The SMTP username and password come from the
@@ -92,6 +99,7 @@ SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
+DEMO_USER="" DEMO_ROLE="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -100,7 +108,7 @@ pass() { say "PASS  $*"; }
 fail() { say "FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else fail "$what"; fi; }
 
-usage() { sed -n '3,52p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,59p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
   linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
@@ -119,6 +127,10 @@ while (( $# )); do
     --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
     --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
     --updates) UPDATES=1 ;;
+    --demo-user) DEMO_USER=${2:?--demo-user needs a value}; shift ;;
+    --demo-role) DEMO_ROLE=${2:?--demo-role needs a value}; shift ;;
+    --linode-script) LINODE_SCRIPT=${2:?--linode-script needs a file}; shift
+      [[ -f "$LINODE_SCRIPT" ]] || die "--linode-script: no file $LINODE_SCRIPT" ;;
     --notify) NOTIFY_URL="https://ntfy.sh/piab-test-$(openssl rand -hex 12)" ;;
     --notify-url)
       NOTIFY_URL=${2:?--notify-url needs a value}; shift
@@ -301,6 +313,8 @@ launcher() {
       "export ADMIN_PASSWORD='${ADMIN_PASSWORD:-CHANGE-ME}'" \
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
       ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
+      ${DEMO_USER:+"export DEMO_USER='$DEMO_USER'"} \
+      ${DEMO_ROLE:+"export DEMO_ROLE='$DEMO_ROLE'"} \
       ${NOTIFY_URL:+"export NOTIFY_URL='$NOTIFY_URL'"} \
       ${MAIL_TO:+"$(mail_exports)"} \
       "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
@@ -310,6 +324,8 @@ launcher() {
     | sed -e "s/^export ADMIN_PASSWORD=''$/export ADMIN_PASSWORD='$ADMIN_PASSWORD'/" \
           -e "s|^export ADDONS=''$|export ADDONS='${ADDONS//&/\\&}'|" \
           -e "s|^export FRONTEND_IMAGE=''$|export FRONTEND_IMAGE='$FRONTEND_IMAGE'|" \
+          -e "s|^export DEMO_USER=''$|export DEMO_USER='$DEMO_USER'|" \
+          -e "s|^export DEMO_ROLE='Site Administrator'$|export DEMO_ROLE='${DEMO_ROLE:-Site Administrator}'|" \
           -e "s|^export NOTIFY_URL=''$|export NOTIFY_URL='${NOTIFY_URL//&/\\&}'|" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")
   grep -q "^PIAB_RELEASE='$SHA'$" <<<"$text" || die "couldn't set PIAB_RELEASE in src/user-data.sh"
@@ -318,6 +334,8 @@ launcher() {
     || die "couldn't set FRONTEND_IMAGE in src/user-data.sh"
   [[ -z "$NOTIFY_URL" ]] || grep -qF "export NOTIFY_URL='$NOTIFY_URL'" <<<"$text" \
     || die "couldn't set NOTIFY_URL in src/user-data.sh"
+  [[ -z "$DEMO_USER" ]] || grep -qF "export DEMO_USER='$DEMO_USER'" <<<"$text" \
+    || die "couldn't set DEMO_USER in src/user-data.sh"
   if [[ -n "$MAIL_TO" ]]; then
     # Values with any characters: replace the lines, quoted for bash.
     text=$(MAIL_LINES="$(mail_exports)" awk '
@@ -343,21 +361,26 @@ if [[ "$PROVIDER" == linode ]]; then
   STACKSCRIPT_ID=$(api GET /linode/stackscripts '' \
       "X-Filter: {\"label\": \"$LINODE_STACKSCRIPT_LABEL\", \"mine\": true}" | jq -r '.data[0].id // empty')
   [[ -n "$STACKSCRIPT_ID" ]] || die "no StackScript named $LINODE_STACKSCRIPT_LABEL in this Linode account"
-  say "Updating StackScript $LINODE_STACKSCRIPT_LABEL ($STACKSCRIPT_ID) to src/StackScript from $REF"
-  api PUT "/linode/stackscripts/$STACKSCRIPT_ID" "$(git show "$SHA:src/StackScript" | jq -Rs \
+  if [[ -n "$LINODE_SCRIPT" ]]; then
+    say "Updating StackScript $LINODE_STACKSCRIPT_LABEL ($STACKSCRIPT_ID) to $LINODE_SCRIPT"
+  else
+    say "Updating StackScript $LINODE_STACKSCRIPT_LABEL ($STACKSCRIPT_ID) to src/StackScript from $REF"
+  fi
+  api PUT "/linode/stackscripts/$STACKSCRIPT_ID" "$(if [[ -n "$LINODE_SCRIPT" ]]; then cat "$LINODE_SCRIPT"; else git show "$SHA:src/StackScript"; fi | jq -Rs \
       --arg note "Test $REF ($(git rev-parse --short "$SHA"))" \
       '{script: ., rev_note: $note, images: ["linode/ubuntu24.04", "linode/ubuntu26.04"]}')" >/dev/null
   ROOT_PASS=$(openssl rand -base64 33 | tr -d '\n')
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
-      --arg frontend "$FRONTEND_IMAGE" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
+      --arg frontend "$FRONTEND_IMAGE" --arg demo "$DEMO_USER" --arg role "$DEMO_ROLE" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
       --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
       --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
-        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, NOTIFY_URL: $notify,
+        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, DEMO_USER: $demo,
+            DEMO_ROLE: $role, NOTIFY_URL: $notify,
             SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
             EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email}
           | with_entries(select(.value != ""))),
@@ -503,6 +526,19 @@ login() {
     | jq -er '.token'
 }
 old_password_rejected() { ! login "$ADMIN_PASSWORD"; }
+# The demo login: its password from the credentials file, and its roles.
+demo_login() {
+  curl -s -m 20 -X POST "http://$IP/++api++/@login" -H 'Accept: application/json' \
+      -H 'Content-Type: application/json' --data "$(jq -nc --arg u "$DEMO_USER" --arg p "$DEMO_PASSWORD" '{login: $u, password: $p}')" \
+    | jq -er '.token'
+}
+demo_password_not_logged() { [[ -n "$DEMO_PASSWORD" ]] && ! grep -qF -- "$DEMO_PASSWORD" "$WORK/setup.log"; }
+demo_has_role() {
+  local token
+  token=$(demo_login) || return 1
+  curl -s -m 20 "http://$IP/++api++/@users/$DEMO_USER" -H 'Accept: application/json' \
+      -H "Authorization: Bearer $token" | jq -e --arg r "${DEMO_ROLE:-Site Administrator}" '.roles | index($r)' >/dev/null
+}
 # The add-on names without versions or extras, e.g. collective.easyform.
 addon_names() { for a in ${1-$ADDONS}; do a=${a%%[[~=!<>]*}; echo "$a"; done; }
 # Every add-on is offered in Site Setup > Add-ons (or is already activated).
@@ -637,6 +673,18 @@ elif [[ -n "$FRONTEND_IMAGE" ]]; then
   fi
 fi
 
+# --- Demo login ----------------------------------------------------------------------
+
+if [[ -n "$DEMO_USER" ]]; then
+  grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'demo login' | sed 's/^/      /' || true
+  DEMO_PASSWORD=$(rssh "awk '/^Demo login:/ {print \$5}' /root/plone-credentials.txt" 2>/dev/null || true)
+  echo "demo login: $DEMO_USER / $DEMO_PASSWORD" >> "$WORK/notes.txt"
+  check "credentials file gives the demo login's password" test -n "$DEMO_PASSWORD"
+  check "setup log doesn't contain the demo password" demo_password_not_logged
+  check "the demo login can log in" demo_login
+  check "the demo login has the role ${DEMO_ROLE:-Site Administrator}" demo_has_role
+fi
+
 # --- Network -------------------------------------------------------------------------
 
 for port in 5432 8080 3000; do
@@ -760,6 +808,10 @@ if [[ -n "$FRONTEND_IMAGE" ]] && (( ! FRONTEND_FALLBACK )); then
   if [[ -n "$IMAGE_ADDONS" ]]; then
     check "the image's backend add-ons are still active" addons_active "$NEW_PASSWORD" "$IMAGE_ADDONS"
   fi
+fi
+
+if [[ -n "$DEMO_USER" ]]; then
+  check "the demo login still works after the restarts" demo_login
 fi
 
 # --- Result -------------------------------------------------------------------------------
