@@ -1,6 +1,14 @@
 2.13 (unreleased)
 -----------------
 
+- Email: new optional settings for an email relay service (SMTP server, port,
+  username, password, From address, and an address for reports) in the
+  Linode form, src/user-data.sh, the Launch Stack form and the Terraform
+  variables. Setup puts them into Site Setup > Mail, so password resets and
+  forms send email, and sends a test email to the address for reports; the
+  credentials file and the first notification say whether it went out. The
+  weekly update reports are emailed there too. scripts/test-deploy.sh --mail
+  tests it.
 - Docs: sending email (password resets, forms, update reports) through an
   email relay service, with a comparison of SMTP2GO, Brevo, Mailgun, Amazon
   SES, Postmark and Resend, and how to set it up in Site Setup > Mail.

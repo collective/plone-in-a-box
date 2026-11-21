@@ -21,6 +21,12 @@
 # <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
 # <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back" oneOf="yes,no" default="yes" />
 # <UDF name="NOTIFY_URL" label="Notification URL, optional: update reports go here, for example https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook" default="" />
+# <UDF name="SMTP_HOST" label="Email: SMTP server of an email relay service, optional, for example mail.smtp2go.com. Empty: the site doesn't send email" default="" />
+# <UDF name="SMTP_PORT" label="Email: SMTP port" default="587" />
+# <UDF name="SMTP_USER" label="Email: SMTP username" default="" />
+# <UDF name="SMTP_PASSWORD" label="Email: SMTP password" default="" />
+# <UDF name="EMAIL_FROM" label="Email: the site's From address, at a domain the email service has verified, for example plone@example.org" default="" />
+# <UDF name="REPORT_EMAIL" label="Email: your address for a test email and the update reports. Empty: the From address" default="" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -56,6 +62,15 @@ ADDONS="${ADDON_LIST[*]}"
 FRONTEND_IMAGE="$(printf '%s' "${FRONTEND_IMAGE:-}" | tr -d ' \t\r\n')"
 # Notification URL: reports from setup and plone-update are posted here.
 NOTIFY_URL="$(printf '%s' "${NOTIFY_URL:-}" | tr -d ' \t\r\n')"
+# Email through a relay service (Site Setup > Mail). The password is never
+# logged; Plone keeps it in its settings, like Site Setup > Mail does.
+SMTP_HOST="$(printf '%s' "${SMTP_HOST:-}" | tr -d ' \t\r\n')"
+SMTP_PORT="$(printf '%s' "${SMTP_PORT:-587}" | tr -d ' \t\r\n')"
+SMTP_PORT="${SMTP_PORT:-587}"
+SMTP_USER="$(printf '%s' "${SMTP_USER:-}" | tr -d '\r\n')"
+SMTP_PASSWORD="$(printf '%s' "${SMTP_PASSWORD:-}" | tr -d '\r\n')"
+EMAIL_FROM="$(printf '%s' "${EMAIL_FROM:-}" | tr -d ' \t\r\n')"
+REPORT_EMAIL="$(printf '%s' "${REPORT_EMAIL:-}" | tr -d ' \t\r\n')"
 # Automatic updates (plone-update.timer): on unless set to no.
 case "${AUTO_UPDATE:-yes}" in
   [Nn]|[Nn][Oo]|[Ff]alse|0|[Oo]ff) AUTO_UPDATE=no ;;
@@ -78,6 +93,7 @@ log() { echo "[plone-in-a-box] $*"; }
 valid_addon() {
   [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9._,-]+\])?([~=!<>]=?=?[A-Za-z0-9.*+!_-]+)?(,[~=!<>]=?=?[A-Za-z0-9.*+!_-]+)*$ ]]
 }
+valid_email() { [[ "$1" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$ ]]; }
 # A container image reference: [registry[:port]/]path[:tag][@sha256:digest].
 valid_image() {
   [[ "$1" =~ ^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-]+[a-z0-9]+)*)*(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?(@sha256:[a-f0-9]{64})?$ ]]
@@ -251,7 +267,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE AUTO_UPDATE NOTIFY_URL STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -517,6 +533,28 @@ transaction.commit()
 print("Frontend add-ons are set up")
 EOF
 
+# Writes the email settings into Site Setup > Mail. Run once by setup.
+cat > "$APP_DIR/configure_mail.py" <<'EOF'
+import os
+import transaction
+from plone.registry.interfaces import IRegistry
+from zope.component import getUtility
+from zope.component.hooks import setSite
+
+app = globals()["app"]
+setSite(app["Plone"])
+registry = getUtility(IRegistry)
+registry["plone.smtp_host"] = os.environ["SMTP_HOST"]
+registry["plone.smtp_port"] = int(os.environ["SMTP_PORT"])
+registry["plone.smtp_userid"] = os.environ.get("SMTP_USER") or None
+registry["plone.smtp_pass"] = os.environ.get("SMTP_PASSWORD") or None
+registry["plone.email_from_address"] = os.environ["EMAIL_FROM"]
+if not registry.get("plone.email_from_name"):
+    registry["plone.email_from_name"] = registry.get("plone.site_title") or "Plone"
+transaction.commit()
+print("MAIL_CONFIGURED")
+EOF
+
 # Command for resetting the admin password later: sudo plone-reset-admin-password
 cat > /usr/local/bin/plone-reset-admin-password <<'EOF'
 #!/bin/bash
@@ -694,12 +732,14 @@ check_releases() {
 }
 
 send_report() {  # send_report <subject> <body>
-  local out
-  out=$(compose run --rm --no-deps -T -e MAIL_SUBJECT="$1" -e MAIL_BODY="$2" \
+  local out to
+  # The address for reports chosen at setup, or else the site's From address.
+  to=$(cat "$STATE_DIR/report-email" 2>/dev/null || true)
+  out=$(compose run --rm --no-deps -T -e MAIL_SUBJECT="$1" -e MAIL_BODY="$2" -e MAIL_TO="$to" \
     -v "$APP_DIR/send_mail.py:/app/scripts/send_mail.py:ro" \
     backend run /app/scripts/send_mail.py 2>&1)
   case "$out" in
-    *MAIL_SENT*) say "Emailed this report to the site's email address" ;;
+    *MAIL_SENT*) say "Emailed this report to ${to:-the site's email address}" ;;
     *NO_MAIL_SETTINGS*) say "Not emailed: the site has no email address in Site Setup > Mail" ;;
     *) say "Emailing this report failed:"; tail -3 <<<"$out" ;;
   esac
@@ -818,8 +858,9 @@ finish 2 "Update failed, and going back failed too: the site may be down" \
 PLONE_UPDATE_EOF
 chmod 755 /usr/local/bin/plone-update
 
-# Run inside the backend by plone-update: emails its report to the site's own
-# address with the site's mail settings (Site Setup > Mail), if it has them.
+# Run inside the backend by plone-update and setup: emails a message to MAIL_TO
+# (or else the site's own address) with the site's mail settings (Site Setup >
+# Mail), if it has them.
 cat > "$APP_DIR/send_mail.py" <<'EOF'
 import os
 import smtplib
@@ -839,7 +880,7 @@ else:
     msg = EmailMessage()
     msg["Subject"] = os.environ["MAIL_SUBJECT"]
     msg["From"] = f'{registry.get("plone.email_from_name") or "Plone"} <{address}>'
-    msg["To"] = address
+    msg["To"] = os.environ.get("MAIL_TO") or address
     msg.set_content(os.environ["MAIL_BODY"])
     port = registry.get("plone.smtp_port") or 25
     user = registry.get("plone.smtp_userid")
@@ -1102,6 +1143,56 @@ else
   UPDATES_LINE="Updates:   automatic updates are off; run sudo plone-update to install patch releases"
 fi
 
+# --- Email (optional) ----------------------------------------------------------
+# Site Setup > Mail gets the relay service's settings, and a test email goes
+# to the address for reports, which plone-update uses too.
+
+MAIL_LINE=""
+if [[ -n "$SMTP_HOST" && "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
+  REPORT_EMAIL="${REPORT_EMAIL:-$EMAIL_FROM}"
+  if [[ ! "$SMTP_HOST" =~ ^[A-Za-z0-9.-]+$ || ! "$SMTP_PORT" =~ ^[0-9]{1,5}$ ]]; then
+    MAIL_LINE="Email:     not set up: the SMTP server or port isn't valid. Set it in Site Setup > Mail."
+  elif ! valid_email "$EMAIL_FROM"; then
+    MAIL_LINE="Email:     not set up: it needs a valid From address. Set it in Site Setup > Mail."
+  elif ! valid_email "$REPORT_EMAIL"; then
+    MAIL_LINE="Email:     not set up: the address for reports isn't valid. Set it in Site Setup > Mail."
+  else
+    log "Setting up email through ${SMTP_HOST}:${SMTP_PORT}, from ${EMAIL_FROM}"
+    # Passed by name, so the password isn't on a command line.
+    export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM
+    mail_out=$(compose run --rm --no-deps -T -e ADDONS= -e SMTP_HOST -e SMTP_PORT -e SMTP_USER -e SMTP_PASSWORD -e EMAIL_FROM \
+      -v "$APP_DIR/configure_mail.py:/app/scripts/configure_mail.py:ro" \
+      backend run /app/scripts/configure_mail.py 2>&1 || true)
+    export -n SMTP_PASSWORD
+    if [[ "$mail_out" == *MAIL_CONFIGURED* ]]; then
+      printf '%s\n' "$REPORT_EMAIL" > /var/lib/plone-in-a-box/report-email
+      mail_body=$(printf '%s\n\n%s\n%s' "This test email shows that ${SITE_URL} can send email through ${SMTP_HOST}." \
+        "Password resets and forms use these settings (Site Setup > Mail), and update reports are sent to this address." \
+        "To send them somewhere else, edit /var/lib/plone-in-a-box/report-email on the server.")
+      mail_out=$(compose run --rm --no-deps -T -e ADDONS= -e MAIL_TO="$REPORT_EMAIL" \
+        -e MAIL_SUBJECT="Plone in a Box: your site can send email (${SITE_URL})" -e MAIL_BODY="$mail_body" \
+        -v "$APP_DIR/send_mail.py:/app/scripts/send_mail.py:ro" \
+        backend run /app/scripts/send_mail.py 2>&1 || true)
+      if [[ "$mail_out" == *MAIL_SENT* ]]; then
+        log "Sent a test email to ${REPORT_EMAIL}"
+        MAIL_LINE="Email:     sent through ${SMTP_HOST} from ${EMAIL_FROM}; a test email went to ${REPORT_EMAIL}"
+      else
+        reason=$(grep -o 'MAIL_FAILED.*' <<<"$mail_out" | head -1 | cut -c13-200 || true)
+        log "Sending a test email failed: ${reason:-see above}"
+        MAIL_LINE="Email:     set up, but the test email to ${REPORT_EMAIL} failed: ${reason:-see /var/log/plone-in-a-box.log}. Check the settings in Site Setup > Mail and with your email service."
+      fi
+    else
+      printf '%s\n' "$mail_out" | tail -5
+      log "Writing the email settings failed (see above)"
+      MAIL_LINE="Email:     setting it up failed; set it in Site Setup > Mail. The reason is in /var/log/plone-in-a-box.log."
+    fi
+  fi
+  if [[ "$MAIL_LINE" == *"not set up"* ]]; then
+    log "${MAIL_LINE#Email:     }"
+  fi
+fi
+
+NL=$'\n'
 # The notification URL works like a password, so only root can read it, and
 # it isn't logged. A first notice says the site is ready, and shows it works.
 NOTIFY_LINE=""
@@ -1112,7 +1203,7 @@ if [[ -n "$NOTIFY_URL" ]]; then
   elif [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
     (umask 077; printf '%s\n' "$NOTIFY_URL" > /var/lib/plone-in-a-box/notify-url)
     if /usr/local/lib/plone-in-a-box/notify "Plone in a Box is ready (${SITE_URL})" \
-        "Your Plone site is ready: ${SITE_URL}"$'\n'"Log in as admin. Update reports will be sent here."; then
+        "Your Plone site is ready: ${SITE_URL}"$'\n'"Log in as admin. Update reports will be sent here.${MAIL_LINE:+${NL}${MAIL_LINE#Email:     }}"; then
       log "Sent a notice to the notification URL"
       NOTIFY_LINE="Notices:   update reports go to the notification URL (a first notice was sent)"
     else
@@ -1142,6 +1233,7 @@ ${ADDONS_LINE}${ADDONS_NOTE}
 ${FRONTEND_IMAGE:+Frontend image: ${FRONTEND_IMAGE}}${FRONTEND_NOTE}
 ${UPDATES_LINE}
 ${NOTIFY_LINE}
+${MAIL_LINE}
 Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF

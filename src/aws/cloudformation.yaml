@@ -43,6 +43,15 @@ Metadata:
           - AutoUpdate
           - NotifyUrl
       - Label:
+          default: Email (optional)
+        Parameters:
+          - SmtpHost
+          - SmtpPort
+          - SmtpUser
+          - SmtpPassword
+          - EmailFrom
+          - ReportEmail
+      - Label:
           default: Advanced (leave as is)
         Parameters:
           - PloneVersion
@@ -74,6 +83,18 @@ Metadata:
         default: Automatic updates
       NotifyUrl:
         default: Notification URL
+      SmtpHost:
+        default: SMTP server
+      SmtpPort:
+        default: SMTP port
+      SmtpUser:
+        default: SMTP username
+      SmtpPassword:
+        default: SMTP password
+      EmailFrom:
+        default: From address
+      ReportEmail:
+        default: Email for reports
       PloneVersion:
         default: Plone backend image tag
       VoltoVersion:
@@ -172,6 +193,45 @@ Parameters:
     Description: >-
       Optional. Update reports are posted here, for example https://ntfy.sh/a-long-random-topic for the ntfy
       phone app, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook URL. Keep it private.
+  SmtpHost:
+    Type: String
+    Default: ""
+    AllowedPattern: '^[A-Za-z0-9.-]*$'
+    ConstraintDescription: Must be a host name such as mail.smtp2go.com, or empty.
+    Description: >-
+      Optional. The SMTP server of an email relay service such as SMTP2GO, Brevo or Amazon SES, for
+      password resets, forms and update reports. Leave empty if the site doesn't need to send email.
+  SmtpPort:
+    Type: Number
+    Default: 587
+    MinValue: 1
+    MaxValue: 65535
+    Description: 587 works with most services; try 2525 if 587 is blocked.
+  SmtpUser:
+    Type: String
+    Default: ""
+    Description: The SMTP username from your email service.
+  SmtpPassword:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: The SMTP password from your email service.
+  EmailFrom:
+    Type: String
+    Default: ""
+    AllowedPattern: '^([^@\s]+@[A-Za-z0-9.-]+)?$'
+    ConstraintDescription: Must be an email address, or empty.
+    Description: >-
+      The site's From address, at a domain your email service has verified, for example
+      plone@example.org.
+  ReportEmail:
+    Type: String
+    Default: ""
+    AllowedPattern: '^([^@\s]+@[A-Za-z0-9.-]+)?$'
+    ConstraintDescription: Must be an email address, or empty.
+    Description: >-
+      Your address: setup sends a test email here, and the update reports go here too. Empty: the From
+      address.
   PloneVersion:
     Type: String
     Default: "6.2"
@@ -266,7 +326,14 @@ Resources:
             FRONTEND_IMAGE="$(d '${FrontendImageB64}')"
             AUTO_UPDATE='${AutoUpdate}'
             NOTIFY_URL="$(d '${NotifyUrlB64}')"
+            SMTP_HOST='${SmtpHost}'
+            SMTP_PORT='${SmtpPort}'
+            SMTP_USER="$(d '${SmtpUserB64}')"
+            SMTP_PASSWORD="$(d '${SmtpPasswordB64}')"
+            EMAIL_FROM="$(d '${EmailFromB64}')"
+            REPORT_EMAIL="$(d '${ReportEmailB64}')"
             export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE AUTO_UPDATE NOTIFY_URL
+            export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)
             if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \
@@ -282,6 +349,10 @@ Resources:
             AddonsB64: !Base64 {Ref: Addons}
             FrontendImageB64: !Base64 {Ref: FrontendImage}
             NotifyUrlB64: !Base64 {Ref: NotifyUrl}
+            SmtpUserB64: !Base64 {Ref: SmtpUser}
+            SmtpPasswordB64: !Base64 {Ref: SmtpPassword}
+            EmailFromB64: !Base64 {Ref: EmailFrom}
+            ReportEmailB64: !Base64 {Ref: ReportEmail}
 
   # A fixed address, so the site keeps the same IP after the server is stopped
   # and started, and DNS for a domain only needs setting once.

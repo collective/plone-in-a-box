@@ -56,6 +56,8 @@ locations are in Germany and Finland. All four offer automatic server backups fo
      [Updates](#updates).
    * **Notification URL**, where update reports go, for example `https://ntfy.sh/<a long random topic>`; see
      [Updates](#updates).
+   * **Email** settings, so the site can send email (password resets, forms, update reports) through an email relay
+     service; see [Sending email](#sending-email).
 4. Choose **Ubuntu 26.04 LTS** as the image (24.04 also works), a region, and a plan: a 1 GB **Nanode** is enough
    for a small site, 2 GB or more for a busier one.
 5. Set a root password, add your **SSH key**, and click **Create Linode**.
@@ -94,6 +96,8 @@ No command line is needed.
      [Themes and frontend images](#themes-and-frontend-images)).
    * **Automatic updates**: `yes` (the default) installs patch releases every week, and **Notification URL**, where
      reports about them go; see [Updates](#updates).
+   * **Email (optional)**: your email relay service's settings, so the site can send email; see
+     [Sending email](#sending-email).
    * Leave the **Advanced** settings as they are.
 4. Click **Create stack**. After a minute or two the stack shows `CREATE_COMPLETE`.
 5. Open the **Outputs** tab and click the **SiteURL**. You'll see the setup progress page, which turns into your
@@ -173,6 +177,11 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
 # auto_update       = false  # weekly patch releases are on by default
 # notify_url        = "https://ntfy.sh/a-long-random-topic"
+# smtp_host         = "mail.smtp2go.com"  # email, optional: see Sending email
+# smtp_user         = "..."
+# smtp_password     = "..."
+# email_from        = "plone@example.org"
+# report_email      = "you@example.org"
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -393,10 +402,9 @@ You hear about it in up to three places:
   **Workflows**, pick **Send webhook alerts to a channel** (older Teams: **Post to a channel when a webhook
   request is received**), and copy the URL it shows at the end.
   Setup sends a first notice when the site is ready, so you know right away that it works. To change the URL later, edit `/var/lib/plone-in-a-box/notify-url` on the server (only root can read it).
-* **By email**, if the site can send email: set the **Site 'From' address** and the mail server in **Site Setup →
-  Mail** (Plone needs these anyway, for password-reset emails). The report goes to that address, after anything
-  but a week with nothing new. Cloud providers block sending email directly, so this needs an email relay
-  service; see [Sending email](#sending-email).
+* **By email**, if the site can send email through an email relay service (see [Sending email](#sending-email)):
+  to the **Email for reports** chosen when creating the server, or else the site's From address, after anything
+  but a week with nothing new.
 * **In the login message**, when you log in to the server over SSH or in the browser console.
 
 The report also says when a new Plone release is out, such as 6.3. Moving to it is up to you (see below).
@@ -590,17 +598,32 @@ If your cloud provider also blocks port 587, try 2525, which SMTP2GO, Mailgun an
 
 ### Setting it up
 
-1. Sign up with the service, add your domain, and add the DNS records it shows at your domain host. Wait until the
-   service shows the domain as verified.
-2. Create SMTP credentials in the service, if it has a separate step for that.
-3. Log in to your Plone site as admin, go to **Site Setup → Mail**, and fill in **SMTP server**, **SMTP port**
-   (587), **ESMTP username** and **ESMTP password**, and the **Site 'From' name** and **Site 'From' address** (an
-   address at your verified domain, such as `plone@example.org`).
-4. Save, and check that email arrives (look in the spam folder too), for example with **Forgot your password?** on
-   the login page for a user with your address.
+First, with the service:
 
-From then on, password resets and forms send email, and the [update reports](#updates) go to the Site 'From'
-address as well.
+1. Sign up, add your domain (or a subdomain such as `mail.example.org`), and add the DNS records it shows at your
+   domain host. Wait until the service shows the domain as verified.
+2. Create SMTP credentials, if the service has a separate step for that.
+
+Then, **when you create the server**, fill in the email settings (the Linode form's **Email** fields, the Launch
+Stack form's **Email (optional)** section, the `SMTP_*`, `EMAIL_FROM` and `REPORT_EMAIL` lines of
+`src/user-data.sh`, or the Terraform `smtp_*`, `email_from` and `report_email` variables):
+
+* **SMTP server** and **SMTP port** (587, or 2525 if 587 is blocked), and the **SMTP username** and **password**
+  from the service.
+* **From address**: the address the site sends from, at the verified domain, for example `plone@example.org`. It
+  doesn't need a mailbox behind it.
+* **Email for reports**: your own address. Setup sends a test email there, and the weekly
+  [update reports](#updates) go there too. Empty: the From address.
+
+Setup puts these settings into the site's **Site Setup → Mail**, and the credentials file and the first
+notification say whether the test email went out. Check that it arrived (look in the spam folder too).
+
+**On a server that's already running**, log in to the site as admin, go to **Site Setup → Mail**, and fill in
+**SMTP server**, **SMTP port**, **ESMTP username**, **ESMTP password**, **Site 'From' name** and **Site 'From'
+address**. To check it, use **Forgot your password?** on the login page for a user with your address. Update reports
+go to the Site 'From' address, unless `/var/lib/plone-in-a-box/report-email` on the server names another one.
+
+Either way, password resets and forms then send email. To change the settings later, use **Site Setup → Mail**.
 
 ## Adding HTTPS later
 

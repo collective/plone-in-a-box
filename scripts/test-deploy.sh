@@ -38,6 +38,14 @@
 #                          setup notice, and with --updates the reports)
 #   --notify-url URL       like --notify, with this notification URL (an ntfy
 #                          topic you're subscribed to, to watch the notices)
+#   --mail ADDRESS         set up email through an SMTP relay service, with a
+#                          test email (and with --updates the reports) to
+#                          ADDRESS. The SMTP username and password come from the
+#                          Keychain (piab-smtp-user, piab-smtp-password), the
+#                          From address from piab-email-from or
+#                          PIAB_TEST_EMAIL_FROM, and the server from
+#                          PIAB_TEST_SMTP_HOST (default mail.smtp2go.com) and
+#                          PIAB_TEST_SMTP_PORT (default 587).
 #
 # "list" shows the test servers that exist; "cleanup" deletes all of them.
 # Only servers tagged piab-test are ever touched.
@@ -82,7 +90,8 @@ esac
 LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
-PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL=""
+PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
+SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
 SERVER_ID="" IP="" FAILURES=0
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -91,7 +100,7 @@ pass() { say "PASS  $*"; }
 fail() { say "FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else fail "$what"; fi; }
 
-usage() { sed -n '3,44p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,52p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
   linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
@@ -115,6 +124,9 @@ while (( $# )); do
       NOTIFY_URL=${2:?--notify-url needs a value}; shift
       [[ "$NOTIFY_URL" == https://* ]] || NOTIFY_URL="https://$NOTIFY_URL"
       [[ "$NOTIFY_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[^[:space:]\'\"]*)?$ ]] || die "--notify-url: not a URL" ;;
+    --mail)
+      MAIL_TO=${2:?--mail needs an address}; shift
+      [[ "$MAIL_TO" =~ ^[^@[:space:]]+@[A-Za-z0-9.-]+$ ]] || die "--mail: not an email address" ;;
     *) usage ;;
   esac
   shift
@@ -131,6 +143,14 @@ done
 keychain_token() {
   command -v security >/dev/null && security find-generic-password -s "$1" -w 2>/dev/null
 }
+if [[ -n "$MAIL_TO" ]]; then
+  SMTP_HOST=${PIAB_TEST_SMTP_HOST:-mail.smtp2go.com} SMTP_PORT=${PIAB_TEST_SMTP_PORT:-587}
+  SMTP_USER=$(keychain_token piab-smtp-user || true)
+  SMTP_PASSWORD=$(keychain_token piab-smtp-password || true)
+  EMAIL_FROM=${PIAB_TEST_EMAIL_FROM:-$(keychain_token piab-email-from || true)}
+  [[ -n "$SMTP_USER" && -n "$SMTP_PASSWORD" && -n "$EMAIL_FROM" ]] \
+    || die "--mail needs piab-smtp-user, piab-smtp-password and piab-email-from in the Keychain"
+fi
 TOKEN=""
 if [[ "$PROVIDER" == linode ]]; then
   TOKEN="${LINODE_TOKEN:-$(keychain_token piab-linode-token || true)}"
@@ -282,6 +302,7 @@ launcher() {
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
       ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
       ${NOTIFY_URL:+"export NOTIFY_URL='$NOTIFY_URL'"} \
+      ${MAIL_TO:+"$(mail_exports)"} \
       "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
     return
   fi
@@ -297,7 +318,22 @@ launcher() {
     || die "couldn't set FRONTEND_IMAGE in src/user-data.sh"
   [[ -z "$NOTIFY_URL" ]] || grep -qF "export NOTIFY_URL='$NOTIFY_URL'" <<<"$text" \
     || die "couldn't set NOTIFY_URL in src/user-data.sh"
+  if [[ -n "$MAIL_TO" ]]; then
+    # Values with any characters: replace the lines, quoted for bash.
+    text=$(MAIL_LINES="$(mail_exports)" awk '
+      BEGIN { n = split(ENVIRON["MAIL_LINES"], l, "\n"); for (i = 1; i <= n; i++) { split(l[i], kv, "="); m[kv[1]] = l[i] } }
+      { split($0, kv, "="); if (kv[1] in m) print m[kv[1]]; else print }' <<<"$text")
+    grep -q "^export SMTP_HOST=$SMTP_HOST$" <<<"$text" || die "couldn't set the email settings in src/user-data.sh"
+  fi
   printf '%s\n' "$text"
+}
+# The email settings as export lines, quoted for bash.
+mail_exports() {
+  local var
+  for var in SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM; do
+    printf 'export %s=%q\n' "$var" "${!var}"
+  done
+  printf 'export REPORT_EMAIL=%q' "$MAIL_TO"
 }
 
 # --- Create the server ------------------------------------------------------------
@@ -316,10 +352,14 @@ if [[ "$PROVIDER" == linode ]]; then
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
       --arg frontend "$FRONTEND_IMAGE" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
+      --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
+      --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
-        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, NOTIFY_URL: $notify}
+        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, NOTIFY_URL: $notify,
+            SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
+            EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email}
           | with_entries(select(.value != ""))),
         booted: true}
        + (if $fw == "" then {} else {firewall_id: ($fw | tonumber)} end)')
@@ -640,6 +680,15 @@ if [[ -n "$NOTIFY_URL" ]]; then
   check "the setup log doesn't contain the notification URL" rssh "! grep -qF '$NOTIFY_URL' /var/log/plone-in-a-box.log"
 fi
 
+if [[ -n "$MAIL_TO" ]]; then
+  check "setup sent a test email" rssh "grep -q 'Sent a test email to $MAIL_TO' /var/log/plone-in-a-box.log"
+  check "credentials file mentions the email settings" \
+    rssh "grep -q '^Email: .*a test email went to $MAIL_TO' /root/plone-credentials.txt"
+  check "update reports go to the address for reports" test "$(rssh 'cat /var/lib/plone-in-a-box/report-email')" = "$MAIL_TO"
+  check "the SMTP password isn't in the setup log or the credentials file" \
+    rssh "! grep -qF -- $(printf '%q' "$SMTP_PASSWORD") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
+fi
+
 check "automatic updates are on (plone-update.timer)" rssh \
   'systemctl is-enabled --quiet plone-update.timer && systemctl is-active --quiet plone-update.timer'
 check "credentials file mentions updates" rssh "grep -q '^Updates: .*automatically' /root/plone-credentials.txt"
@@ -674,6 +723,9 @@ if (( UPDATES )); then
   new_id=$(rssh "docker image inspect -f '{{.Id}}' plone/plone-backend:$current")
   check "plone-update installs the newer Plone (exit 0)" test "$status" = 0
   check "it reports the versions" grep -q "Updated: Plone $OLD_PLONE" "$WORK/update.log"
+  if [[ -n "$MAIL_TO" ]]; then
+    check "the update report was emailed" grep -q "Emailed this report to $MAIL_TO" "$WORK/update.log"
+  fi
   check "the backend runs the newest plone/plone-backend:$current" test "$(backend_image)" = "$new_id" -a "$new_id" != "$old_id"
   # shellcheck disable=SC2016 # expanded on the server
   check "the database was backed up first" rssh \

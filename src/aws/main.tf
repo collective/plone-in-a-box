@@ -101,6 +101,43 @@ variable "notify_url" {
   sensitive   = true
 }
 
+variable "smtp_host" {
+  description = "Email, optional: the SMTP server of an email relay service, for example mail.smtp2go.com. Empty: the site doesn't send email."
+  type        = string
+  default     = ""
+}
+
+variable "smtp_port" {
+  description = "Email: SMTP port."
+  type        = number
+  default     = 587
+}
+
+variable "smtp_user" {
+  description = "Email: SMTP username."
+  type        = string
+  default     = ""
+}
+
+variable "smtp_password" {
+  description = "Email: SMTP password."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "email_from" {
+  description = "Email: the site's From address, at a domain the email service has verified."
+  type        = string
+  default     = ""
+}
+
+variable "report_email" {
+  description = "Email: your address for a test email and the update reports. Empty: the From address."
+  type        = string
+  default     = ""
+}
+
 variable "auto_update" {
   description = "Install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back."
   type        = bool
@@ -213,6 +250,12 @@ resource "aws_instance" "app_server" {
     "export FRONTEND_IMAGE=\"$(echo ${base64encode(var.frontend_image)} | base64 -d)\"",
     "export AUTO_UPDATE=${var.auto_update ? "yes" : "no"}",
     "export NOTIFY_URL=\"$(echo ${base64encode(var.notify_url)} | base64 -d)\"",
+    "export SMTP_HOST=\"$(echo ${base64encode(var.smtp_host)} | base64 -d)\"",
+    "export SMTP_PORT=${var.smtp_port}",
+    "export SMTP_USER=\"$(echo ${base64encode(var.smtp_user)} | base64 -d)\"",
+    "export SMTP_PASSWORD=\"$(echo ${base64encode(var.smtp_password)} | base64 -d)\"",
+    "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
+    "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
     replace(file("${path.module}/../StackScript"), "/(?m)^[ \t]*#[^!\n].*\n/", ""),
   ]))
   user_data_replace_on_change = true
