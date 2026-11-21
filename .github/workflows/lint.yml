@@ -12,6 +12,19 @@ jobs:
       - uses: actions/checkout@v4
       - name: ShellCheck
         run: shellcheck src/StackScript src/user-data.sh src/add-updates.sh scripts/test-deploy.sh scripts/test-notify.sh scripts/linode-obsolete-stackscript.sh
+      # The scripts setup writes to the server (plone-update, notify, ...) are
+      # text inside src/StackScript, so the checks above don't parse them.
+      - name: The scripts inside src/StackScript parse
+        run: |
+          mkdir -p embedded
+          awk -v q="'" '
+            !inside && match($0, "<<" q "[A-Za-z_]+" q "$") { delim = substr($0, RSTART + 3, RLENGTH - 4); start = NR; body = ""; first = ""; inside = 1; next }
+            inside && $0 == delim { if (first ~ /^#!\/bin\/(ba)?sh/) { f = "embedded/line-" start ".sh"; printf "%s", body > f; close(f) } inside = 0; next }
+            inside { if (body == "") first = $0; body = body $0 "\n" }
+          ' src/StackScript
+          ls embedded
+          test "$(ls embedded | wc -l)" -ge 3
+          for f in embedded/*.sh; do bash -n "$f"; done
       - name: Launchers download the same release
         run: |
           release=$(sed -n "s/^PIAB_RELEASE='\(.*\)'$/\1/p" src/user-data.sh)

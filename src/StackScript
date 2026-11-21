@@ -740,7 +740,7 @@ send_report() {  # send_report <subject> <body>
     -v "$APP_DIR/send_mail.py:/app/scripts/send_mail.py:ro" \
     backend run /app/scripts/send_mail.py 2>&1)
   case "$out" in
-    *MAIL_SENT*) say "Emailed this report to ${to:-the site's email address}" ;;
+    *MAIL_SENT*) say "Emailed this report to ${to:-the site address in Site Setup > Mail}" ;;
     *NO_MAIL_SETTINGS*) say "Not emailed: the site has no email address in Site Setup > Mail" ;;
     *) say "Emailing this report failed:"; tail -3 <<<"$out" ;;
   esac
