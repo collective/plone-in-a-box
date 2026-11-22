@@ -19,6 +19,9 @@ backend, the Volto front end and PostgreSQL) behind nginx, with:
 Default versions: Plone 6.2 with Volto 19. Both are configurable; for the previous release line, use Plone `6.1`
 with Volto `18`.
 
+Questions, ideas, or stuck? Come and talk in the **#plone-in-a-box** channel on
+[the Plone Discord](https://discord.gg/jRrsnYkNvS).
+
 ## Get started
 
 Pick a cloud provider. You'll need an account with them and a way to pay.
@@ -177,7 +180,8 @@ On the server (`ssh root@<server>`, or `ubuntu@<server>` and `sudo -i` on AWS):
 Development and releases happen at [tkimnguyen/plone-in-a-box](https://github.com/tkimnguyen/plone-in-a-box),
 which is mirrored to [collective/plone-in-a-box](https://github.com/collective/plone-in-a-box) after each release.
 Release notes are on the [Releases page](https://github.com/tkimnguyen/plone-in-a-box/releases), and
-[CHANGES.md](CHANGES.md) lists the changes in every version. Both repositories have the same version tags.
+[CHANGES.md](CHANGES.md) lists the changes in every version. Both repositories have the same version tags. New
+releases are announced in **#plone-in-a-box** on [the Plone Discord](https://discord.gg/jRrsnYkNvS).
 
 Maintainers: see [RELEASING.md](RELEASING.md) for testing (including automated test deploys), releasing and syncing
 to `collective/plone-in-a-box`.
