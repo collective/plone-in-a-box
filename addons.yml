@@ -47,7 +47,10 @@
   theme: "@kitconcept/volto-light-theme"
   backend_addons: kitconcept.voltolighttheme==8.1.4
   site_behaviors: voltolighttheme.header voltolighttheme.theme voltolighttheme.footer
-  demo_roles:
+  # Editors can edit the home page, where the theme's settings are.
+  demo_roles: Editor
+  try_it: yes
+  try_hint: edit the home page and try the theme's settings for the logo, colours, header and footer
 
 - id: juizi-dashboard
   name: Juizi Dashboard

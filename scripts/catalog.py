@@ -196,7 +196,7 @@ li { margin: .3rem 0; }
 .steps { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .6rem 1.2rem .6rem 2.4rem; }
 code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
 code { background: var(--code); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
-pre { background: var(--code); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0; }
+pre { background: var(--code); padding: .8rem 5rem .8rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0; }
 pre code { background: none; padding: 0; overflow-wrap: normal; }
 .copy { position: relative; margin: .6rem 0; }
 .copy button { position: absolute; top: .4rem; right: .4rem; font: inherit; font-size: .8rem; padding: .2rem .6rem;
@@ -322,8 +322,11 @@ set a root password, and click <strong>Create Linode</strong>.</li>
     badge = (f"[![Try It in Plone in a Box](https://img.shields.io/badge/Try%20It-Plone%20in%20a%20Box-0083be)]"
              f"({page_url})")
 
+    # The description, unless it only repeats the name.
+    about = "" if entry["description"].lower() == entry["name"].lower() else f", {e['description']},"
+    role_word = "role" if len(roles(entry)) <= 1 else "roles"
     body = f"""<h1>Try {name}</h1>
-<p class="lead">Your own Plone 6 site with <a href="{e['url']}">{name}</a>, {e['description']}, in about
+<p class="lead">Your own Plone 6 site with <a href="{e['url']}">{name}</a>{about} in about
 10 minutes.</p>
 <p>It runs on a cloud server in your own account, set up by Plone in a Box. A small server costs a few cents an
 hour, paid to the cloud provider; delete it when you're done, which deletes the site too.</p>
@@ -341,7 +344,7 @@ for the <code>demo</code> login you'll share.</li>
 <li>Log in as <code>demo</code> with the demo password, then {e['try_hint']}.</li>
 </ol>
 
-<p>The <code>demo</code> login has the roles <strong>{html.escape(role_text)}</strong>: it can do what those roles allow
+<p>The <code>demo</code> login has the {role_word} <strong>{html.escape(role_text)}</strong>: it can do what {"that role allows" if role_word == "role" else "those roles allow"}
 on the site, and nothing more. Share it with whoever you want to try {name}.</p>
 <p class="note">The site has no domain, so it uses plain HTTP and passwords cross the network unencrypted. Choose
 passwords you don't use anywhere else.</p>
