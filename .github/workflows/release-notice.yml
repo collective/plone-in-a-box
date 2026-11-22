@@ -2,8 +2,9 @@ name: Release notice
 
 # Posts a notice to Discord (the #plone-in-a-box channel) when a release
 # reaches collective/plone-in-a-box: the sync pushes its tag there, the last
-# step of a release (RELEASING.md). The notes come from the GitHub release of
-# the same name in tkimnguyen/plone-in-a-box, where releases are published.
+# step of a release (RELEASING.md). The notes are the release's section of
+# CHANGES.md; the link goes to the GitHub release of the same name in
+# tkimnguyen/plone-in-a-box, where releases are published.
 # Only the latest release is announced, so pushing older tags posts nothing.
 # The channel's webhook URL is collective's repository secret
 # DISCORD_WEBHOOK_URL; without it, this does nothing. Run it by hand
@@ -42,20 +43,69 @@ jobs:
             echo "::notice::$TAG isn't the latest release ($latest), so no notice was posted"
             exit 0
           fi
-          payload=$(jq -c '
-            # Discord shows at most 4096 characters; keep it short.
-            (.body // "" | gsub("\r"; "")) as $notes
-            | (if ($notes | length) > 1500 then ($notes[:1500] + "…") else $notes end) as $short
-            | {
-                username: "Plone in a Box",
-                allowed_mentions: {parse: []},
-                embeds: [{
-                  title: (.name // .tag_name),
-                  url: .html_url,
-                  color: 33470,
-                  description: ($short + "\n\n[Release notes](" + .html_url + ") · [Get started](https://github.com/tkimnguyen/plone-in-a-box#get-started)"),
-                  timestamp: .published_at
-                }]
-              }' <<<"$release")
+          # The notes: this release's section of CHANGES.md, written for site
+          # owners; GitHub's list of pull requests if there's none.
+          gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$RELEASES/contents/CHANGES.md?ref=$latest" > CHANGES.md || : > CHANGES.md
+          notes=$(python3 - "$latest" <<'PY'
+          import re, sys
+          version = sys.argv[1]
+          section, inside = [], False
+          for line in open("CHANGES.md", encoding="utf-8"):
+              line = line.rstrip("\n")
+              if re.match(r"^\d+(\.\d+)+ \(", line):
+                  if inside:
+                      break
+                  inside = line.startswith(version + " (")
+                  continue
+              if inside and not re.match(r"^-+$", line):
+                  section.append(line)
+          # Paragraphs before the list are the summary for site owners; the
+          # notice is that summary, or else the list. One line per paragraph
+          # or item: CHANGES.md wraps them at 78 characters.
+          summary, items = [], []
+          for line in section:
+              if line.startswith("- "):
+                  items.append(line[2:].strip())
+              elif not line.strip():
+                  if not items and summary and summary[-1]:
+                      summary.append("")
+              elif items:
+                  items[-1] += " " + line.strip()
+              elif summary and summary[-1]:
+                  summary[-1] += " " + line.strip()
+              else:
+                  summary.append(line.strip())
+          summary = "\n\n".join(p for p in summary if p)
+          if summary:
+              print(summary[:1500])
+              sys.exit()
+          text, more = "", False
+          for item in items:
+              entry = "- " + item + "\n"
+              if len(text) + len(entry) > 1500:
+                  more = True
+                  break
+              text += entry
+          if more:
+              text += "- …and more in the release notes\n"
+          print(text.strip())
+          PY
+          )
+          if [ -z "$notes" ]; then
+            notes=$(jq -r '.body // "" | gsub("\r"; "") | if length > 1500 then .[:1500] + "…" else . end' <<<"$release")
+          fi
+          payload=$(jq -c --arg notes "$notes" '
+            {
+              username: "Plone in a Box",
+              allowed_mentions: {parse: []},
+              embeds: [{
+                title: (.name // .tag_name),
+                url: .html_url,
+                color: 33470,
+                description: ($notes + "\n\n[Release notes](" + .html_url + ") · [Get started](https://github.com/tkimnguyen/plone-in-a-box#get-started)"),
+                timestamp: .published_at
+              }]
+            }' <<<"$release")
           curl -fsS --retry 3 -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK"
           echo "Posted the notice for $(jq -r .tag_name <<<"$release")"

@@ -90,7 +90,8 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 
 ## 2. Release
 
-1. In `CHANGES.md`, replace `(unreleased)` with today's date. If `src/StackScript` changed, set the new version in
+1. In `CHANGES.md`, replace `(unreleased)` with today's date, and add a few plain sentences for site owners above
+   the list of changes; they become the Discord notice ([below](#one-time-setup-of-the-discord-notice)). If `src/StackScript` changed, set the new version in
    `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, and
    the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
    URL), so pasted launchers and the Launch Stack button download it. CI checks that they all match. Commit to `main` (or include it in the last PR).
@@ -155,8 +156,22 @@ In the AWS console (Plone Foundation account), region **US East (N. Virginia) us
 ### One-time setup of the Discord notice
 
 When a release's tag reaches collective/plone-in-a-box (the last step of [syncing](#4-sync-collectiveplone-in-a-box)),
-`.github/workflows/release-notice.yml` posts a notice to the Discord channel #plone-in-a-box with the release notes
-from this repository. Only the latest release is announced, never a draft or pre-release.
+`.github/workflows/release-notice.yml` posts a notice to the Discord channel #plone-in-a-box, linking to the GitHub
+release. Only the latest release is announced, never a draft or pre-release.
+
+The notice's text is the release's section of `CHANGES.md`: the paragraphs above its list of changes, if there are
+any, or else the list. Those paragraphs are for site owners, not developers, so write them when dating the release:
+a few plain sentences on what's new for someone running a site, without setting or file names. For example:
+
+```
+2.14 (2026-11-22)
+-----------------
+
+When you let people try your site, you can now choose the demo login's
+password yourself, and give it just the roles it needs, ...
+
+- Demo login roles: ...
+```
 
 1. In Discord, on the #plone-in-a-box channel: **Edit Channel → Integrations → Webhooks → New Webhook**, name it
    `Plone in a Box releases`, and **Copy Webhook URL**.
