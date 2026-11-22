@@ -1,4 +1,4 @@
-2.14 (unreleased)
+2.14 (2026-11-22)
 -----------------
 
 - Demo login roles: the demo login can have several roles, separated by
@@ -17,6 +17,8 @@
 - The Juizi Dashboard image: juizi.dashboard 1.0.0b3, whose demo login gets
   Editor and Site Activity Viewer (a role that sees the activity dashboard
   and nothing else), instead of Site Administrator.
+- Releases are announced on Discord (#plone-in-a-box) when their tag
+  reaches collective/plone-in-a-box (.github/workflows/release-notice.yml).
 - scripts/linode-addon-stackscript.sh: --demo-roles instead of --demo-role,
   empty by default. scripts/test-deploy.sh: --demo-roles,
   --expect-demo-roles and --demo-password.
