@@ -4,7 +4,8 @@ An add-on's README can say **Try it in Plone in a Box**: a link that opens a clo
 filled in, so someone can have a real Plone 6 site with the add-on, and a demo login to share, in about 10 minutes.
 They use their own cloud account and pay for the server (a few cents an hour), and delete it when they're done.
 
-This page is for add-on authors. It needs Plone in a Box 2.13 or later, for the demo login.
+This page is for add-on authors. It needs Plone in a Box 2.13 or later, for the demo login; 2.14 or later for its
+roles from the frontend image, and for choosing its password.
 
 ## What you need first
 
