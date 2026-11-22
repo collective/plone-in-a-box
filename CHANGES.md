@@ -1,6 +1,9 @@
 2.16 (unreleased)
 -----------------
 
+- scripts/test-deploy.sh aws --cloudformation: creates the server as the
+  Launch Stack button does, from the branch's template, and deletes the
+  stack afterwards; list and cleanup include test stacks.
 - Docs: an invitation to the #plone-in-a-box channel on the Plone Discord
   (https://discord.gg/jRrsnYkNvS) in the README, the setup guide's Troubleshooting, the Try It
   pages and the release notes.
