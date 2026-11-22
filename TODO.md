@@ -63,6 +63,13 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
   controls the domain's reputation (DMARC reports, Google Postmaster Tools). Cloud providers reuse IP addresses, so
   a new server may inherit a blocklisted one. Idea: check the server's IP and the sending domain against public
   blocklists (Spamhaus and others) at setup and in `plone-update`, and say so in the update report.
+- [ ] **Tell site owners about Plone releases and security fixes.** `plone-update` installs patch releases of the
+  versions a site runs, but owners aren't told about announcements: security hotfixes, new Plone versions they'd move
+  to themselves (such as 6.3), or end of support. Idea: follow the standard Plone announcements (the announcements
+  list, or what replaces it; it may change soon) and pass them on through what the box already has: the
+  notification URL, email through the site's mail settings, and the login message. Decide whether each server
+  checks a feed itself (e.g. weekly with `plone-update`), or this project relays announcements to its own channel,
+  and how to avoid repeats.
 - [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where
   the data would go on a single small server.
 - [ ] **Other Plone best practices.** Review the box against current Plone deployment recommendations
