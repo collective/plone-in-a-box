@@ -121,7 +121,7 @@ def problems(entries):
                 say(f"{key}: names separated by spaces")
         for role in roles(entry):
             if role in NOT_FOR_DEMO:
-                say(f"demo_roles: never {role}")
+                say(f"demo_roles: {role} isn't allowed")
             elif not re.fullmatch(r"[A-Za-z0-9 ._-]+", role):
                 say(f"demo_roles: {role} isn't a role name")
         if entry["try_it"] not in ("", "yes", "no"):

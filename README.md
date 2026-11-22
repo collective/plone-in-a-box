@@ -10,7 +10,7 @@ nothing to install on your computer.
 Behind the scenes, each box is a single Ubuntu 26.04 LTS server running the official Plone Docker images (the Plone
 backend, the Volto front end and PostgreSQL) behind nginx, with:
 
-* the admin password you choose when creating the server, or a randomly generated one (never `admin:admin`)
+* the admin password you choose when creating the server, or a randomly generated one (there's no `admin:admin`)
 * a page that shows setup progress while you wait, and turns into your site when it's ready
 * only the website (HTTP and HTTPS) and SSH reachable from the internet
 * optional HTTPS from Let's Encrypt when you give it a domain name

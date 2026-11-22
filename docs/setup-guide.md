@@ -398,7 +398,7 @@ Ubuntu release: deploy a new server instead.
 
 **Plone, Volto and PostgreSQL** run from Docker images. With **Automatic updates** on (the default), every Sunday
 early in the morning (server time, usually UTC) the server installs newer images of the **same** versions: patch
-releases and security fixes, such as Plone 6.2.2 to 6.2.3, never 6.2 to 6.3. If there's anything new, it first
+releases and security fixes, such as Plone 6.2.2 to 6.2.3; moving to 6.3 is up to you. If there's anything new, it first
 saves a database backup in `/var/backups/plone/` (the three newest are kept), then updates, and checks that the
 site comes back. If it doesn't, it goes back to the previous images, and skips that build from then on. A
 ready-made frontend image whose new build needs a different backend add-on is left for you to update (see
@@ -550,7 +550,7 @@ Its roles (`DEMO_ROLES`, `DemoRoles`, `demo_roles`) are one or more role names s
 role an add-on adds. Left empty, it gets the roles the frontend image suggests (its
 [`demo-roles` label](../frontend-image/README.md#how-setup-uses-an-image), for example Editor and Site Activity Viewer
 for Juizi Dashboard), or Site Administrator. A role the site doesn't have, such as an add-on's that failed to
-install, is skipped, and Manager is never given. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
+install, is skipped, and so is Manager. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
 another role than Site Administrator.)
 
 If the site [sends email](#sending-email), the demo login gets **Editor** instead of Site Administrator: a Site

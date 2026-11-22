@@ -45,7 +45,7 @@ another pull request that changes the versions in your entry.
 
 **Choose the demo login's roles carefully:** the narrowest ones that show off the add-on, for example **Editor**,
 or a role your add-on defines for looking without administering. People who get the demo login can do anything those
-roles allow on that site. Without `demo_roles`, it's a Site Administrator. Manager is never allowed.
+roles allow on that site. Without `demo_roles`, it's a Site Administrator. Manager isn't allowed.
 
 CI checks each entry (exact versions, allowed roles) and builds the image before anyone merges it, and
 `python3 scripts/catalog.py check` does the same on your computer.
@@ -149,8 +149,8 @@ is a complete example, with the public StackScript [2318969](https://cloud.linod
 ### After the server is set up
 
 Whoever creates the server can choose the demo login's password in the form (**Demo login password**, or
-`DemoPassword` on AWS, which the link leaves for them to fill in), so they know it without reading a file. Never
-put a password in the button's link or StackScript: everyone who clicks it would share it.
+`DemoPassword` on AWS, which the link leaves for them to fill in), so they know it without reading a file. Leave
+passwords out of the button's link and StackScript: everyone who clicks it would share them.
 
 The site's address, and the admin and demo passwords, are in `/root/plone-credentials.txt` on the server
 (`sudo cat /root/plone-credentials.txt` in the provider's browser console). The demo login is an ordinary Plone
