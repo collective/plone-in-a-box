@@ -44,7 +44,7 @@
   variables). Setup creates a second Plone login with that role (Site
   Administrator by default) and a generated password, saved in
   /root/plone-credentials.txt, for people you let try the site.
-- "Try it" buttons for add-ons (docs/try-it-buttons.md): a link that sets up
+- "Try It" buttons for add-ons (docs/try-it-buttons.md): a link that sets up
   a server with an add-on and a demo login. On AWS the Launch Stack link
   fills in the parameters; on Linode, scripts/linode-addon-stackscript.sh
   prints a StackScript for one add-on, with its settings filled in, that

@@ -225,7 +225,7 @@ Public StackScripts can't be deleted or made private by their owner; only Linode
 
 ### Per-add-on StackScripts
 
-The "Try it" StackScripts for single add-ons ([docs/try-it-buttons.md](docs/try-it-buttons.md)), printed by
+The "Try It" StackScripts for single add-ons ([docs/try-it-buttons.md](docs/try-it-buttons.md)), printed by
 `scripts/linode-addon-stackscript.sh`, download the latest release, so they don't need updating at each release.
 If a release adds or changes a form field (a `# <UDF` line in `src/StackScript`), print each one again with the same
 options and paste it over the old one. Test one first with
