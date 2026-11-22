@@ -68,11 +68,21 @@ export AUTO_UPDATE='yes'
 # 'https://ntfy.sh/a-long-random-topic' (the ntfy phone app), or a Slack,
 # Discord, Google Chat, Mattermost or Microsoft Teams webhook URL. Keep it private.
 export NOTIFY_URL=''
+# Email, optional: the SMTP settings of an email relay service (see "Sending
+# email" in the setup guide), for password resets, forms and update reports.
+# EMAIL_FROM must be at a domain the service has verified. A test email goes to
+# REPORT_EMAIL (or else EMAIL_FROM), where the update reports go too.
+export SMTP_HOST=''
+export SMTP_PORT='587'
+export SMTP_USER=''
+export SMTP_PASSWORD=''
+export EMAIL_FROM=''
+export REPORT_EMAIL=''
 
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.
-PIAB_RELEASE='2.14'
+PIAB_RELEASE='2.15'
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 set -uo pipefail

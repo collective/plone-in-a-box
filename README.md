@@ -57,7 +57,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.14/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Create the Droplet, then open its IP address in your browser.
 
@@ -85,7 +85,7 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.14/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
 
@@ -118,6 +118,9 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
   PostgreSQL patch releases, after a database backup, and undoes them if the site doesn't come back. Reports can go
   to your phone (ntfy), a team chat, or by email; see [Updates](docs/setup-guide.md#updates). A server set up
   before 2.12 gets them with [one command](docs/setup-guide.md#servers-set-up-before-212).
+* **Email:** for password resets, forms and update reports, the site sends through an email relay service such as
+  SMTP2GO, Brevo or Amazon SES, with your own domain. Fill in its settings when deploying, and setup sends a test
+  email; see [Sending email](docs/setup-guide.md#sending-email), which compares the services.
 
 The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
 
@@ -132,18 +135,15 @@ demo login to share. [Juizi Dashboard](https://github.com/tkimnguyen/juizi.dashb
 
 What it takes:
 
-1. **An image with your add-on** (if it has a Volto part): one entry in Plone in a Box's
-   [image list](frontend-image/README.md) names your npm and Python packages, and the roles a demo login needs to
-   try it, for example `Editor`. A backend-only add-on skips this and names its Python package instead.
-2. **The buttons:** the AWS one is a Launch Stack link with your image filled in, nothing to set up. The Linode one
-   opens a small public StackScript for your add-on, which
-   [`scripts/linode-addon-stackscript.sh`](scripts/linode-addon-stackscript.sh) writes for you; it always runs the
-   latest Plone in a Box release, so it needs no updates.
-3. **Your README:** paste the buttons, two short steps, and what the demo login can do.
+1. **One pull request** that adds your add-on to Plone in a Box's catalog, [`addons.yml`](addons.yml): about ten
+   lines naming your npm and Python packages, the roles a demo login needs to try it (for example `Editor`), and
+   what to do once logged in.
+2. **One button in your README**, linking to the Try It page Plone in a Box then publishes for your add-on, at
+   `https://collective.github.io/plone-in-a-box/try/<your add-on>/`. The page has the AWS, Linode, DigitalOcean and
+   Hetzner steps, and follows Plone in a Box's releases by itself.
 
-The ["Try It" guide](docs/try-it-buttons.md) has each step, the Markdown to copy, and DigitalOcean and Hetzner, which
-have no button. Ask in [collective/plone-in-a-box](https://github.com/collective/plone-in-a-box/issues) if you'd like
-your add-on's image built there.
+The ["Try It" guide](docs/try-it-buttons.md) has the details, and how to make the buttons yourself instead. See
+[the Try It pages](https://collective.github.io/plone-in-a-box/try/).
 
 ## For developers and system administrators
 

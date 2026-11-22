@@ -1,14 +1,44 @@
-2.15 (unreleased)
+2.15 (2026-11-22)
 -----------------
+
+Your site can now send email (password resets, forms and the weekly update
+reports) through an email relay service such as SMTP2GO or Brevo: fill in
+its settings when you create the server, and setup sends you a test email.
+The setup guide compares the services. And add-on authors can now offer a
+"Try It" page for their add-on with a single pull request.
 
 - Releasing: .github/workflows/publish-template.yml uploads the Launch Stack
   template to S3 when a release is published (signing in to AWS with
   GitHub's OpenID Connect, no stored keys), and
   scripts/update-public-stackscripts.sh updates the public Linode
   StackScripts (931893, 2318969, 692002) from a release's tag.
+- Add-on catalog and Try It pages: addons.yml lists the ready-made frontend
+  images (the image workflow builds from it) and the add-ons with a Try It
+  page. For each, scripts/catalog.py writes docs/try/<id>/, published at
+  https://collective.github.io/plone-in-a-box/try/<id>/: the AWS Launch
+  Stack link, the Linode steps, and the DigitalOcean and Hetzner lines for
+  the current release. An add-on author's whole job is one pull request
+  with an entry and one button in their README. CI checks the entries
+  (exact versions, never Manager) and that the pages are up to date.
 - Old frontend image builds are deleted after each image build
   (scripts/cleanup-frontend-images.py): each image keeps its newest 26
   builds, about six months, and test images go after 7 days.
+- Email: new optional settings for an email relay service (SMTP server, port,
+  username, password, From address, and an address for reports) in the
+  Linode form, src/user-data.sh, the Launch Stack form and the Terraform
+  variables. Setup puts them into Site Setup > Mail, so password resets and
+  forms send email, and sends a test email to the address for reports; the
+  credentials file and the first notification say whether it went out. The
+  weekly update reports are emailed there too. With email set up, the demo
+  login gets Editor instead of Site Administrator, who could otherwise get
+  the email service's password from Site Setup > Mail.
+  scripts/test-deploy.sh --mail tests it.
+- Docs: demo and admin passwords cross the network unencrypted on a site
+  without a domain; choose ones not used anywhere else.
+- Docs: sending email (password resets, forms, update reports) through an
+  email relay service, with a comparison of SMTP2GO, Brevo, Mailgun, Amazon
+  SES, Postmark and Resend, and how to set it up in Site Setup > Mail.
+  [tkimnguyen]
 
 2.14 (2026-11-22)
 -----------------

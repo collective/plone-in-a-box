@@ -94,7 +94,8 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
    the list of changes; they become the Discord notice ([below](#one-time-setup-of-the-discord-notice)). If `src/StackScript` changed, set the new version in
    `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, and
    the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
-   URL), so pasted launchers and the Launch Stack button download it. CI checks that they all match. Commit to `main` (or include it in the last PR).
+   URL), so pasted launchers and the Launch Stack button download it, and run `python3 scripts/catalog.py pages` so the
+   Try It pages in `docs/try/` name it too. CI checks that they all match. Commit to `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.
 
@@ -218,7 +219,7 @@ By hand instead:
 An older public copy, 692002 owned by **tknguyen2**, is waiting for Linode support to remove it. It runs
 [`scripts/linode-obsolete-stackscript.sh`](scripts/linode-obsolete-stackscript.sh), which says it's obsolete (in the
 setup log and the login message), points to 931893, and sets up the latest release, so it doesn't need updating at
-each release. Its form fields are those of 2.14; if a release adds a field, copy the new `# <UDF` lines into the
+each release. Its form fields are those of 2.15; if a release adds a field, copy the new `# <UDF` lines into the
 script and paste it into 692002 again.
 
 Public StackScripts can't be deleted or made private by their owner; only Linode support can remove one.
