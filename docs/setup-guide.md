@@ -188,7 +188,9 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
-`src/aws/main.tf`. The account needs a default VPC, which new AWS accounts have.
+`src/aws/main.tf`. The server downloads its setup script from the Plone in a Box release in `release` (the current
+one by default), so edits to `src/StackScript` in your copy aren't used. To try changes, push them to a branch and
+set `release` to it (in a fork, also change the GitHub address in `src/aws/main.tf`). The account needs a default VPC, which new AWS accounts have.
 
 Type `yes` to confirm. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server then provisions
 itself. Open the `site_url` in your browser to watch the setup progress page, which turns into your site when it's
