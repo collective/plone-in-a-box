@@ -1,0 +1,86 @@
+name: Publish template
+
+# Uploads src/aws/cloudformation.yaml to the Launch Stack bucket when a release
+# is published: to latest/ (what the button opens) and to <version>/ (a copy of
+# each release). It signs in to AWS with GitHub's OpenID Connect token, as the
+# role in the repository variable AWS_TEMPLATE_ROLE_ARN, which can only write
+# those files; no AWS keys are stored. Without the variable, it does nothing.
+# Run it by hand (Actions → Publish template → Run workflow) to publish a
+# release's template again. Setup: RELEASING.md.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release to publish (default: the latest)"
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.repository == 'tkimnguyen/plone-in-a-box'
+    runs-on: ubuntu-24.04
+    # The AWS role trusts only jobs in this environment.
+    environment: aws-templates
+    env:
+      BUCKET: plone-in-a-box-templates
+      ROLE: ${{ vars.AWS_TEMPLATE_ROLE_ARN }}
+    steps:
+      - name: Which release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.version }}
+          PRERELEASE: ${{ github.event.release.prerelease || false }}
+        run: |
+          if [ -z "$ROLE" ]; then
+            echo "::notice::No AWS_TEMPLATE_ROLE_ARN variable, so nothing was published"
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$PRERELEASE" = true ]; then
+            echo "::notice::Pre-releases aren't published"
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          [ -n "$TAG" ] || TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          [[ "$TAG" =~ ^[0-9]+(\.[0-9]+)+$ ]] || { echo "::error::$TAG isn't a release version"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.release.outputs.skip != 'true'
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+      - name: The template names this release
+        if: steps.release.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          default=$(grep -A3 '^  Release:' src/aws/cloudformation.yaml | sed -n 's/.*Default: "\(.*\)"/\1/p')
+          [ "$default" = "$TAG" ] || { echo "::error::The template's Release default is $default, not $TAG"; exit 1; }
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.release.outputs.skip != 'true'
+        with:
+          role-to-assume: ${{ env.ROLE }}
+          aws-region: us-east-1
+      - name: Upload
+        if: steps.release.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          for dir in "$TAG" latest; do
+            aws s3 cp src/aws/cloudformation.yaml "s3://$BUCKET/$dir/cloudformation.yaml" \
+              --content-type 'text/yaml; charset=utf-8' --cache-control 'max-age=300' --no-progress
+          done
+      - name: Check what the button opens
+        if: steps.release.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          for dir in "$TAG" latest; do
+            curl -fsS "https://$BUCKET.s3.us-east-1.amazonaws.com/$dir/cloudformation.yaml?check=$GITHUB_RUN_ID" \
+              | cmp - src/aws/cloudformation.yaml
+            echo "$dir/cloudformation.yaml is the $TAG template"
+          done

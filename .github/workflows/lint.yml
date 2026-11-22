@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ShellCheck
-        run: shellcheck src/StackScript src/user-data.sh src/add-updates.sh scripts/test-deploy.sh scripts/test-notify.sh scripts/linode-obsolete-stackscript.sh scripts/linode-addon-stackscript.sh
+        run: shellcheck src/StackScript src/user-data.sh src/add-updates.sh scripts/test-deploy.sh scripts/test-notify.sh scripts/linode-obsolete-stackscript.sh scripts/linode-addon-stackscript.sh scripts/update-public-stackscripts.sh
       - name: Launchers download the same release
         run: |
           release=$(sed -n "s/^PIAB_RELEASE='\(.*\)'$/\1/p" src/user-data.sh)
