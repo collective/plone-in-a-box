@@ -96,7 +96,7 @@ Versions are configurable; Plone 6.1 with Volto 18 also works. Add-ons and theme
 
 ## Updates that look after themselves
 
-Every Sunday, early in the morning, the server checks for patch releases of the **same** versions: Plone 6.2.2 to 6.2.3, never 6.2 to 6.3.
+Every Sunday, early in the morning, the server checks for patch releases of the **same** versions: Plone 6.2.2 to 6.2.3. Moving to 6.3 is up to you.
 
 - First a **database backup**, then the update.
 - If the site doesn't come back, it **goes back** to the previous version, and skips that build from then on.
@@ -175,7 +175,7 @@ The setup guide compares the services, and explains the DNS records your domain 
 
 A **demo login**: a second login, such as `demo`, for a client looking at a draft site, or people trying an add-on.
 
-- **You choose its roles:** Editor, Contributor, Reviewer, Site Administrator, or a role an add-on defines. Manager is never given.
+- **You choose its roles:** Editor, Contributor, Reviewer, Site Administrator, or a role an add-on defines (Manager isn't offered).
 - **You choose its password,** or setup generates one.
 - A ready-made image can suggest the roles: Juizi Dashboard's demo login is an **Editor** who can also see the dashboard.
 

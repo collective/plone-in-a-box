@@ -41,7 +41,7 @@ li { margin: .3rem 0; }
 .steps { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .6rem 1.2rem .6rem 2.4rem; }
 code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
 code { background: var(--code); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
-pre { background: var(--code); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0; }
+pre { background: var(--code); padding: .8rem 5rem .8rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0; }
 pre code { background: none; padding: 0; overflow-wrap: normal; }
 .copy { position: relative; margin: .6rem 0; }
 .copy button { position: absolute; top: .4rem; right: .4rem; font: inherit; font-size: .8rem; padding: .2rem .6rem;
@@ -114,7 +114,7 @@ export ADMIN_PASSWORD=&#x27;CHANGE-ME&#x27;
 export FRONTEND_IMAGE=&#x27;ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard&#x27;
 export DEMO_USER=&#x27;demo&#x27;
 export DEMO_PASSWORD=&#x27;CHANGE-ME-TOO&#x27;
-curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/StackScript &amp;&amp; bash /root/plone-in-a-box.sh</code></pre></div>
+curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.17/src/StackScript &amp;&amp; bash /root/plone-in-a-box.sh</code></pre></div>
 <p class="note">Then open the server's IP address in a browser. More detail:
 <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-c-digitalocean">DigitalOcean</a>,
 <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-d-hetzner">Hetzner</a>.</p>

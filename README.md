@@ -10,7 +10,7 @@ nothing to install on your computer.
 Behind the scenes, each box is a single Ubuntu 26.04 LTS server running the official Plone Docker images (the Plone
 backend, the Volto front end and PostgreSQL) behind nginx, with:
 
-* the admin password you choose when creating the server, or a randomly generated one (never `admin:admin`)
+* the admin password you choose when creating the server, or a randomly generated one (there's no `admin:admin`)
 * a page that shows setup progress while you wait, and turns into your site when it's ready
 * only the website (HTTP and HTTPS) and SSH reachable from the internet
 * optional HTTPS from Let's Encrypt when you give it a domain name
@@ -60,7 +60,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.17/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Create the Droplet, then open its IP address in your browser.
 
@@ -88,7 +88,7 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.17/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
 

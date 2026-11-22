@@ -1,3 +1,25 @@
+2.17 (2026-11-22)
+-----------------
+
+New servers now send standard security headers that stop other sites from
+framing your site, hide nginx's version number, and compress pages' styles
+and scripts so they load faster. You can also try Volto Light Theme on a
+server of your own from its new Try It page, with a demo login that can edit
+the theme's settings.
+
+- nginx: security headers on every response (X-Frame-Options SAMEORIGIN,
+  X-Content-Type-Options nosniff, and Strict-Transport-Security once HTTPS
+  is set up), no version number in responses, and compressed CSS,
+  JavaScript, JSON and SVG, on new servers (in the site's server block,
+  since Ubuntu's nginx.conf sets some of these itself). scripts/test-deploy.sh checks
+  them.
+- Try It page for Volto Light Theme
+  (https://collective.github.io/plone-in-a-box/try/vlt/), with a demo login
+  that has the Editor role, so it can edit pages and the theme's settings.
+- scripts/test-deploy.sh: --keep-on-failure keeps the test server when a
+  check fails, to look at it or retry the check.
+- Docs and slides: plainer wording in a few places.
+
 2.16 (2026-11-22)
 -----------------
 
