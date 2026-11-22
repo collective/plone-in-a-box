@@ -49,7 +49,7 @@ jobs:
           [ -n "$TAG" ] || TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
           [[ "$TAG" =~ ^[0-9]+(\.[0-9]+)+$ ]] || { echo "::error::$TAG isn't a release version"; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.release.outputs.skip != 'true'
         with:
           ref: ${{ steps.release.outputs.tag }}
@@ -60,7 +60,7 @@ jobs:
         run: |
           default=$(grep -A3 '^  Release:' src/aws/cloudformation.yaml | sed -n 's/.*Default: "\(.*\)"/\1/p')
           [ "$default" = "$TAG" ] || { echo "::error::The template's Release default is $default, not $TAG"; exit 1; }
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         if: steps.release.outputs.skip != 'true'
         with:
           role-to-assume: ${{ env.ROLE }}
