@@ -4,8 +4,9 @@
 #   terraform init
 #   terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
 #
-# The instance provisions itself on first boot by running ../StackScript as
-# EC2 user data; that takes about 10 minutes. Follow it with:
+# The instance provisions itself on first boot: its user data downloads
+# src/StackScript from the Plone in a Box release named in var.release and
+# runs it; that takes about 10 minutes. Follow it with:
 #   ssh ubuntu@<public_ip> sudo tail -f /var/log/cloud-init-output.log
 # then read the admin password with:
 #   ssh ubuntu@<public_ip> sudo cat /root/plone-credentials.txt
@@ -163,6 +164,17 @@ variable "auto_update" {
   default     = true
 }
 
+variable "release" {
+  description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
+  type        = string
+  default     = "2.17"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
+    error_message = "release: a release, branch or commit, such as 2.17."
+  }
+}
+
 variable "volume_size_gb" {
   description = "Size of the root disk in GB."
   type        = number
@@ -253,11 +265,10 @@ resource "aws_instance" "app_server" {
     http_tokens = "required" # IMDSv2 only
   }
 
-  # Same provisioning script as the Linode StackScript, with its settings
-  # passed as environment variables. Compressed and without its comment lines,
-  # because EC2 limits user data to 16 KB and the script is larger; cloud-init
-  # decompresses it.
-  user_data_base64 = base64gzip(join("\n", [
+  # The settings as environment variables, then the release's setup script,
+  # downloaded from GitHub like the Launch Stack template does. The script is
+  # larger than EC2's 16 KB user data limit, so it isn't embedded.
+  user_data = join("\n", [
     "#!/bin/bash",
     "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
     "export DOMAIN=${jsonencode(var.domain)}",
@@ -278,8 +289,13 @@ resource "aws_instance" "app_server" {
     "export SMTP_PASSWORD=\"$(echo ${base64encode(var.smtp_password)} | base64 -d)\"",
     "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
     "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
-    replace(file("${path.module}/../StackScript"), "/(?m)^[ \t]*#[^!\n].*\n/", ""),
-  ]))
+    "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
+    "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
+    "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",
+    "  exit 1",
+    "fi",
+    "exec bash /root/plone-in-a-box.sh",
+  ])
   user_data_replace_on_change = true
 
   tags = {

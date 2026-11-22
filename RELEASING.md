@@ -96,7 +96,8 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 
 1. In `CHANGES.md`, replace `(unreleased)` with today's date, and add a few plain sentences for site owners above
    the list of changes; they become the Discord notice ([below](#one-time-setup-of-the-discord-notice)). If `src/StackScript` changed, set the new version in
-   `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, and
+   `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, the
+   `release` variable's `default` in `src/aws/main.tf`, and
    the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
    URL), so pasted launchers and the Launch Stack button download it, and run `python3 scripts/catalog.py pages` so the
    Try It pages in `docs/try/` name it too. CI checks that they all match. Commit to `main` (or include it in the last PR).

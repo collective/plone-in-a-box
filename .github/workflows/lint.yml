@@ -30,8 +30,9 @@ jobs:
           release=$(sed -n "s/^PIAB_RELEASE='\(.*\)'$/\1/p" src/user-data.sh)
           template=$(grep -A3 '^  Release:' src/aws/cloudformation.yaml | sed -n 's/.*Default: "\(.*\)"/\1/p')
           add_updates=$(sed -n "s/^  local PIAB_RELEASE='\(.*\)'$/\1/p" src/add-updates.sh)
-          echo "src/user-data.sh: $release, src/aws/cloudformation.yaml: $template, src/add-updates.sh: $add_updates"
-          test -n "$release" && test "$template" = "$release" && test "$add_updates" = "$release"
+          terraform_aws=$(grep -A3 '^variable "release"' src/aws/main.tf | sed -n 's/.*default *= *"\(.*\)"/\1/p')
+          echo "src/user-data.sh: $release, src/aws/cloudformation.yaml: $template, src/add-updates.sh: $add_updates, src/aws/main.tf: $terraform_aws"
+          test -n "$release" && test "$template" = "$release" && test "$add_updates" = "$release" && test "$terraform_aws" = "$release"
           bad=$(grep -HnoE 'plone-in-a-box/[A-Za-z0-9._-]*/src/(StackScript|add-updates\.sh)' README.md docs/setup-guide.md docs/try-it-buttons.md src/add-updates.sh \
             | grep -vE "plone-in-a-box/$release/src/(StackScript|add-updates\.sh)" || true)
           if [ -n "$bad" ]; then echo "Launchers in the docs download another release:"; echo "$bad"; exit 1; fi
@@ -41,13 +42,12 @@ jobs:
 
       - name: The script fits in the Terraform user data
         run: |
-          # src/*/main.tf embed src/StackScript compressed. EC2 allows 16384 bytes
-          # (sent without comment lines), Hetzner 32768 (as base64); leave room for
-          # the settings.
-          aws=$(grep -vE '^[[:space:]]*#[^!]' src/StackScript | gzip -9 | wc -c)
+          # src/hetzner/main.tf embeds src/StackScript compressed, as base64, and
+          # Hetzner allows 32768 bytes; leave room for the settings. (AWS downloads
+          # it instead, and DigitalOcean allows 64 KiB.)
           hetzner=$(gzip -9 < src/StackScript | base64 -w0 | wc -c)
-          echo "AWS: $aws of 15000 bytes, Hetzner: $hetzner of 30000 bytes"
-          test "$aws" -lt 15000 && test "$hetzner" -lt 30000
+          echo "Hetzner: $hetzner of 30000 bytes"
+          test "$hetzner" -lt 30000
 
   terraform:
     runs-on: ubuntu-latest
