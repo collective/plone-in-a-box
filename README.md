@@ -110,7 +110,8 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
   [Add-ons](docs/setup-guide.md#add-ons).
 * **Volto Light Theme:** set the frontend image to `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` when
   deploying; see [Themes and frontend images](docs/setup-guide.md#themes-and-frontend-images).
-* **Demo login:** an extra login with a generated password, for letting others try the site; see
+* **Demo login:** an extra login, with the roles and password you choose (or a generated password), for letting
+  others try the site; see
   [Demo login](docs/setup-guide.md#demo-login). Add-on authors can add a
   [Try it button](docs/try-it-buttons.md) to their README.
 * **Updates:** Ubuntu installs its security updates by itself, and every week the server installs Plone, Volto and

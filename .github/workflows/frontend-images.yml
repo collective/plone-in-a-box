@@ -4,6 +4,8 @@ name: Frontend images
 # publishes them to ghcr.io/<owner>/plone-in-a-box-frontend: the real images
 # from collective/plone-in-a-box, test images from forks. Pull requests only
 # build. A failed build publishes nothing, so the previous image stays.
+# Afterwards, old builds are deleted (scripts/cleanup-frontend-images.py): each
+# image keeps its newest 26 builds, and test images go after 7 days.
 
 on:
   push:
@@ -15,6 +17,11 @@ on:
     # Weekly, to pick up Volto patch releases in the builder image.
     - cron: "17 4 * * 1"
   workflow_dispatch:
+    inputs:
+      cleanup_dry_run:
+        description: "Only report which old builds the cleanup would delete"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -88,3 +95,20 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Plone in a Box frontend: plone/plone-frontend ${{ matrix.volto }} with ${{ matrix.description }}
+
+  cleanup:
+    needs: build
+    # After the builds, even if one failed; never for pull requests.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete old builds
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          DRY_RUN: ${{ inputs.cleanup_dry_run }}
+        run: python3 scripts/cleanup-frontend-images.py
