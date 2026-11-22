@@ -1,3 +1,15 @@
+2.15 (unreleased)
+-----------------
+
+- Releasing: .github/workflows/publish-template.yml uploads the Launch Stack
+  template to S3 when a release is published (signing in to AWS with
+  GitHub's OpenID Connect, no stored keys), and
+  scripts/update-public-stackscripts.sh updates the public Linode
+  StackScripts (931893, 2318969, 692002) from a release's tag.
+- Old frontend image builds are deleted after each image build
+  (scripts/cleanup-frontend-images.py): each image keeps its newest 26
+  builds, about six months, and test images go after 7 days.
+
 2.14 (2026-11-22)
 -----------------
 
@@ -32,7 +44,7 @@
   variables). Setup creates a second Plone login with that role (Site
   Administrator by default) and a generated password, saved in
   /root/plone-credentials.txt, for people you let try the site.
-- "Try it" buttons for add-ons (docs/try-it-buttons.md): a link that sets up
+- "Try It" buttons for add-ons (docs/try-it-buttons.md): a link that sets up
   a server with an add-on and a demo login. On AWS the Launch Stack link
   fills in the parameters; on Linode, scripts/linode-addon-stackscript.sh
   prints a StackScript for one add-on, with its settings filled in, that

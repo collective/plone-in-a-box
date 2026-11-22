@@ -1,10 +1,11 @@
-# "Try it" buttons for add-ons
+# "Try It" buttons for add-ons
 
-An add-on's README can say **Try it in Plone in a Box**: a link that opens a cloud provider's form with everything
+An add-on's README can say **Try It in Plone in a Box**: a link that opens a cloud provider's form with everything
 filled in, so someone can have a real Plone 6 site with the add-on, and a demo login to share, in about 10 minutes.
 They use their own cloud account and pay for the server (a few cents an hour), and delete it when they're done.
 
-This page is for add-on authors. It needs Plone in a Box 2.13 or later, for the demo login.
+This page is for add-on authors. It needs Plone in a Box 2.13 or later, for the demo login; 2.14 or later for its
+roles from the frontend image, and for choosing its password.
 
 ## What you need first
 
@@ -73,19 +74,25 @@ curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.
 Add `export DEMO_PASSWORD='...'` to choose the demo login's password (at least 12 characters), `export DEMO_ROLES='Editor'` to set the roles here, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
 the steps are in the [setup guide](setup-guide.md#option-c-digitalocean).
 
-## The button
+## The buttons
 
-A badge in the add-on's README, linking to the Linode StackScript (or a section listing all three):
+Two buttons at the top of a **Try It** section in the add-on's README: AWS's own Launch Stack image, and a matching
+badge for Linode (Linode has no official button). Replace the image name and the StackScript number with yours:
 
 ```markdown
-[![Try it in Plone in a Box](https://img.shields.io/badge/Try%20it-Plone%20in%20a%20Box-0083be)](https://cloud.linode.com/stackscripts/<number>)
+[![Launch Stack on AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&stackName=my-addon-demo&param_FrontendImage=<your image, URL-encoded>&param_DemoUser=demo)
+[![Deploy on Linode](https://img.shields.io/badge/Deploy%20on-Linode-00a95c?logo=akamai&logoColor=white&style=for-the-badge)](https://cloud.linode.com/stackscripts/<number>)
 ```
 
-Say what it costs and that the person deletes the server when they're done, and link to
-[Get started](../README.md#get-started) for choosing a provider.
+Below them, keep it short:
+- what it costs (a few cents an hour on their own account) and that they delete the server when they're done;
+- two steps: click a button, fill in an admin password and a **Demo login password**, create the server; then log in
+  as `demo` and open the add-on's screen;
+- what the demo login can do, given its roles.
 
-For example, [Juizi Dashboard](https://github.com/tkimnguyen/juizi.dashboard#try-it) has the public StackScript
-[2318969](https://cloud.linode.com/stackscripts/2318969).
+Put the rest in a folded `<details>` section: each provider's steps, the DigitalOcean and Hetzner lines (they have no
+button), and how to find a generated demo password. [Juizi Dashboard's README](https://github.com/tkimnguyen/juizi.dashboard#try-it)
+is a complete example, with the public StackScript [2318969](https://cloud.linode.com/stackscripts/2318969).
 
 ## After the server is set up
 

@@ -3,7 +3,7 @@
 # Print a Linode StackScript for trying one add-on: the Plone in a Box form with
 # the add-on's frontend image (or backend add-ons) and a demo login already
 # filled in. Paste it into a new StackScript in Cloud Manager, make it public,
-# and its link is the add-on's "Try it" button for Linode (Cloud Manager can't
+# and its link is the add-on's "Try It" button for Linode (Cloud Manager can't
 # prefill a StackScript's fields from a link, so each add-on gets its own).
 #
 # Usage:

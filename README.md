@@ -110,15 +110,40 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
   [Add-ons](docs/setup-guide.md#add-ons).
 * **Volto Light Theme:** set the frontend image to `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` when
   deploying; see [Themes and frontend images](docs/setup-guide.md#themes-and-frontend-images).
-* **Demo login:** an extra login with a generated password, for letting others try the site; see
-  [Demo login](docs/setup-guide.md#demo-login). Add-on authors can add a
-  [Try it button](docs/try-it-buttons.md) to their README.
+* **Demo login:** an extra login, with the roles and password you choose (or a generated password), for letting
+  others try the site; see
+  [Demo login](docs/setup-guide.md#demo-login). Add-on authors can use it for a
+  ["Try It" button](#for-add-on-authors-a-try-it-button).
 * **Updates:** Ubuntu installs its security updates by itself, and every week the server installs Plone, Volto and
   PostgreSQL patch releases, after a database backup, and undoes them if the site doesn't come back. Reports can go
   to your phone (ntfy), a team chat, or by email; see [Updates](docs/setup-guide.md#updates). A server set up
   before 2.12 gets them with [one command](docs/setup-guide.md#servers-set-up-before-212).
 
 The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
+
+## For add-on authors: a "Try It" button
+
+Let people try your Plone add-on in a real site of their own, in about 10 minutes, without installing anything:
+buttons in your add-on's README set up Plone in a Box on their cloud account, with your add-on installed and a
+demo login to share. [Juizi Dashboard](https://github.com/tkimnguyen/juizi.dashboard#try-it) does this:
+
+[![Launch Stack on AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&stackName=juizi-dashboard-demo&param_FrontendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-frontend%3A19-juizi-dashboard&param_DemoUser=demo)
+[![Deploy on Linode](https://img.shields.io/badge/Deploy%20on-Linode-00a95c?logo=akamai&logoColor=white&style=for-the-badge)](https://cloud.linode.com/stackscripts/2318969)
+
+What it takes:
+
+1. **An image with your add-on** (if it has a Volto part): one entry in Plone in a Box's
+   [image list](frontend-image/README.md) names your npm and Python packages, and the roles a demo login needs to
+   try it, for example `Editor`. A backend-only add-on skips this and names its Python package instead.
+2. **The buttons:** the AWS one is a Launch Stack link with your image filled in, nothing to set up. The Linode one
+   opens a small public StackScript for your add-on, which
+   [`scripts/linode-addon-stackscript.sh`](scripts/linode-addon-stackscript.sh) writes for you; it always runs the
+   latest Plone in a Box release, so it needs no updates.
+3. **Your README:** paste the buttons, two short steps, and what the demo login can do.
+
+The ["Try It" guide](docs/try-it-buttons.md) has each step, the Markdown to copy, and DigitalOcean and Hetzner, which
+have no button. Ask in [collective/plone-in-a-box](https://github.com/collective/plone-in-a-box/issues) if you'd like
+your add-on's image built there.
 
 ## For developers and system administrators
 
