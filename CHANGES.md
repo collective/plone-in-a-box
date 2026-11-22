@@ -9,6 +9,22 @@
 - Old frontend image builds are deleted after each image build
   (scripts/cleanup-frontend-images.py): each image keeps its newest 26
   builds, about six months, and test images go after 7 days.
+- Email: new optional settings for an email relay service (SMTP server, port,
+  username, password, From address, and an address for reports) in the
+  Linode form, src/user-data.sh, the Launch Stack form and the Terraform
+  variables. Setup puts them into Site Setup > Mail, so password resets and
+  forms send email, and sends a test email to the address for reports; the
+  credentials file and the first notification say whether it went out. The
+  weekly update reports are emailed there too. With email set up, the demo
+  login gets Editor instead of Site Administrator, who could otherwise get
+  the email service's password from Site Setup > Mail.
+  scripts/test-deploy.sh --mail tests it.
+- Docs: demo and admin passwords cross the network unencrypted on a site
+  without a domain; choose ones not used anywhere else.
+- Docs: sending email (password resets, forms, update reports) through an
+  email relay service, with a comparison of SMTP2GO, Brevo, Mailgun, Amazon
+  SES, Postmark and Resend, and how to set it up in Site Setup > Mail.
+  [tkimnguyen]
 
 2.14 (2026-11-22)
 -----------------

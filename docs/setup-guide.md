@@ -58,6 +58,8 @@ locations are in Germany and Finland. All four offer automatic server backups fo
      [Updates](#updates).
    * **Notification URL**, where update reports go, for example `https://ntfy.sh/<a long random topic>`; see
      [Updates](#updates).
+   * **Email** settings, so the site can send email (password resets, forms, update reports) through an email relay
+     service; see [Sending email](#sending-email).
 4. Choose **Ubuntu 26.04 LTS** as the image (24.04 also works), a region, and a plan: a 1 GB **Nanode** is enough
    for a small site, 2 GB or more for a busier one.
 5. Set a root password, add your **SSH key**, and click **Create Linode**.
@@ -96,6 +98,8 @@ No command line is needed.
      [Themes and frontend images](#themes-and-frontend-images)).
    * **Automatic updates**: `yes` (the default) installs patch releases every week, and **Notification URL**, where
      reports about them go; see [Updates](#updates).
+   * **Email (optional)**: your email relay service's settings, so the site can send email; see
+     [Sending email](#sending-email).
    * Leave the **Advanced** settings as they are.
 4. Click **Create stack**. After a minute or two the stack shows `CREATE_COMPLETE`.
 5. Open the **Outputs** tab and click the **SiteURL**. You'll see the setup progress page, which turns into your
@@ -176,6 +180,11 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # demo_user         = "demo"   # demo_roles = "Editor"; by default the image's suggestion, or Site Administrator
 # auto_update       = false  # weekly patch releases are on by default
 # notify_url        = "https://ntfy.sh/a-long-random-topic"
+# smtp_host         = "mail.smtp2go.com"  # email, optional: see Sending email
+# smtp_user         = "..."
+# smtp_password     = "..."
+# email_from        = "plone@example.org"
+# report_email      = "you@example.org"
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -396,10 +405,9 @@ You hear about it in up to three places:
   **Workflows**, pick **Send webhook alerts to a channel** (older Teams: **Post to a channel when a webhook
   request is received**), and copy the URL it shows at the end.
   Setup sends a first notice when the site is ready, so you know right away that it works. To change the URL later, edit `/var/lib/plone-in-a-box/notify-url` on the server (only root can read it).
-* **By email**, if the site can send email: set the **Site 'From' address** and the mail server in **Site Setup →
-  Mail** (Plone needs these anyway, for password-reset emails). The report goes to that address, after anything
-  but a week with nothing new. Most cloud providers block sending email directly, so use your email provider's
-  SMTP server.
+* **By email**, if the site can send email through an email relay service (see [Sending email](#sending-email)):
+  to the **Email for reports** chosen when creating the server, or else the site's From address, after anything
+  but a week with nothing new.
 * **In the login message**, when you log in to the server over SSH or in the browser console.
 
 The report also says when a new Plone release is out, such as 6.3. Moving to it is up to you (see below).
@@ -536,6 +544,11 @@ for Juizi Dashboard), or Site Administrator. A role the site doesn't have, such 
 install, is skipped, and Manager is never given. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
 another role than Site Administrator.)
 
+If the site [sends email](#sending-email), the demo login gets **Editor** instead of Site Administrator: a Site
+Administrator can change **Site Setup → Mail**, and so could make the site send the email service's password to
+another server. The credentials file says so. If you need a second administrator on such a site, add a user in
+**Site Setup → Users**, for someone you trust with the email account too.
+
 Its password (`DEMO_PASSWORD`, `DemoPassword`, `demo_password`) is optional: enter one of at least 12 characters
 to choose it, or leave it empty and setup generates one and saves it in `/root/plone-credentials.txt`, next to the
 admin password:
@@ -552,6 +565,9 @@ Share that username and password; whoever has them can do anything its roles all
 and delete all content, change most site settings and manage the other users except `admin`. The demo login is an
 ordinary Plone user: change its password, its roles, or remove it in **Site Setup → Users**. Setup creates it only
 once, when the server is created; to add one later, add a user there.
+
+Without a [domain](#adding-https-later), the site uses plain HTTP, so passwords cross the network unencrypted.
+That's fine for a short trial, but choose demo and admin passwords you don't use anywhere else.
 
 Add-on authors can give their README a button that sets up a server with their add-on and a demo login; see
 ["Try It" buttons](try-it-buttons.md).
@@ -593,6 +609,70 @@ the same command.
 
 Keep the image on the same Plone version as the server, or a newer patch release: a site can't move back to an
 older Plone.
+
+## Sending email
+
+A new site can't send email yet: password resets, form notifications and the update reports by email all need a
+mail server. Cloud providers block sending email straight from a server (port 25), and mail sent that way usually
+lands in spam anyway, so the site sends through an email relay service instead.
+
+You need a domain of your own for this: the site's "From" address uses it, and the service asks you to add a few
+DNS records (SPF and DKIM) at your domain host, so that receiving mail servers trust the mail. Also add a DMARC
+record if the domain doesn't have one yet: a TXT record named `_dmarc` (or `_dmarc.<subdomain>` for a subdomain)
+with the content `v=DMARC1; p=none`. Gmail and Yahoo expect one. A site with only an IP address can't send email
+reliably through any of these services.
+
+### Choosing a service
+
+All of these work with Plone over SMTP on port 587. A small site (password resets, a contact form) stays well
+within the smaller free tiers.
+
+| Service | SMTP server | Free tier | Paid plans from | Before you can send | Good for |
+|---|---|---|---|---|---|
+| [SMTP2GO](https://www.smtp2go.com) | `mail.smtp2go.com` | 1,000 a month (200 a day), no time limit | about $10–15 a month for 10,000 | Verify your domain (only 25 an hour until then) | Small sites; SMTP is its main product |
+| [Brevo](https://www.brevo.com) | `smtp-relay.brevo.com` | 300 a day, no time limit | $9 a month for 5,000 | Brevo approves the account for sending; verify your domain | The largest free tier |
+| [Mailgun](https://www.mailgun.com) | `smtp.mailgun.org` | 100 a day | $15 a month for 10,000 | Without a card on file, it only sends to up to 5 addresses you verify | Developers who already use it |
+| [Amazon SES](https://aws.amazon.com/ses/) | `email-smtp.<region>.amazonaws.com` | None for new accounts | about $0.10–0.16 per 1,000 | Ask AWS to move the account out of the sandbox; verify your domain; create SMTP credentials | Organizations already on AWS; the cheapest at volume |
+| [Postmark](https://postmarkapp.com) | `smtp.postmarkapp.com` | 100 a month, for testing | $15 a month for 10,000 | Verify your domain; Postmark reviews the account | The best record for reaching inboxes |
+| [Resend](https://resend.com) | `smtp.resend.com` | 3,000 a month (100 a day) | $20 a month for 50,000 | Verify your domain | Developers |
+
+Prices and free tiers as of November 2026; they change often, so check the service's pricing page. For most
+sites, **SMTP2GO** or **Brevo** is the simplest start, and **Amazon SES** suits an organization that already uses
+AWS. The username is usually one the service creates for SMTP, not your login: SES has separate SMTP credentials,
+Postmark uses a server token as both username and password, and Resend uses the username `resend` with an API key as
+the password.
+
+If your cloud provider also blocks port 587, try 2525, which SMTP2GO, Mailgun and Postmark accept too.
+
+### Setting it up
+
+First, with the service:
+
+1. Sign up, add your domain (or a subdomain such as `mail.example.org`), and add the DNS records it shows at your
+   domain host, plus the DMARC record above. If your DNS is on Cloudflare, set these records to **DNS only** (grey
+   cloud), not proxied. Wait until the service shows the domain as verified.
+2. Create SMTP credentials, if the service has a separate step for that.
+
+Then, **when you create the server**, fill in the email settings (the Linode form's **Email** fields, the Launch
+Stack form's **Email (optional)** section, the `SMTP_*`, `EMAIL_FROM` and `REPORT_EMAIL` lines of
+`src/user-data.sh`, or the Terraform `smtp_*`, `email_from` and `report_email` variables):
+
+* **SMTP server** and **SMTP port** (587, or 2525 if 587 is blocked), and the **SMTP username** and **password**
+  from the service.
+* **From address**: the address the site sends from, at the verified domain, for example `plone@example.org`. It
+  doesn't need a mailbox behind it.
+* **Email for reports**: your own address. Setup sends a test email there, and the weekly
+  [update reports](#updates) go there too. Empty: the From address.
+
+Setup puts these settings into the site's **Site Setup → Mail**, and the credentials file and the first
+notification say whether the test email went out. Check that it arrived (look in the spam folder too).
+
+**On a server that's already running**, log in to the site as admin, go to **Site Setup → Mail**, and fill in
+**SMTP server**, **SMTP port**, **ESMTP username**, **ESMTP password**, **Site 'From' name** and **Site 'From'
+address**. To check it, use **Forgot your password?** on the login page for a user with your address. Update reports
+go to the Site 'From' address, unless `/var/lib/plone-in-a-box/report-email` on the server names another one.
+
+Either way, password resets and forms then send email. To change the settings later, use **Site Setup → Mail**.
 
 ## Adding HTTPS later
 
