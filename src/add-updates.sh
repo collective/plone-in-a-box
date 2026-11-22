@@ -3,7 +3,7 @@
 # Plone in a Box: add automatic updates to a server set up before release 2.12.
 # Run it on the server (in your provider's browser console, or over SSH):
 #
-#   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/add-updates.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/add-updates.sh | sudo bash
 #
 # It installs plone-update, the weekly plone-update.timer, plone-backup with
 # the nightly plone-backup.timer, and the login message, exactly as setup does
@@ -23,7 +23,7 @@ main() {
   set -euo pipefail
   exec </dev/null
 
-  local PIAB_RELEASE='2.15'
+  local PIAB_RELEASE='2.16'
   local ref=${PIAB_ADD_UPDATES_REF:-$PIAB_RELEASE}
   local APP_DIR=/opt/plone STATE_DIR=/var/lib/plone-in-a-box
   local say_prefix='[plone-in-a-box]'
