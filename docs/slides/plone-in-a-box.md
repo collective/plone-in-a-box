@@ -79,6 +79,8 @@ Versions are configurable; Plone 6.1 with Volto 18 also works. Add-ons and theme
 
 ---
 
+<!-- _class: dense -->
+
 ## Safe by default
 
 - The admin password is **the one you choose**, or a generated one.
