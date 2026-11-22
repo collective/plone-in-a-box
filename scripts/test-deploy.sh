@@ -14,6 +14,10 @@
 #                          one (default: set a random one when deploying)
 #   --keep                 don't delete the server at the end (delete it later
 #                          with "cleanup")
+#   --keep-on-failure      like --keep, but only when a check fails or the test
+#                          stops early, so you can look at the server or retry a
+#                          check; it's still deleted when all checks pass or you
+#                          press Ctrl-C
 #   --addons "PKG ..."     install these backend add-ons, then check they are
 #                          offered in Site Setup, can be activated, and survive
 #                          recreating the backend and restarting the server
@@ -110,7 +114,7 @@ esac
 LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
-PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
+PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
@@ -121,7 +125,7 @@ pass() { say "PASS  $*"; }
 fail() { say "FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else fail "$what"; fi; }
 
-usage() { sed -n '3,71p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,/^# Only servers tagged/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
   linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
@@ -135,6 +139,7 @@ while (( $# )); do
     --ref) REF=${2:?--ref needs a value}; shift ;;
     --generated-password) GENERATED=1 ;;
     --keep) KEEP=1 ;;
+    --keep-on-failure) KEEP_ON_FAILURE=1 ;;
     --addons) ADDONS=${2:?--addons needs a value}; shift ;;
     --expect-addons-skipped) ADDONS_SKIPPED=1 ;;
     --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
@@ -327,7 +332,7 @@ say "Notes, passwords and logs: $WORK"
 cleanup_on_exit() {
   local status=$?
   if [[ -n "$SERVER_ID" ]]; then
-    if (( KEEP )); then
+    if (( KEEP )) || { (( KEEP_ON_FAILURE )) && (( status != 0 && status != 130 )); }; then
       say "Kept $NAME ($SERVER_ID) at $IP. Delete it with: $0 cleanup $PROVIDER"
     else
       say "Deleting $NAME"
