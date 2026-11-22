@@ -97,6 +97,7 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.
 
+
 3. If `src/aws/cloudformation.yaml` changed (including its `Release` default), publish it for the **Launch Stack**
    button, which opens `https://plone-in-a-box-templates.s3.us-east-1.amazonaws.com/latest/cloudformation.yaml`. In
    the AWS console (Plone Foundation account), open **S3 → plone-in-a-box-templates**, and upload
@@ -125,6 +126,21 @@ In the AWS console (Plone Foundation account), region **US East (N. Virginia) us
    }
    ```
    Everything in this bucket is public, so only put CloudFormation templates in it.
+
+### One-time setup of the Discord notice
+
+When a release's tag reaches collective/plone-in-a-box (the last step of [syncing](#4-sync-collectiveplone-in-a-box)),
+`.github/workflows/release-notice.yml` posts a notice to the Discord channel #plone-in-a-box with the release notes
+from this repository. Only the latest release is announced, never a draft or pre-release.
+
+1. In Discord, on the #plone-in-a-box channel: **Edit Channel → Integrations → Webhooks → New Webhook**, name it
+   `Plone in a Box releases`, and **Copy Webhook URL**.
+2. On GitHub, in **collective/plone-in-a-box**: **Settings → Secrets and variables → Actions → New repository
+   secret**, named `DISCORD_WEBHOOK_URL`, with that URL as its value.
+3. To check it: **Actions → Release notice → Run workflow** posts the latest release's notice again.
+
+The webhook URL lets anyone post to the channel, so keep it only in that secret. If it leaks, delete the webhook in
+Discord and create a new one.
 
 ## 3. Update the public Linode StackScript
 
@@ -179,6 +195,8 @@ merge it once CI passes, and delete the `sync-from-tkimnguyen` branch. Then push
 git fetch --tags origin
 git push collective <version>
 ```
+
+Pushing the tag announces the release on Discord (see [the Discord notice](#one-time-setup-of-the-discord-notice)).
 
 GitHub releases (with notes) are published only on `tkimnguyen/plone-in-a-box`.
 
