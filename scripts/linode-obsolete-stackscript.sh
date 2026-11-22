@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# OBSOLETE: this copy of the Plone in a Box StackScript is no longer maintained
-# and will be removed. Use the Plone in a Box StackScript 931893 by
-# nguyen-plone instead: https://cloud.linode.com/stackscripts/931893
+# OBSOLETE: this copy of the Plone in a Box StackScript is no longer maintained.
+# Use the Plone in a Box StackScript 931893 by nguyen-plone instead:
+# https://cloud.linode.com/stackscripts/931893
 #
-# Until then, this script sets up your server with the latest Plone in a Box
+# Linode doesn't remove public StackScripts, so this one stays. It sets up your server with the latest Plone in a Box
 # release, exactly as 931893 does: it downloads that release's provisioning
 # script and runs it with the settings from this form.
 #
@@ -35,7 +35,7 @@ printf '\n%s\n\n' "$NOTICE" > /etc/motd
 # The latest release, or this one if GitHub can't be asked.
 PIAB_RELEASE=$(curl -fsS -m 20 https://api.github.com/repos/tkimnguyen/plone-in-a-box/releases/latest 2>/dev/null \
   | sed -n 's/^  "tag_name": "\([0-9][0-9.]*\)",$/\1/p')
-PIAB_RELEASE=${PIAB_RELEASE:-2.15}
+PIAB_RELEASE=${PIAB_RELEASE:-2.16}
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_PASSWORD DEMO_ROLES SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL

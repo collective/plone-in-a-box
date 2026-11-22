@@ -26,6 +26,8 @@ style: |
   .steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
   .steps b { display: block; font-size: 1.3em; color: var(--blue); }
   footer { color: var(--muted); }
+  section.dense { font-size: 25px; }
+  section.dense code { font-size: 0.85em; }
 ---
 
 <!-- _class: lead -->
@@ -77,13 +79,30 @@ Versions are configurable; Plone 6.1 with Volto 18 also works. Add-ons and theme
 
 ---
 
+<!-- _class: dense -->
+
 ## Safe by default
 
 - The admin password is **the one you choose**, or a generated one.
 - Only the **website** (HTTP, HTTPS) and **SSH** are reachable from the internet. The database and Plone's own ports are closed.
 - **All Ubuntu updates** are installed during setup, and security updates keep coming automatically.
+- **Plone, Volto and PostgreSQL** patch releases install every week, and are undone if the site doesn't come back.
 - **Swap** is added on small servers, so a 1 GB server is enough for a small site.
 - Forgot the password? One command in your provider's **browser console** resets it.
+
+---
+
+<!-- _class: dense -->
+
+## Updates that look after themselves
+
+Every Sunday, early in the morning, the server checks for patch releases of the **same** versions: Plone 6.2.2 to 6.2.3, never 6.2 to 6.3.
+
+- First a **database backup**, then the update.
+- If the site doesn't come back, it **goes back** to the previous version, and skips that build from then on.
+- A **report** after each run: on your phone (ntfy), in a team chat (Slack, Teams, Discord, Google Chat, Mattermost), or by email.
+
+Older servers get this with one command.
 
 ---
 
@@ -108,6 +127,7 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead.
 - **Small organizations, teams, projects** get a real Plone site, or an intranet, without hiring an administrator.
 - **Evaluating Plone?** See the current release running in ten minutes, for the price of a small server.
 - **Training and workshops:** every participant gets their own site.
+- **Showing a site to a client,** or letting people try an add-on: a demo login to share.
 - **No lock-in:** the official Plone images and standard Docker Compose, so it can be upgraded, backed up and handed over like any other Plone deployment.
 
 ---
@@ -122,23 +142,74 @@ List Python packages such as `collective.easyform` when you create the server. T
 
 ---
 
-## Themes: Volto Light Theme
+<!-- _class: dense -->
 
-Set the **Frontend image** to `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` when you create the server.
+## Themes and ready-made images
 
-- The site runs **Volto Light Theme**: logo, colours, header and footer, edited with the site's own settings.
-- Setup also installs and activates the theme's backend add-on. Nothing to do in Site Setup.
-- **Ready-made images**, built from the official Volto image on GitHub and rebuilt every week.
-- If the image can't be used, the site starts with the standard Volto look, and says why.
+Volto add-ons are built into the front end, so Plone in a Box publishes **ready-made frontend images**. Set one as the **Frontend image** when you create the server:
+
+- `ghcr.io/collective/plone-in-a-box-frontend:19-vlt`: **Volto Light Theme**, its logo, colours, header and footer edited with the site's own settings.
+- `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard`: **Juizi Dashboard**, a record of what happened on the site.
+
+Setup installs and activates the backend half too. Images are rebuilt every week; if one can't be used, the site starts with the standard Volto look, and says why.
+
+---
+
+<!-- _class: dense -->
+
+## Email
+
+Plone sends email for password resets, forms and update reports. Cloud servers can't deliver it themselves, so the site sends it through an **email relay service**: SMTP2GO, Brevo, Mailgun, Amazon SES and others, many with a free plan.
+
+- Fill in the service's settings **when you create the server**.
+- Setup puts them into **Site Setup → Mail**, and sends you a **test email**.
+- The weekly update reports go to your inbox too.
+
+The setup guide compares the services, and explains the DNS records your domain needs.
+
+---
+
+<!-- _class: dense -->
+
+## Let people try your site
+
+A **demo login**: a second login, such as `demo`, for a client looking at a draft site, or people trying an add-on.
+
+- **You choose its roles:** Editor, Contributor, Reviewer, Site Administrator, or a role an add-on defines. Manager is never given.
+- **You choose its password,** or setup generates one.
+- A ready-made image can suggest the roles: Juizi Dashboard's demo login is an **Editor** who can also see the dashboard.
+
+Change it or remove it any time in **Site Setup → Users**.
+
+---
+
+<!-- _class: dense -->
+
+## Try It pages for add-on authors
+
+Let people try your Plone add-on on a real site of their own, in about ten minutes, without installing anything.
+
+1. **One pull request** adds your add-on to Plone in a Box's catalog: its npm and Python packages, and the demo login's roles.
+2. Plone in a Box builds its image and publishes a **Try It page**, with the steps for AWS, Linode, DigitalOcean and Hetzner.
+3. **One button** in your README links to it.
+
+Example: **collective.github.io/plone-in-a-box/try/juizi-dashboard/**
 
 ---
 
 ## Your own add-ons and themes
 
-- **Volto add-ons:** fork the repository, add the add-ons to one file, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.
+- **Volto add-ons:** fork the repository, add an entry to `addons.yml`, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.
 - **Packages that aren't on PyPI,** or your own code: build a backend image on the official one, and switch a running server to it.
 
-Next on the list: a **backend image setting**, for projects made with cookieplone.
+---
+
+## What's next
+
+- **Nightly backups** and a weekly clean-up of the database's history, so it doesn't keep growing.
+- **HTTPS without your own domain,** so every site, including Try It demos, is encrypted.
+- A **backend image setting,** for projects made with cookieplone.
+- **More add-ons** in the catalog, each with its own Try It page.
 
 ---
 
@@ -149,3 +220,5 @@ Next on the list: a **backend image setting**, for projects made with cookieplon
 **github.com/collective/plone-in-a-box**
 
 The official repository, in the Plone community's **collective** organization. Step-by-step instructions for each provider are in the setup guide.
+
+Questions and ideas: **#plone-in-a-box** on the Plone Discord, **discord.gg/jRrsnYkNvS**

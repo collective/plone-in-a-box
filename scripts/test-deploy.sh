@@ -50,6 +50,11 @@
 #   --expect-demo-roles ROLES
 #                          with --demo-user: the roles to check it has
 #                          (default: --demo-roles, or Site Administrator)
+#   --cloudformation       AWS: create the server the way the Launch Stack
+#                          button does, as a CloudFormation stack (named like
+#                          the server) from src/aws/cloudformation.yaml, with
+#                          Release set to the commit tested. Needs the
+#                          piab-test-cloudformation policy (RELEASING.md)
 #   --linode-script FILE   Linode: put FILE in the test StackScript instead of
 #                          src/StackScript, e.g. a per-add-on StackScript from
 #                          scripts/linode-addon-stackscript.sh --ref REF
@@ -107,7 +112,7 @@ SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
-DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
+CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -116,7 +121,7 @@ pass() { say "PASS  $*"; }
 fail() { say "FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else fail "$what"; fi; }
 
-usage() { sed -n '3,66p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,71p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
   linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
@@ -135,6 +140,7 @@ while (( $# )); do
     --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
     --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
     --updates) UPDATES=1 ;;
+    --cloudformation) CLOUDFORMATION=1 ;;
     --demo-user) DEMO_USER=${2:?--demo-user needs a value}; shift ;;
     --demo-password) DEMO_PASSWORD_SET=${2:?--demo-password needs a value}; shift
       [[ "$DEMO_PASSWORD_SET" =~ ^[A-Za-z0-9._-]{12,}$ ]] || die "--demo-password: 12 or more letters, digits, . _ -" ;;
@@ -161,6 +167,8 @@ if [[ -z "$EXPECT_DEMO_ROLES" ]]; then
   [[ -z "$MAIL_TO" ]] || EXPECT_DEMO_ROLES=$(sed -E 's/(^|,)[[:space:]]*Site Administrator[[:space:]]*(,|$)/\1Editor\2/g' <<<"$EXPECT_DEMO_ROLES")
 fi
 
+(( ! CLOUDFORMATION )) || [[ "$PROVIDER" == aws ]] || die "--cloudformation is for aws"
+(( ! CLOUDFORMATION )) || (( ! GENERATED )) || die "--cloudformation needs an admin password; the form requires one"
 tools="curl jq ssh git nc"
 [[ "$PROVIDER" == aws ]] && tools+=" aws"
 for tool in $tools; do
@@ -237,10 +245,16 @@ list_servers() {
     api GET "/droplets?tag_name=$TAG&per_page=200" \
       | jq -r '.droplets[] | "\(.id)\t\(.name)\t\((.networks.v4[] | select(.type == "public") | .ip_address) // "-")\t\(.status)"'
   else
+    # Instances, except those of a stack: the stack is listed (and deleted) instead.
     ec2 describe-instances --filters "Name=tag:$TAG,Values=true" \
         Name=instance-state-name,Values=pending,running,stopping,stopped \
       | jq -r '.Reservations[].Instances[]
+          | select([.Tags[]? | .Key] | index("aws:cloudformation:stack-name") | not)
           | "\(.InstanceId)\t\(([.Tags[]? | select(.Key == "Name") | .Value][0]) // "-")\t\(.PublicIpAddress // "-")\t\(.State.Name)"'
+    aws cloudformation list-stacks --output json \
+        --stack-status-filter CREATE_IN_PROGRESS CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED DELETE_FAILED \
+      | jq -r --arg tag "$TAG" '.StackSummaries[] | select(.StackName | startswith($tag + "-"))
+          | "\(.StackName)\t\(.StackName) (stack)\t-\t\(.StackStatus)"'
   fi
 }
 
@@ -251,8 +265,12 @@ delete_server() {
     api DELETE "/servers/$1" >/dev/null
   elif [[ "$PROVIDER" == digitalocean ]]; then
     api DELETE "/droplets/$1" >/dev/null
-  else
+  elif [[ "$1" == i-* ]]; then
     ec2 terminate-instances --instance-ids "$1" >/dev/null
+  else
+    # A test stack (--cloudformation): deleting it deletes its instance and address.
+    aws cloudformation delete-stack --stack-name "$1" \
+      && aws cloudformation wait stack-delete-complete --stack-name "$1"
   fi
 }
 
@@ -470,6 +488,37 @@ else
     ec2 import-key-pair --key-name "$key_name" --public-key-material "fileb://$SSH_KEY.pub" \
       --tag-specifications "ResourceType=key-pair,Tags=[{Key=$TAG,Value=true}]" >/dev/null
   fi
+  if (( CLOUDFORMATION )); then
+    # As the Launch Stack button does, with this commit's template and script.
+    git show "$SHA:src/aws/cloudformation.yaml" > "$WORK/cloudformation.yaml"
+    jq -n --arg pw "$ADMIN_PASSWORD" --arg key "$key_name" --arg release "$SHA" \
+        --arg type "${PIAB_AWS_INSTANCE_TYPE:-t3.small}" --arg addons "$ADDONS" --arg frontend "$FRONTEND_IMAGE" \
+        --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
+        --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
+        --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
+      '{AdminPassword: $pw, KeyName: $key, Release: $release, InstanceType: $type, Addons: $addons,
+        FrontendImage: $frontend, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
+        SmtpHost: $smtp_host, SmtpPort: $smtp_port, SmtpUser: $smtp_user, SmtpPassword: $smtp_password,
+        EmailFrom: $email_from, ReportEmail: $report_email}
+       | to_entries | map(select(.value != "") | {ParameterKey: .key, ParameterValue: .value})' \
+      > "$WORK/cloudformation-parameters.json"
+    say "Creating stack $NAME from src/aws/cloudformation.yaml"
+    aws cloudformation create-stack --stack-name "$NAME" --template-body "file://$WORK/cloudformation.yaml" \
+        --parameters "file://$WORK/cloudformation-parameters.json" --tags "Key=$TAG,Value=true" >/dev/null \
+      || { rm -f "$WORK/cloudformation-parameters.json"; die "couldn't create the stack"; }
+    rm -f "$WORK/cloudformation-parameters.json"  # it has the passwords
+    SERVER_ID=$NAME
+    if ! aws cloudformation wait stack-create-complete --stack-name "$NAME"; then
+      aws cloudformation describe-stack-events --stack-name "$NAME" --output json \
+        | jq -r '.StackEvents[] | select(.ResourceStatus | test("FAILED")) | "  \(.LogicalResourceId): \(.ResourceStatusReason)"' >&2
+      die "the stack wasn't created"
+    fi
+    IP=$(aws cloudformation describe-stacks --stack-name "$NAME" --output json \
+      | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "PublicIP") | .OutputValue')
+    [[ -n "$IP" ]] || die "the stack has no PublicIP output"
+  fi
+fi
+if [[ "$PROVIDER" == aws ]] && (( ! CLOUDFORMATION )); then
   sg=$(ec2 describe-security-groups --filters "Name=group-name,Values=$TAG" "Name=vpc-id,Values=$vpc" \
     | jq -r '.SecurityGroups[0].GroupId // empty')
   if [[ -z "$sg" ]]; then
@@ -786,6 +835,13 @@ if [[ -n "$MAIL_TO" ]]; then
     rssh "! grep -qF -- $(printf '%q' "$SMTP_PASSWORD") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
 fi
 
+check "nightly backups are on (plone-backup.timer)" rssh \
+  'systemctl is-enabled --quiet plone-backup.timer && systemctl is-active --quiet plone-backup.timer'
+check "container logs are limited in size" rssh \
+  "docker inspect -f '{{.HostConfig.LogConfig.Config}}' \$(docker compose --project-directory /opt/plone ps -q) | grep -c max-size:10m | grep -qx 3"
+check "plone-backup backs up and packs the database" rssh \
+  'rm -f /var/lib/plone-in-a-box/last-pack && plone-backup pack && test -s /var/lib/plone-in-a-box/last-pack && find /var/backups/plone -name "plone-*.sql.gz" -mmin -10 | grep -q . && grep -q "^\[.*\] Packed$" /var/log/plone-backup.log'
+rssh 'tail -n 4 /var/log/plone-backup.log' 2>/dev/null | sed 's/^/      /'
 check "automatic updates are on (plone-update.timer)" rssh \
   'systemctl is-enabled --quiet plone-update.timer && systemctl is-active --quiet plone-update.timer'
 check "credentials file mentions updates" rssh "grep -q '^Updates: .*automatically' /root/plone-credentials.txt"

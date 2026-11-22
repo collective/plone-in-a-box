@@ -15,7 +15,9 @@ release, and the public Linode StackScript is updated by hand.
    * **Hetzner** (if `src/hetzner/` or the script changed): `terraform apply` from `src/hetzner/`.
    * **AWS Launch Stack** (if `src/aws/cloudformation.yaml` changed): in the CloudFormation console, **Create stack →
      With new resources → Upload a template file**, choose the branch's `src/aws/cloudformation.yaml`, and set
-     **Plone in a Box release** to the branch name if the script changed too. Delete the stack afterwards.
+     **Plone in a Box release** to the branch name if the script changed too. Delete the stack afterwards. Or let
+     `scripts/test-deploy.sh aws --cloudformation --ref <branch>` create the stack from the branch's template, with
+     the release set to the commit tested, run the usual checks, and delete it.
    * Checks on each test server:
      * right after creating the server, its address shows the setup progress page, which turns into the site
      * `/root/plone-credentials.txt` exists, the site loads, and `admin` can log in with the generated password
@@ -65,7 +67,8 @@ One-time setup for `scripts/test-deploy.sh`:
   policies are at their size limit) from
   [`scripts/aws-test-cloudformation-policy.json`](scripts/aws-test-cloudformation-policy.json), and attach it to
   `piab-test`. It allows only stacks named `piab-test-*`. Create test stacks with the stack tag `piab-test=true`
-  (`aws cloudformation create-stack --tags Key=piab-test,Value=true`), so their instance and Elastic IP carry it.
+  (`aws cloudformation create-stack --tags Key=piab-test,Value=true`), so their instance and Elastic IP carry it;
+  `scripts/test-deploy.sh aws --cloudformation` does this, and `list` and `cleanup` include such stacks.
 * **Chat notices**, for `scripts/test-notify.sh`, which sends sample update notices to real channels when the
   notify script changes: a webhook in a test channel per service, stored as `piab-webhook-<service>`
   (`teams`, `slack`, `discord`, `gchat`, `mattermost` or `ntfy`). Copy the URL, then
@@ -219,13 +222,16 @@ By hand instead:
 4. Save, then confirm **Last Revision** shows today's date. (Community StackScripts leaves out your own
    account's StackScripts, so check it there from another account.)
 
-An older public copy, 692002 owned by **tknguyen2**, is waiting for Linode support to remove it. It runs
+An older public copy, 692002 owned by **tknguyen2**, stays listed: Linode support confirmed (ticket 27858783, November
+2026) that public StackScripts are never removed, since people may rely on them. Its label says
+`[DEPRECATED] Plone in a Box: use 931893`, and its description points to 931893. It runs
 [`scripts/linode-obsolete-stackscript.sh`](scripts/linode-obsolete-stackscript.sh), which says it's obsolete (in the
 setup log and the login message), points to 931893, and sets up the latest release, so it doesn't need updating at
-each release. Its form fields are those of 2.15; if a release adds a field, copy the new `# <UDF` lines into the
+each release. Its form fields are those of 2.16; if a release adds a field, copy the new `# <UDF` lines into the
 script and paste it into 692002 again.
 
-Public StackScripts can't be deleted or made private by their owner; only Linode support can remove one.
+Public StackScripts can't be deleted or made private, not even by Linode support; only their label, description and
+script can change.
 
 ### Per-add-on StackScripts
 

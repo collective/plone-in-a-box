@@ -217,7 +217,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -283,7 +283,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -357,13 +357,22 @@ docker compose --project-directory /opt/plone logs -f backend   # logs (backend,
 
 For updates, see [Updates](#updates).
 
-**Backups**: turn on your provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or
-Hetzner Backups), and/or dump the
-database regularly:
+**Backups**: every night, the server saves a database backup in `/var/backups/plone/`. The three newest are kept,
+counting those taken before updates, and each one is the whole site, files and images included. Once a week it
+also packs the database: it removes the history of changes older than a week, which would otherwise make the
+database grow forever. `sudo plone-backup` runs both now (`sudo plone-backup pack` packs as well), and the log is in
+`/var/log/plone-backup.log`. If a backup fails, a notice goes to the notification URL.
+
+These backups are on the same server, so they don't help if the server itself is lost. For that, turn on your
+provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or Hetzner Backups), or copy a
+backup somewhere else now and then:
 
 ```
-sudo docker compose --project-directory /opt/plone exec -T db pg_dump -U plone plone | gzip > plone-$(date +%F).sql.gz
+scp root@<server>:/var/backups/plone/plone-<date>.sql.gz .
 ```
+
+A server set up before 2.16 gets the nightly backups with the [same command](#servers-set-up-before-212) as automatic
+updates.
 
 **Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
 the site's address every few minutes and alert you. DigitalOcean has this built in (**Monitoring → Uptime**, then
@@ -434,7 +443,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -442,7 +451,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,

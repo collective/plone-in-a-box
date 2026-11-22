@@ -94,7 +94,7 @@ when a server is created, so it doesn't need updating at each release.
    `Plone in a Box: Juizi Dashboard`, choose **Ubuntu 26.04 LTS** and **Ubuntu 24.04 LTS** as Target Images, paste
    the script, and save.
 3. Deploy a Linode from it once, to check it works. Then **⋯ → Make StackScript Public**. **This can't be undone:**
-   public StackScripts can't be deleted or made private again, only removed by Linode support.
+   public StackScripts can't be deleted or made private again, not even by Linode support.
 4. The button links to `https://cloud.linode.com/stackscripts/<its number>`; there, **Deploy New Linode** opens the
    form with the add-on filled in.
 
@@ -120,7 +120,7 @@ ready to copy into **Startup scripts** (DigitalOcean) or **Cloud config** (Hetzn
 export ADMIN_PASSWORD='CHANGE-ME'
 export FRONTEND_IMAGE='ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard'
 export DEMO_USER='demo'
-curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/StackScript && bash /root/plone-in-a-box.sh
+curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/StackScript && bash /root/plone-in-a-box.sh
 ```
 
 Add `export DEMO_PASSWORD='...'` to choose the demo login's password (at least 12 characters), `export DEMO_ROLES='Editor'` to set the roles here, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
