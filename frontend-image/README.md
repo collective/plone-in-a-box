@@ -15,7 +15,9 @@ every Monday, to pick up Volto patch releases.
 | `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | Volto 19 with `volto-juizi-dashboard` 1.0.0-beta.3 | `juizi.dashboard==1.0.0b3`; a demo login gets Editor and Site Activity Viewer |
 
 Each image has three tags: `:19-vlt` (the latest build), `:19-vlt-<date>` and `:19-vlt-<commit>`
-(fixed builds).
+(fixed builds). The newest 26 builds of each image are kept, about six months of weekly builds; older ones are
+deleted automatically, so a fixed tag older than that stops working. Images whose name contains `test` are
+deleted after 7 days.
 
 To use one, put its name in the **Frontend image** setting when you create the server; see
 [Themes and frontend images](../docs/setup-guide.md#themes-and-frontend-images) in the setup guide. Setup reads the

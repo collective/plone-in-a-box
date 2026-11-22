@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Delete old builds of the ready-made frontend images.
+
+Run by .github/workflows/frontend-images.yml after the builds. Every build is
+one package version in ghcr.io/<owner>/plone-in-a-box-frontend, tagged
+<image>, <image>-<date> and <image>-<commit> (for example 19-vlt,
+19-vlt-2026-11-22, 19-vlt-a1b2c3d), plus untagged child versions (the image
+itself and its provenance attestation) that the tagged one points to.
+
+What it deletes:
+  - builds of an image in the workflow's list, beyond the newest KEEP_BUILDS
+    (default 26, about six months of weekly builds); the newest build, the one
+    with the plain <image> tag, is always kept;
+  - builds of a test image (a name containing "test", not in the list) older
+    than TEST_DAYS days (default 7);
+  - the untagged children of the builds it deletes, unless a kept build
+    points to them too.
+
+It never deletes untagged versions on their own, nor builds of images that
+are no longer in the list but aren't test images: servers may still use them.
+
+Environment: GITHUB_TOKEN (packages: write), OWNER, WORKFLOW (the workflow
+file, to read the list of images), DRY_RUN=1 to only report, and optionally
+KEEP_BUILDS and TEST_DAYS. With VERSIONS_FILE (a JSON list of versions as the
+API returns them), it only reports what it would delete, for testing.
+"""
+import datetime
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+
+PACKAGE = "plone-in-a-box-frontend"
+API = "https://api.github.com"
+DATED = re.compile(r"^(?P<image>.+)-(?P<date>\d{4}-\d{2}-\d{2})$")
+INDEX_TYPES = ", ".join([
+    "application/vnd.oci.image.index.v1+json",
+    "application/vnd.docker.distribution.manifest.list.v2+json",
+    "application/vnd.oci.image.manifest.v1+json",
+    "application/vnd.docker.distribution.manifest.v2+json",
+])
+
+
+def say(message):
+    print(message, flush=True)
+
+
+def request(url, token=None, method="GET", accept="application/vnd.github+json"):
+    headers = {"Accept": accept, "User-Agent": "plone-in-a-box-image-cleanup"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=30) as response:
+        body = response.read()
+        return json.loads(body) if body else None
+
+
+def images_in_workflow(path):
+    """The <volto>-<variant> names of the images the workflow builds."""
+    text = open(path, encoding="utf-8").read()
+    names = []
+    for entry in re.split(r"\n\s*- variant:", text)[1:]:
+        variant = entry.split("\n", 1)[0].strip().strip('"')
+        volto = re.search(r'^\s*volto:\s*"?([^"\n]+)"?', entry, re.M)
+        if volto:
+            names.append(f"{volto.group(1).strip()}-{variant}")
+    return names
+
+
+def owner_path(owner, token):
+    kind = request(f"{API}/users/{owner}", token)["type"]
+    return f"{API}/{'orgs' if kind == 'Organization' else 'users'}/{owner}/packages/container/{PACKAGE}"
+
+
+def list_versions(base, token):
+    versions, page = [], 1
+    while True:
+        batch = request(f"{base}/versions?per_page=100&page={page}", token)
+        versions += batch
+        if len(batch) < 100:
+            return versions
+        page += 1
+
+
+def children(owner, digest, cache={}):
+    """The digests a version's manifest points to (none for a plain image)."""
+    if digest not in cache:
+        if "registry" not in cache:
+            url = f"https://ghcr.io/token?scope=repository:{owner}/{PACKAGE}:pull"
+            cache["registry"] = request(url, accept="application/json")["token"]
+        try:
+            manifest = request(f"https://ghcr.io/v2/{owner}/{PACKAGE}/manifests/{digest}",
+                               cache["registry"], accept=INDEX_TYPES)
+            cache[digest] = {m["digest"] for m in manifest.get("manifests", [])}
+        except urllib.error.HTTPError:
+            cache[digest] = None  # unknown: don't delete anything it might point to
+    return cache[digest]
+
+
+def plan(versions, images, keep_builds, test_days, now):
+    """(builds to delete, builds kept), as lists of versions."""
+    builds = {}
+    for version in versions:
+        tags = version.get("metadata", {}).get("container", {}).get("tags", [])
+        for tag in tags:
+            match = DATED.match(tag)
+            if match:
+                builds.setdefault(match["image"], []).append(version)
+                break
+    delete, keep = [], []
+    for image, found in builds.items():
+        found.sort(key=lambda v: v["created_at"], reverse=True)
+        for n, version in enumerate(found):
+            tags = version["metadata"]["container"]["tags"]
+            created = datetime.datetime.fromisoformat(version["created_at"].replace("Z", "+00:00"))
+            if image in images:
+                old = n >= keep_builds and image not in tags
+            elif "test" in image:
+                old = now - created > datetime.timedelta(days=test_days)
+            else:
+                old = False
+            (delete if old else keep).append(version)
+    return delete, keep
+
+
+def main():
+    owner = os.environ["OWNER"]
+    images = images_in_workflow(os.environ.get("WORKFLOW", ".github/workflows/frontend-images.yml"))
+    keep_builds = int(os.environ.get("KEEP_BUILDS") or 26)
+    test_days = int(os.environ.get("TEST_DAYS") or 7)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    say(f"Images in the workflow: {', '.join(images)}; keeping {keep_builds} builds of each, "
+        f"test images for {test_days} days")
+
+    if os.environ.get("VERSIONS_FILE"):
+        versions = json.load(open(os.environ["VERSIONS_FILE"], encoding="utf-8"))
+        delete, keep = plan(versions, images, keep_builds, test_days, now)
+        for version in delete:
+            say(f"would delete {', '.join(version['metadata']['container']['tags'])}")
+        return 0
+
+    token = os.environ["GITHUB_TOKEN"]
+    dry = os.environ.get("DRY_RUN") in ("1", "true")
+    try:
+        base = owner_path(owner, token)
+        versions = list_versions(base, token)
+    except urllib.error.HTTPError as e:
+        say(f"::warning::Couldn't list the image versions ({e.code}); nothing was deleted")
+        return 0
+    delete, keep = plan(versions, images, keep_builds, test_days, now)
+    by_digest = {v["name"]: v for v in versions}
+    kept_children = set()
+    for version in keep:
+        kept_children |= children(owner, version["name"]) or set()
+
+    deleted = 0
+    for version in delete:
+        tags = ", ".join(version["metadata"]["container"]["tags"])
+        kids = children(owner, version["name"])
+        if kids is None:
+            say(f"skipped {tags}: its manifest couldn't be read")
+            continue
+        targets = [version] + [by_digest[d] for d in sorted(kids)
+                               if d in by_digest and d not in kept_children
+                               and not by_digest[d]["metadata"]["container"]["tags"]]
+        if dry:
+            say(f"would delete {tags} ({len(targets)} versions)")
+            continue
+        try:
+            for target in targets:
+                request(f"{base}/versions/{target['id']}", token, method="DELETE")
+            deleted += 1
+            say(f"deleted {tags} ({len(targets)} versions)")
+        except urllib.error.HTTPError as e:
+            say(f"::warning::Couldn't delete {tags} ({e.code}); stopping")
+            break
+    say(f"{'Would delete' if dry else 'Deleted'} {len(delete) if dry else deleted} of "
+        f"{len(delete) + len(keep)} builds")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

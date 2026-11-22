@@ -6,6 +6,9 @@
   GitHub's OpenID Connect, no stored keys), and
   scripts/update-public-stackscripts.sh updates the public Linode
   StackScripts (931893, 2318969, 692002) from a release's tag.
+- Old frontend image builds are deleted after each image build
+  (scripts/cleanup-frontend-images.py): each image keeps its newest 26
+  builds, about six months, and test images go after 7 days.
 
 2.14 (2026-11-22)
 -----------------
