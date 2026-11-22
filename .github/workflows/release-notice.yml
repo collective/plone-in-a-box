@@ -1,0 +1,59 @@
+name: Release notice
+
+# Posts a notice to Discord (the #plone-in-a-box channel) when a release is
+# published here. The channel's webhook URL is the repository secret
+# DISCORD_WEBHOOK_URL; without it, this does nothing. Run it by hand
+# (Actions → Release notice → Run workflow) to post the latest release again,
+# for example to test a new webhook.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    # Only the repository releases are made in, not forks or mirrors.
+    if: github.repository == 'tkimnguyen/plone-in-a-box'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Post to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::notice::No DISCORD_WEBHOOK_URL secret, so no notice was posted"
+            exit 0
+          fi
+          if [ -n "$TAG" ]; then
+            release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")
+          else
+            release=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest")
+          fi
+          # Drafts and pre-releases are not announced.
+          if [ "$(jq -r '.draft or .prerelease' <<<"$release")" = true ]; then
+            echo "::notice::Not announcing a draft or pre-release"
+            exit 0
+          fi
+          payload=$(jq -c '
+            # Discord shows at most 4096 characters; keep it short.
+            (.body // "" | gsub("\r"; "")) as $notes
+            | (if ($notes | length) > 1500 then ($notes[:1500] + "…") else $notes end) as $short
+            | {
+                username: "Plone in a Box",
+                allowed_mentions: {parse: []},
+                embeds: [{
+                  title: (.name // .tag_name),
+                  url: .html_url,
+                  color: 33470,
+                  description: ($short + "\n\n[Release notes](" + .html_url + ") · [Get started](https://github.com/tkimnguyen/plone-in-a-box#get-started)"),
+                  timestamp: .published_at
+                }]
+              }' <<<"$release")
+          curl -fsS --retry 3 -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK"
+          echo "Posted the notice for $(jq -r .tag_name <<<"$release")"
