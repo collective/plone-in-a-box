@@ -1,3 +1,10 @@
+2.16 (unreleased)
+-----------------
+
+- Docs: an invitation to the #plone-in-a-box channel on the Plone Discord
+  (https://discord.gg/jRrsnYkNvS) in the README, the setup guide's Troubleshooting, the Try It
+  pages and the release notes.
+
 2.15 (2026-11-22)
 -----------------
 

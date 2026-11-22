@@ -97,7 +97,10 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
    URL), so pasted launchers and the Launch Stack button download it, and run `python3 scripts/catalog.py pages` so the
    Try It pages in `docs/try/` name it too. CI checks that they all match. Commit to `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
-   `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.
+   `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes. End the notes with
+   the invitation to the Discord channel: `Questions or ideas? Join #plone-in-a-box on the
+   [Plone Discord](https://discord.gg/jRrsnYkNvS).` (The invite is set never to expire; Discord's default is 7
+   days, so a replacement must be set to never expire too.)
 
 
 3. Publishing the release also publishes `src/aws/cloudformation.yaml` for the **Launch Stack** button, which opens
