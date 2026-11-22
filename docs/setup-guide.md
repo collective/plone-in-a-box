@@ -52,7 +52,7 @@ locations are in Germany and Finland. All four offer automatic server backups fo
    * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
    * **Frontend image**, for example `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` for Volto Light Theme
      (see [Themes and frontend images](#themes-and-frontend-images)).
-   * **Demo login** and its role: an extra login, for example `demo`, for people you let try the site (see
+   * **Demo login** and its roles: an extra login, for example `demo`, for people you let try the site (see
      [Demo login](#demo-login)).
    * **Automatic updates**: `yes` (the default) installs Plone, Volto and PostgreSQL patch releases every week; see
      [Updates](#updates).
@@ -173,7 +173,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # site_timezone     = "America/Chicago"
 # addons            = "collective.easyform"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
-# demo_user         = "demo"   # demo_role = "Editor"; Site Administrator by default
+# demo_user         = "demo"   # demo_roles = "Editor"; by default the image's suggestion, or Site Administrator
 # auto_update       = false  # weekly patch releases are on by default
 # notify_url        = "https://ntfy.sh/a-long-random-topic"
 ```
@@ -493,7 +493,7 @@ the `frontend_image` Terraform variable). Plone in a Box publishes ready-made im
 | Frontend image | What you get |
 | --- | --- |
 | `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` | [Volto Light Theme](https://github.com/kitconcept/volto-light-theme) 8.1.4 on Volto 19 |
-| `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | [Juizi Dashboard](https://pypi.org/project/juizi.dashboard/) 1.0.0b2 (beta) on Volto 19: an activity record and dashboard for site administrators, in Site Setup → Activity |
+| `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | [Juizi Dashboard](https://pypi.org/project/juizi.dashboard/) 1.0.0b3 (beta) on Volto 19: an activity record and dashboard for site administrators, in Site Setup → Activity. A demo login gets Editor and Site Activity Viewer |
 
 A ready-made image brings its backend half: setup installs and activates the matching backend add-on (for Volto Light
 Theme, `kitconcept.voltolighttheme`) and turns on its site settings. Edit the home page to find them: the logo,
@@ -526,20 +526,26 @@ behaviors under Site Setup → Content Types → Plone Site → Behaviors.
 
 The **Demo login** setting creates a second login on the site, for people you let try it: a client looking at a
 draft site, or someone trying an add-on. Give it a username, for example `demo` (the `DEMO_USER` line in
-`src/user-data.sh`, the `DemoUser` parameter, or the `demo_user` Terraform variable), and a role: **Site
-Administrator** (the default), **Editor**, **Contributor**, **Reviewer** or **Member** (`DEMO_ROLE`, `DemoRole`,
-`demo_role`).
+`src/user-data.sh`, the `DemoUser` parameter, or the `demo_user` Terraform variable).
+
+Its roles (`DEMO_ROLES`, `DemoRoles`, `demo_roles`) are one or more role names separated by commas, for example
+`Editor` or `Editor, Reviewer`: **Site Administrator**, **Editor**, **Contributor**, **Reviewer**, **Member**, or a
+role an add-on adds. Left empty, it gets the roles the frontend image suggests (its
+[`demo-roles` label](../frontend-image/README.md#how-setup-uses-an-image), for example Editor and Site Activity Viewer
+for Juizi Dashboard), or Site Administrator. A role the site doesn't have, such as an add-on's that failed to
+install, is skipped, and Manager is never given. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
+another role than Site Administrator.)
 
 Setup creates it with a generated password and saves it in `/root/plone-credentials.txt`, next to the admin
 password:
 
 ```
-Demo login: demo / 7Gq2v8xRmT4pLwZs9KcN (Site Administrator)
+Demo login: demo / 7Gq2v8xRmT4pLwZs9KcN (Editor, Site Activity Viewer)
 ```
 
-Share that username and password; whoever has them can do anything the role allows. A Site Administrator can edit
+Share that username and password; whoever has them can do anything its roles allow. A Site Administrator can edit
 and delete all content, change most site settings and manage the other users except `admin`. The demo login is an
-ordinary Plone user: change its password, its role, or remove it in **Site Setup → Users**. Setup creates it only
+ordinary Plone user: change its password, its roles, or remove it in **Site Setup → Users**. Setup creates it only
 once, when the server is created; to add one later, add a user there.
 
 Add-on authors can give their README a button that sets up a server with their add-on and a demo login; see

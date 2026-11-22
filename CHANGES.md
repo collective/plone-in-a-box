@@ -1,3 +1,21 @@
+2.14 (unreleased)
+-----------------
+
+- Demo login roles: the demo login can have several roles, separated by
+  commas (DEMO_ROLES in src/user-data.sh, the Linode StackScript's "Roles of
+  the demo login" field, the DemoRoles parameter, the demo_roles Terraform
+  variable), including roles that add-ons define. Left empty, it gets the
+  roles the frontend image suggests in its new org.plone-in-a-box.demo-roles
+  label (the demo_roles field of an image), or Site Administrator. Roles the
+  site doesn't have are skipped, and Manager is never given. DEMO_ROLE (2.13)
+  still works when set to another role than Site Administrator.
+- The Juizi Dashboard image: juizi.dashboard 1.0.0b3, whose demo login gets
+  Editor and Site Activity Viewer (a role that sees the activity dashboard
+  and nothing else), instead of Site Administrator.
+- scripts/linode-addon-stackscript.sh: --demo-roles instead of --demo-role,
+  empty by default. scripts/test-deploy.sh: --demo-roles and
+  --expect-demo-roles.
+
 2.13 (2026-11-21)
 -----------------
 
