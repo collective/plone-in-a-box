@@ -15,9 +15,11 @@ This page is for add-on authors. It needs Plone in a Box 2.13 or later, for the 
 * **A backend-only add-on:** nothing; the buttons fill in the **Backend add-ons** setting with its package name and
   version, for example `collective.easyform==4.2.0`.
 
-Choose the role the demo login gets (**Site Administrator**, **Editor**, **Contributor**, **Reviewer** or
-**Member**): the narrowest one that shows off the add-on. People who get the demo login can do anything that role
-allows on that site.
+Choose the roles the demo login gets: the narrowest ones that show off the add-on, for example **Editor**, or a role
+the add-on defines for looking without administering. People who get the demo login can do anything those roles
+allow on that site. For an add-on with a frontend image, set them once in the image's `demo_roles`
+([Frontend images](../frontend-image/README.md#how-setup-uses-an-image)): every button then gets them without saying
+so. Otherwise the demo login is a Site Administrator unless the button sets its roles.
 
 ## Linode
 
@@ -34,7 +36,7 @@ when a server is created, so it doesn't need updating at each release.
    ```
 
    Use `--addons "PKG==1.2.3"` instead of (or as well as) `--frontend-image` for backend add-ons, and
-   `--demo-role Editor` for another role than Site Administrator.
+   `--demo-roles "Editor"` to set the roles here rather than in the image.
 2. In [Cloud Manager](https://cloud.linode.com), **StackScripts → Create StackScript**: label it
    `Plone in a Box: Juizi Dashboard`, choose **Ubuntu 26.04 LTS** and **Ubuntu 24.04 LTS** as Target Images, paste
    the script, and save.
@@ -51,8 +53,8 @@ The Launch Stack link can fill in the template's parameters: add `&param_<Name>=
 https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&stackName=plone-in-a-box&param_FrontendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-frontend%3A19-juizi-dashboard&param_DemoUser=demo
 ```
 
-The parameters are `FrontendImage`, `Addons`, `DemoUser` and `DemoRole` (for example `param_DemoRole=Editor`;
-Site Administrator is the default). The person still sets the admin password and the server size, then clicks
+The parameters are `FrontendImage`, `Addons`, `DemoUser` and `DemoRoles` (for example `param_DemoRoles=Editor`;
+by default, the image's suggestion or Site Administrator). The person still sets the admin password and the server size, then clicks
 **Create stack**.
 
 ## DigitalOcean and Hetzner
@@ -68,7 +70,7 @@ export DEMO_USER='demo'
 curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.13/src/StackScript && bash /root/plone-in-a-box.sh
 ```
 
-Add `export DEMO_ROLE='Editor'` for another role, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
+Add `export DEMO_PASSWORD='...'` to choose the demo login's password (at least 12 characters), `export DEMO_ROLES='Editor'` to set the roles here, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
 the steps are in the [setup guide](setup-guide.md#option-c-digitalocean).
 
 ## The button
@@ -86,6 +88,10 @@ For example, [Juizi Dashboard](https://github.com/tkimnguyen/juizi.dashboard#try
 [2318969](https://cloud.linode.com/stackscripts/2318969).
 
 ## After the server is set up
+
+Whoever creates the server can choose the demo login's password in the form (**Demo login password**, or
+`DemoPassword` on AWS, which the link leaves for them to fill in), so they know it without reading a file. Never
+put a password in the button's link or StackScript: everyone who clicks it would share it.
 
 The site's address, and the admin and demo passwords, are in `/root/plone-credentials.txt` on the server
 (`sudo cat /root/plone-credentials.txt` in the provider's browser console). The demo login is an ordinary Plone

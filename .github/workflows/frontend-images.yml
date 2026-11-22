@@ -37,14 +37,18 @@ jobs:
             theme: "@kitconcept/volto-light-theme"
             backend_addons: "kitconcept.voltolighttheme==8.1.4"
             site_behaviors: "voltolighttheme.header voltolighttheme.theme voltolighttheme.footer"
+            demo_roles: ""
           - variant: juizi-dashboard
             volto: "19"
             description: the Juizi activity dashboard
-            packages: "volto-juizi-dashboard@1.0.0-beta.2"
+            packages: "volto-juizi-dashboard@1.0.0-beta.3"
             addons: "volto-juizi-dashboard"
             theme: ""
-            backend_addons: "juizi.dashboard==1.0.0b2"
+            backend_addons: "juizi.dashboard==1.0.0b3"
             site_behaviors: ""
+            # Editors who can watch their changes on the dashboard, without
+            # being site administrators.
+            demo_roles: "Editor, Site Activity Viewer"
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/plone-in-a-box-frontend
       TAG: ${{ matrix.volto }}-${{ matrix.variant }}
@@ -79,6 +83,7 @@ jobs:
             THEME=${{ matrix.theme }}
             BACKEND_ADDONS=${{ matrix.backend_addons }}
             SITE_BEHAVIORS=${{ matrix.site_behaviors }}
+            DEMO_ROLES=${{ matrix.demo_roles }}
           tags: ${{ steps.tags.outputs.list }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
