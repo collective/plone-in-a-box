@@ -70,7 +70,7 @@ export DEMO_USER='demo'
 curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.13/src/StackScript && bash /root/plone-in-a-box.sh
 ```
 
-Add `export DEMO_ROLES='Editor'` to set the roles here, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
+Add `export DEMO_PASSWORD='...'` to choose the demo login's password (at least 12 characters), `export DEMO_ROLES='Editor'` to set the roles here, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
 the steps are in the [setup guide](setup-guide.md#option-c-digitalocean).
 
 ## The button
@@ -88,6 +88,10 @@ For example, [Juizi Dashboard](https://github.com/tkimnguyen/juizi.dashboard#try
 [2318969](https://cloud.linode.com/stackscripts/2318969).
 
 ## After the server is set up
+
+Whoever creates the server can choose the demo login's password in the form (**Demo login password**, or
+`DemoPassword` on AWS, which the link leaves for them to fill in), so they know it without reading a file. Never
+put a password in the button's link or StackScript: everyone who clicks it would share it.
 
 The site's address, and the admin and demo passwords, are in `/root/plone-credentials.txt` on the server
 (`sudo cat /root/plone-credentials.txt` in the provider's browser console). The demo login is an ordinary Plone

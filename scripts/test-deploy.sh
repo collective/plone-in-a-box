@@ -41,6 +41,9 @@
 #   --demo-user NAME       create the demo login NAME, then check the credentials
 #                          file gives its password, it can log in with its role,
 #                          also after the restarts
+#   --demo-password PW     with --demo-user: set its password when deploying,
+#                          and check that works and isn't in the credentials
+#                          file (default: generated, read from that file)
 #   --demo-roles ROLES     with --demo-user: its roles, separated by commas
 #                          (default: empty, so the frontend image's suggestion,
 #                          or Site Administrator)
@@ -95,7 +98,7 @@ LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL=""
-DEMO_USER="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
+DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -104,7 +107,7 @@ pass() { say "PASS  $*"; }
 fail() { say "FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else fail "$what"; fi; }
 
-usage() { sed -n '3,55p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,58p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
   linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
@@ -124,6 +127,8 @@ while (( $# )); do
     --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
     --updates) UPDATES=1 ;;
     --demo-user) DEMO_USER=${2:?--demo-user needs a value}; shift ;;
+    --demo-password) DEMO_PASSWORD_SET=${2:?--demo-password needs a value}; shift
+      [[ "$DEMO_PASSWORD_SET" =~ ^[A-Za-z0-9._-]{12,}$ ]] || die "--demo-password: 12 or more letters, digits, . _ -" ;;
     --demo-roles) DEMO_ROLES=${2:?--demo-roles needs a value}; shift ;;
     --expect-demo-roles) EXPECT_DEMO_ROLES=${2:?--expect-demo-roles needs a value}; shift ;;
     --linode-script) LINODE_SCRIPT=${2:?--linode-script needs a file}; shift
@@ -302,6 +307,7 @@ launcher() {
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
       ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
       ${DEMO_USER:+"export DEMO_USER='$DEMO_USER'"} \
+      ${DEMO_PASSWORD_SET:+"export DEMO_PASSWORD='$DEMO_PASSWORD_SET'"} \
       ${DEMO_ROLES:+"export DEMO_ROLES='$DEMO_ROLES'"} \
       ${NOTIFY_URL:+"export NOTIFY_URL='$NOTIFY_URL'"} \
       "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
@@ -312,6 +318,7 @@ launcher() {
           -e "s|^export ADDONS=''$|export ADDONS='${ADDONS//&/\\&}'|" \
           -e "s|^export FRONTEND_IMAGE=''$|export FRONTEND_IMAGE='$FRONTEND_IMAGE'|" \
           -e "s|^export DEMO_USER=''$|export DEMO_USER='$DEMO_USER'|" \
+          -e "s|^export DEMO_PASSWORD=''$|export DEMO_PASSWORD='$DEMO_PASSWORD_SET'|" \
           -e "s|^export DEMO_ROLES=''$|export DEMO_ROLES='$DEMO_ROLES'|" \
           -e "s|^export NOTIFY_URL=''$|export NOTIFY_URL='${NOTIFY_URL//&/\\&}'|" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")
@@ -345,12 +352,12 @@ if [[ "$PROVIDER" == linode ]]; then
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
-      --arg frontend "$FRONTEND_IMAGE" --arg demo "$DEMO_USER" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
+      --arg frontend "$FRONTEND_IMAGE" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
         stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, DEMO_USER: $demo,
-            DEMO_ROLES: $roles, NOTIFY_URL: $notify}
+            DEMO_PASSWORD: $demopw, DEMO_ROLES: $roles, NOTIFY_URL: $notify}
           | with_entries(select(.value != ""))),
         booted: true}
        + (if $fw == "" then {} else {firewall_id: ($fw | tonumber)} end)')
@@ -649,9 +656,15 @@ fi
 
 if [[ -n "$DEMO_USER" ]]; then
   grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'demo login' | sed 's/^/      /' || true
-  DEMO_PASSWORD=$(rssh "awk '/^Demo login:/ {print \$5}' /root/plone-credentials.txt" 2>/dev/null || true)
+  if [[ -n "$DEMO_PASSWORD_SET" ]]; then
+    DEMO_PASSWORD=$DEMO_PASSWORD_SET
+    check "credentials file doesn't contain the demo password chosen" \
+      rssh "grep -q '^Demo login: $DEMO_USER / (the password you entered' /root/plone-credentials.txt && ! grep -qF -- '$DEMO_PASSWORD' /root/plone-credentials.txt"
+  else
+    DEMO_PASSWORD=$(rssh "awk '/^Demo login:/ {print \$5}' /root/plone-credentials.txt" 2>/dev/null || true)
+    check "credentials file gives the demo login's password" test -n "$DEMO_PASSWORD"
+  fi
   echo "demo login: $DEMO_USER / $DEMO_PASSWORD" >> "$WORK/notes.txt"
-  check "credentials file gives the demo login's password" test -n "$DEMO_PASSWORD"
   check "setup log doesn't contain the demo password" demo_password_not_logged
   check "the demo login can log in" demo_login
   check "the demo login has the roles ${EXPECT_DEMO_ROLES}" demo_has_roles

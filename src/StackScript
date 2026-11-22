@@ -20,6 +20,7 @@
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
 # <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
 # <UDF name="DEMO_USER" label="Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password" default="" />
+# <UDF name="DEMO_PASSWORD" label="Demo login password, optional, at least 12 characters. Leave empty to have one generated and saved next to the admin password" default="" />
 # <UDF name="DEMO_ROLES" label="Roles of the demo login, optional, separated by commas, for example Editor or Site Administrator. Empty: what the frontend image suggests, or Site Administrator" default="" />
 # <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back" oneOf="yes,no" default="yes" />
 # <UDF name="NOTIFY_URL" label="Notification URL, optional: update reports go here, for example https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook" default="" />
@@ -62,6 +63,7 @@ FRONTEND_IMAGE="$(printf '%s' "${FRONTEND_IMAGE:-}" | tr -d ' \t\r\n')"
 # Administrator. DEMO_ROLE is the one-role setting of 2.13; its old default,
 # Site Administrator, counts as no choice.
 DEMO_USER="$(printf '%s' "${DEMO_USER:-}" | tr -d ' \t\r\n')"
+DEMO_PASSWORD="${DEMO_PASSWORD:-}"
 DEMO_ROLES="$(printf '%s' "${DEMO_ROLES:-}" | tr '\t\r\n' '   ')"
 if [[ -z "${DEMO_ROLES// /}" && -n "${DEMO_ROLE:-}" && "$DEMO_ROLE" != "Site Administrator" ]]; then
   DEMO_ROLES="$DEMO_ROLE"
@@ -263,7 +265,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_ROLES AUTO_UPDATE NOTIFY_URL STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -1069,14 +1071,27 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
     [[ -n "${roles// /}" ]] || roles="${IMAGE_DEMO_ROLES}"
     [[ -n "${roles// /}" ]] || roles="Site Administrator"
     log "Creating the demo login ${DEMO_USER} (${roles})"
-    DEMO_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+    # Its password: the one entered when deploying, if it has at least 12
+    # characters, or a generated one.
+    DEMO_PASSWORD_SHOWN="" DEMO_PASSWORD_NOTE=""
+    if [[ -n "$DEMO_PASSWORD" ]] && (( ${#DEMO_PASSWORD} < 12 )); then
+      log "The demo login password given is shorter than 12 characters; generating one instead"
+      DEMO_PASSWORD_NOTE=" The password entered was shorter than 12 characters, so this one was generated instead."
+      DEMO_PASSWORD=""
+    fi
+    if [[ -n "$DEMO_PASSWORD" ]]; then
+      DEMO_PASSWORD_SHOWN="(the password you entered when deploying)"
+    else
+      DEMO_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+      DEMO_PASSWORD_SHOWN="$DEMO_PASSWORD"
+    fi
     if demo_out=$(DEMO_USER="$DEMO_USER" DEMO_PASSWORD="$DEMO_PASSWORD" DEMO_ROLES="$roles" \
         compose run --rm --no-deps -e DEMO_USER -e DEMO_PASSWORD -e DEMO_ROLES -e ADDONS= \
         -v "$APP_DIR/create_demo_user.py:/app/scripts/create_demo_user.py:ro" \
         backend run /app/scripts/create_demo_user.py 2>&1); then
       printf '%s\n' "$demo_out" | grep -v '^DEMO_ROLES_GIVEN='
       given=$(printf '%s\n' "$demo_out" | sed -n 's/^DEMO_ROLES_GIVEN=//p' | tail -n 1)
-      DEMO_LINE="Demo login: ${DEMO_USER} / ${DEMO_PASSWORD} (${given:-$roles})"
+      DEMO_LINE="Demo login: ${DEMO_USER} / ${DEMO_PASSWORD_SHOWN} (${given:-$roles})${DEMO_PASSWORD_NOTE}"
     else
       printf '%s\n' "$demo_out"
       log "Creating the demo login failed (see above); add it in Site Setup > Users"

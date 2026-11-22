@@ -56,6 +56,9 @@ export FRONTEND_IMAGE=''
 # example 'Editor' or 'Site Administrator'; leave empty for the roles the
 # frontend image suggests, or Site Administrator.
 export DEMO_USER=''
+# Its password, optional, at least 12 characters; leave empty to have one
+# generated and saved in /root/plone-credentials.txt.
+export DEMO_PASSWORD=''
 export DEMO_ROLES=''
 # Automatic updates: 'yes' installs Plone, Volto and PostgreSQL patch releases
 # every week, after a database backup, and undoes them if the site doesn't come

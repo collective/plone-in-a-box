@@ -9,12 +9,17 @@
   label (the demo_roles field of an image), or Site Administrator. Roles the
   site doesn't have are skipped, and Manager is never given. DEMO_ROLE (2.13)
   still works when set to another role than Site Administrator.
+- Demo login password: an optional setting (DEMO_PASSWORD, the Linode
+  StackScript's "Demo login password" field, the DemoPassword parameter, the
+  demo_password Terraform variable), at least 12 characters. Left empty, it
+  is generated and saved in /root/plone-credentials.txt, as before; a chosen
+  one isn't saved on the server.
 - The Juizi Dashboard image: juizi.dashboard 1.0.0b3, whose demo login gets
   Editor and Site Activity Viewer (a role that sees the activity dashboard
   and nothing else), instead of Site Administrator.
 - scripts/linode-addon-stackscript.sh: --demo-roles instead of --demo-role,
-  empty by default. scripts/test-deploy.sh: --demo-roles and
-  --expect-demo-roles.
+  empty by default. scripts/test-deploy.sh: --demo-roles,
+  --expect-demo-roles and --demo-password.
 
 2.13 (2026-11-21)
 -----------------

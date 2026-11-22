@@ -100,6 +100,13 @@ variable "demo_user" {
   default     = ""
 }
 
+variable "demo_password" {
+  description = "The demo login's password, optional, at least 12 characters. Empty: generated, and saved in /root/plone-credentials.txt."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "demo_roles" {
   description = "Roles of the demo login, separated by commas, for example Editor or Site Administrator. Empty: the roles the frontend image suggests, or Site Administrator."
   type        = string
@@ -224,6 +231,7 @@ resource "aws_instance" "app_server" {
     "export ADDONS=\"$(echo ${base64encode(var.addons)} | base64 -d)\"",
     "export FRONTEND_IMAGE=\"$(echo ${base64encode(var.frontend_image)} | base64 -d)\"",
     "export DEMO_USER=\"$(echo ${base64encode(var.demo_user)} | base64 -d)\"",
+    "export DEMO_PASSWORD=\"$(echo ${base64encode(var.demo_password)} | base64 -d)\"",
     "export DEMO_ROLES=\"$(echo ${base64encode(var.demo_roles)} | base64 -d)\"",
     "export AUTO_UPDATE=${var.auto_update ? "yes" : "no"}",
     "export NOTIFY_URL=\"$(echo ${base64encode(var.notify_url)} | base64 -d)\"",

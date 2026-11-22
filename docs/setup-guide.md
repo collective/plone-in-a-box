@@ -52,7 +52,7 @@ locations are in Germany and Finland. All four offer automatic server backups fo
    * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
    * **Frontend image**, for example `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` for Volto Light Theme
      (see [Themes and frontend images](#themes-and-frontend-images)).
-   * **Demo login** and its roles: an extra login, for example `demo`, for people you let try the site (see
+   * **Demo login**, its password and its roles: an extra login, for example `demo`, for people you let try the site (see
      [Demo login](#demo-login)).
    * **Automatic updates**: `yes` (the default) installs Plone, Volto and PostgreSQL patch releases every week; see
      [Updates](#updates).
@@ -536,12 +536,17 @@ for Juizi Dashboard), or Site Administrator. A role the site doesn't have, such 
 install, is skipped, and Manager is never given. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
 another role than Site Administrator.)
 
-Setup creates it with a generated password and saves it in `/root/plone-credentials.txt`, next to the admin
-password:
+Its password (`DEMO_PASSWORD`, `DemoPassword`, `demo_password`) is optional: enter one of at least 12 characters
+to choose it, or leave it empty and setup generates one and saves it in `/root/plone-credentials.txt`, next to the
+admin password:
 
 ```
 Demo login: demo / 7Gq2v8xRmT4pLwZs9KcN (Editor, Site Activity Viewer)
 ```
+
+A password you chose isn't saved on the server; that line then says `(the password you entered when deploying)`.
+To read the file, open your provider's browser console and run `sudo cat /root/plone-credentials.txt`. Or log in as
+`admin` and set the demo login's password in **Site Setup → Users**.
 
 Share that username and password; whoever has them can do anything its roles allow. A Site Administrator can edit
 and delete all content, change most site settings and manage the other users except `admin`. The demo login is an
