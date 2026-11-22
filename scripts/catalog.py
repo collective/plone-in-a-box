@@ -27,6 +27,7 @@ IMAGE_OWNER = "collective"
 SITE = "https://collective.github.io/plone-in-a-box"
 REPO = "https://github.com/tkimnguyen/plone-in-a-box"
 DISCORD = "https://discord.gg/jRrsnYkNvS"
+DISCORD_CHANNEL = "https://discord.com/channels/786421998426521600/903993234248835082"  # opens only for people already in the Plone Discord
 LINODE_STACKSCRIPT = "931893"
 TEMPLATE_URL = "https://plone-in-a-box-templates.s3.us-east-1.amazonaws.com/latest/cloudformation.yaml"
 NOT_FOR_DEMO = {"Manager", "Owner", "Authenticated", "Anonymous"}
@@ -240,7 +241,8 @@ def page(title, description, body):
 <main>
 {body}
 <footer>Set up by <a href="{REPO}">Plone in a Box</a>, which installs Plone 6 on a cloud server of your own.
-Questions? Ask in <strong>#plone-in-a-box</strong> on <a href="{DISCORD}">the Plone Discord</a>.
+Questions? Ask in <strong>#plone-in-a-box</strong> on <a href="{DISCORD}">the Plone Discord</a>
+(already a member? <a href="{DISCORD_CHANNEL}">go to the channel</a>).
 Plone and the Plone logo are trademarks of the Plone Foundation.</footer>
 </main>
 <script>{SCRIPT}</script>
