@@ -50,3 +50,25 @@ and would push setup well past ~10 minutes. Building in CI means users need a Gi
 registry and credentials before deploying, which breaks the no-command-line Linode flow. It would also fix
 Plone/Volto versions when the project is generated, add template churn to maintain, and overlap the existing
 nginx + Compose setup. Custom images as an option get most of the benefit without those costs.
+
+## To investigate
+
+- [ ] **Easy HTTPS without your own domain.** Sites without a domain are plain HTTP, so passwords (including Try It
+  demo logins) cross the network unencrypted. Idea: an automatic `<ip-with-dashes>.sslip.io` hostname with a Let's
+  Encrypt certificate. Check Let's Encrypt's limit of about 50 new certificates a week per registered domain: unless
+  sslip.io is on the Public Suffix List, all its users share one quota. A Plone in a Box subdomain service would
+  share one too, unless its parent domain is on that list. Alternatives: a rate-limit increase, another ACME CA
+  (ZeroSSL, Google Trust Services), Cloudflare Tunnel.
+- [ ] **Email reputation.** Through a relay, receivers judge the relay's IP, which the relay watches; the site owner
+  controls the domain's reputation (DMARC reports, Google Postmaster Tools). Cloud providers reuse IP addresses, so
+  a new server may inherit a blocklisted one. Idea: check the server's IP and the sending domain against public
+  blocklists (Spamhaus and others) at setup and in `plone-update`, and say so in the update report.
+- [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where
+  the data would go on a single small server.
+- [ ] **Other Plone best practices.** Review the box against current Plone deployment recommendations
+  (backups, monitoring, security headers, upgrades) and note any gaps.
+- [ ] **More add-ons in the catalog.** Suggest Plone and Volto add-ons that work on a box, and invite their
+  authors to add a Try It page (`addons.yml`, see docs/try-it-buttons.md), for example starting from
+  [Awesome Volto](https://github.com/collective/awesome-volto). As of November 2026 it is still maintained but
+  changes rarely, mostly link fixes, so check entries before recommending them.
+- [x] **Volto Light Theme** (2.11): the ready-made image `ghcr.io/collective/plone-in-a-box-frontend:19-vlt`.
