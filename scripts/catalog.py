@@ -241,7 +241,7 @@ def page(title, description, body):
 <main>
 {body}
 <footer>Set up by <a href="{REPO}">Plone in a Box</a>, which installs Plone 6 on a cloud server of your own.
-Questions? Ask in <a href="{DISCORD_CHANNEL}"><strong>#plone-in-a-box</strong></a> on <a href="{DISCORD}">the Plone Discord</a>.
+Questions? Ask in <a href="{DISCORD_CHANNEL}" style="white-space: nowrap"><strong>#plone-in-a-box</strong></a> on <a href="{DISCORD}">the Plone Discord</a>.
 Plone and the Plone logo are trademarks of the Plone Foundation.</footer>
 </main>
 <script>{SCRIPT}</script>
