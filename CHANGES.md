@@ -1,5 +1,10 @@
-2.16 (unreleased)
+2.16 (2026-11-22)
 -----------------
+
+Your site now backs up its database every night, and once a week clears out
+old history that would otherwise make the database keep growing. A server
+set up earlier gets this with the same one-line command as automatic
+updates. Server logs no longer grow without limit on new servers.
 
 - Nightly database backups and a weekly pack: plone-backup, run every night
   by plone-backup.timer, saves a database backup in /var/backups/plone (the
@@ -15,6 +20,8 @@
 - Docs: an invitation to the #plone-in-a-box channel on the Plone Discord
   (https://discord.gg/jRrsnYkNvS) in the README, the setup guide's Troubleshooting, the Try It
   pages and the release notes.
+- Slides (docs/slides): updated to this release: updates, email, the demo
+  login, Try It pages and what's next.
 
 2.15 (2026-11-22)
 -----------------
