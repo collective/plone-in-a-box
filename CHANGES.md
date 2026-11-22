@@ -1,18 +1,55 @@
-2.14 (unreleased)
+2.15 (unreleased)
 -----------------
 
+- Releasing: .github/workflows/publish-template.yml uploads the Launch Stack
+  template to S3 when a release is published (signing in to AWS with
+  GitHub's OpenID Connect, no stored keys), and
+  scripts/update-public-stackscripts.sh updates the public Linode
+  StackScripts (931893, 2318969, 692002) from a release's tag.
+- Old frontend image builds are deleted after each image build
+  (scripts/cleanup-frontend-images.py): each image keeps its newest 26
+  builds, about six months, and test images go after 7 days.
 - Email: new optional settings for an email relay service (SMTP server, port,
   username, password, From address, and an address for reports) in the
   Linode form, src/user-data.sh, the Launch Stack form and the Terraform
   variables. Setup puts them into Site Setup > Mail, so password resets and
   forms send email, and sends a test email to the address for reports; the
   credentials file and the first notification say whether it went out. The
-  weekly update reports are emailed there too. scripts/test-deploy.sh --mail
-  tests it.
+  weekly update reports are emailed there too. With email set up, the demo
+  login gets Editor instead of Site Administrator, who could otherwise get
+  the email service's password from Site Setup > Mail.
+  scripts/test-deploy.sh --mail tests it.
+- Docs: demo and admin passwords cross the network unencrypted on a site
+  without a domain; choose ones not used anywhere else.
 - Docs: sending email (password resets, forms, update reports) through an
   email relay service, with a comparison of SMTP2GO, Brevo, Mailgun, Amazon
   SES, Postmark and Resend, and how to set it up in Site Setup > Mail.
   [tkimnguyen]
+
+2.14 (2026-11-22)
+-----------------
+
+- Demo login roles: the demo login can have several roles, separated by
+  commas (DEMO_ROLES in src/user-data.sh, the Linode StackScript's "Roles of
+  the demo login" field, the DemoRoles parameter, the demo_roles Terraform
+  variable), including roles that add-ons define. Left empty, it gets the
+  roles the frontend image suggests in its new org.plone-in-a-box.demo-roles
+  label (the demo_roles field of an image), or Site Administrator. Roles the
+  site doesn't have are skipped, and Manager is never given. DEMO_ROLE (2.13)
+  still works when set to another role than Site Administrator.
+- Demo login password: an optional setting (DEMO_PASSWORD, the Linode
+  StackScript's "Demo login password" field, the DemoPassword parameter, the
+  demo_password Terraform variable), at least 12 characters. Left empty, it
+  is generated and saved in /root/plone-credentials.txt, as before; a chosen
+  one isn't saved on the server.
+- The Juizi Dashboard image: juizi.dashboard 1.0.0b3, whose demo login gets
+  Editor and Site Activity Viewer (a role that sees the activity dashboard
+  and nothing else), instead of Site Administrator.
+- Releases are announced on Discord (#plone-in-a-box) when their tag
+  reaches collective/plone-in-a-box (.github/workflows/release-notice.yml).
+- scripts/linode-addon-stackscript.sh: --demo-roles instead of --demo-role,
+  empty by default. scripts/test-deploy.sh: --demo-roles,
+  --expect-demo-roles and --demo-password.
 
 2.13 (2026-11-21)
 -----------------
@@ -23,7 +60,7 @@
   variables). Setup creates a second Plone login with that role (Site
   Administrator by default) and a generated password, saved in
   /root/plone-credentials.txt, for people you let try the site.
-- "Try it" buttons for add-ons (docs/try-it-buttons.md): a link that sets up
+- "Try It" buttons for add-ons (docs/try-it-buttons.md): a link that sets up
   a server with an add-on and a demo login. On AWS the Launch Stack link
   fills in the parameters; on Linode, scripts/linode-addon-stackscript.sh
   prints a StackScript for one add-on, with its settings filled in, that

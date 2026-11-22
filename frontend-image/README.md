@@ -12,10 +12,12 @@ every Monday, to pick up Volto patch releases.
 | Image | Frontend | Backend half |
 | --- | --- | --- |
 | `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` | Volto 19 with Volto Light Theme 8.1.4 | `kitconcept.voltolighttheme==8.1.4`, and the behaviors `voltolighttheme.header`, `.theme` and `.footer` on the site |
-| `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | Volto 19 with `volto-juizi-dashboard` 1.0.0-beta.2 | `juizi.dashboard==1.0.0b2` |
+| `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | Volto 19 with `volto-juizi-dashboard` 1.0.0-beta.3 | `juizi.dashboard==1.0.0b3`; a demo login gets Editor and Site Activity Viewer |
 
 Each image has three tags: `:19-vlt` (the latest build), `:19-vlt-<date>` and `:19-vlt-<commit>`
-(fixed builds).
+(fixed builds). The newest 26 builds of each image are kept, about six months of weekly builds; older ones are
+deleted automatically, so a fixed tag older than that stops working. Images whose name contains `test` are
+deleted after 7 days.
 
 To use one, put its name in the **Frontend image** setting when you create the server; see
 [Themes and frontend images](../docs/setup-guide.md#themes-and-frontend-images) in the setup guide. Setup reads the
@@ -51,6 +53,9 @@ You need a GitHub account; the build runs on GitHub, so nothing needs installing
    * `backend_addons`: the Python packages the backend needs for these add-ons, at versions matching the frontend's;
      setup installs and activates them
    * `site_behaviors`: behaviors to enable on the Plone Site type, if the add-on's instructions ask for any
+   * `demo_roles`: the roles a [demo login](../docs/setup-guide.md#demo-login) needs to try the add-ons, separated
+     by commas, for example `Editor, Site Activity Viewer`. Empty: Site Administrator. Choose the narrowest roles
+     that show the add-on off; they can include roles the add-on defines.
 
    An add-on's README says which npm package, Python package and behaviors it needs.
 4. **Commit** to `main`. The workflow builds the image (about 5 minutes) and publishes it as
@@ -83,13 +88,15 @@ docker buildx build --platform linux/amd64 --push \
   frontend-image
 ```
 
-The build arguments are the matrix fields above, in capitals; `THEME` and `SITE_BEHAVIORS` work the same way.
+The build arguments are the matrix fields above, in capitals; `THEME`, `SITE_BEHAVIORS` and `DEMO_ROLES` work the
+same way.
 
 ## How setup uses an image
 
-The last two fields become the image labels `org.plone-in-a-box.backend-addons` and
-`org.plone-in-a-box.site-behaviors`. After pulling the image, setup reads them, adds the backend add-ons to the
-**Backend add-ons** setting, and once the site exists activates them and enables the behaviors. An image without
+The last three fields become the image labels `org.plone-in-a-box.backend-addons`,
+`org.plone-in-a-box.site-behaviors` and `org.plone-in-a-box.demo-roles`. After pulling the image, setup reads them,
+adds the backend add-ons to the **Backend add-ons** setting, and once the site exists activates them and enables the
+behaviors. If a demo login is set up and its roles are left empty, it gets the image's demo roles. An image without
 these labels, for example one built some other way, works too; then install and activate its backend half yourself
 (see [Add-ons](../docs/setup-guide.md#add-ons)).
 

@@ -41,7 +41,15 @@
 #   --demo-user NAME       create the demo login NAME, then check the credentials
 #                          file gives its password, it can log in with its role,
 #                          also after the restarts
-#   --demo-role ROLE       with --demo-user: its role (default: Site Administrator)
+#   --demo-password PW     with --demo-user: set its password when deploying,
+#                          and check that works and isn't in the credentials
+#                          file (default: generated, read from that file)
+#   --demo-roles ROLES     with --demo-user: its roles, separated by commas
+#                          (default: empty, so the frontend image's suggestion,
+#                          or Site Administrator)
+#   --expect-demo-roles ROLES
+#                          with --demo-user: the roles to check it has
+#                          (default: --demo-roles, or Site Administrator)
 #   --linode-script FILE   Linode: put FILE in the test StackScript instead of
 #                          src/StackScript, e.g. a per-add-on StackScript from
 #                          scripts/linode-addon-stackscript.sh --ref REF
@@ -99,7 +107,7 @@ SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
-DEMO_USER="" DEMO_ROLE="" LINODE_SCRIPT=""
+DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -108,7 +116,7 @@ pass() { say "PASS  $*"; }
 fail() { say "FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass "$what"; else fail "$what"; fi; }
 
-usage() { sed -n '3,59p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,66p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 case "${1:-}" in
   linode|digitalocean|aws|hetzner) PROVIDER=$1 ;;
@@ -128,7 +136,10 @@ while (( $# )); do
     --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
     --updates) UPDATES=1 ;;
     --demo-user) DEMO_USER=${2:?--demo-user needs a value}; shift ;;
-    --demo-role) DEMO_ROLE=${2:?--demo-role needs a value}; shift ;;
+    --demo-password) DEMO_PASSWORD_SET=${2:?--demo-password needs a value}; shift
+      [[ "$DEMO_PASSWORD_SET" =~ ^[A-Za-z0-9._-]{12,}$ ]] || die "--demo-password: 12 or more letters, digits, . _ -" ;;
+    --demo-roles) DEMO_ROLES=${2:?--demo-roles needs a value}; shift ;;
+    --expect-demo-roles) EXPECT_DEMO_ROLES=${2:?--expect-demo-roles needs a value}; shift ;;
     --linode-script) LINODE_SCRIPT=${2:?--linode-script needs a file}; shift
       [[ -f "$LINODE_SCRIPT" ]] || die "--linode-script: no file $LINODE_SCRIPT" ;;
     --notify) NOTIFY_URL="https://ntfy.sh/piab-test-$(openssl rand -hex 12)" ;;
@@ -143,6 +154,12 @@ while (( $# )); do
   esac
   shift
 done
+[[ "$DEMO_ROLES$EXPECT_DEMO_ROLES" =~ ^[A-Za-z0-9\ ,._-]*$ ]] || die "--demo-roles: role names separated by commas"
+if [[ -z "$EXPECT_DEMO_ROLES" ]]; then
+  EXPECT_DEMO_ROLES=${DEMO_ROLES:-Site Administrator}
+  # With email, setup gives Editor instead of Site Administrator.
+  [[ -z "$MAIL_TO" ]] || EXPECT_DEMO_ROLES=$(sed -E 's/(^|,)[[:space:]]*Site Administrator[[:space:]]*(,|$)/\1Editor\2/g' <<<"$EXPECT_DEMO_ROLES")
+fi
 
 tools="curl jq ssh git nc"
 [[ "$PROVIDER" == aws ]] && tools+=" aws"
@@ -314,7 +331,8 @@ launcher() {
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
       ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
       ${DEMO_USER:+"export DEMO_USER='$DEMO_USER'"} \
-      ${DEMO_ROLE:+"export DEMO_ROLE='$DEMO_ROLE'"} \
+      ${DEMO_PASSWORD_SET:+"export DEMO_PASSWORD='$DEMO_PASSWORD_SET'"} \
+      ${DEMO_ROLES:+"export DEMO_ROLES='$DEMO_ROLES'"} \
       ${NOTIFY_URL:+"export NOTIFY_URL='$NOTIFY_URL'"} \
       ${MAIL_TO:+"$(mail_exports)"} \
       "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
@@ -325,7 +343,8 @@ launcher() {
           -e "s|^export ADDONS=''$|export ADDONS='${ADDONS//&/\\&}'|" \
           -e "s|^export FRONTEND_IMAGE=''$|export FRONTEND_IMAGE='$FRONTEND_IMAGE'|" \
           -e "s|^export DEMO_USER=''$|export DEMO_USER='$DEMO_USER'|" \
-          -e "s|^export DEMO_ROLE='Site Administrator'$|export DEMO_ROLE='${DEMO_ROLE:-Site Administrator}'|" \
+          -e "s|^export DEMO_PASSWORD=''$|export DEMO_PASSWORD='$DEMO_PASSWORD_SET'|" \
+          -e "s|^export DEMO_ROLES=''$|export DEMO_ROLES='$DEMO_ROLES'|" \
           -e "s|^export NOTIFY_URL=''$|export NOTIFY_URL='${NOTIFY_URL//&/\\&}'|" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")
   grep -q "^PIAB_RELEASE='$SHA'$" <<<"$text" || die "couldn't set PIAB_RELEASE in src/user-data.sh"
@@ -373,14 +392,14 @@ if [[ "$PROVIDER" == linode ]]; then
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
-      --arg frontend "$FRONTEND_IMAGE" --arg demo "$DEMO_USER" --arg role "$DEMO_ROLE" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
+      --arg frontend "$FRONTEND_IMAGE" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
       --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
       --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
         stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, DEMO_USER: $demo,
-            DEMO_ROLE: $role, NOTIFY_URL: $notify,
+            DEMO_PASSWORD: $demopw, DEMO_ROLES: $roles, NOTIFY_URL: $notify,
             SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
             EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email}
           | with_entries(select(.value != ""))),
@@ -533,11 +552,31 @@ demo_login() {
     | jq -er '.token'
 }
 demo_password_not_logged() { [[ -n "$DEMO_PASSWORD" ]] && ! grep -qF -- "$DEMO_PASSWORD" "$WORK/setup.log"; }
-demo_has_role() {
+# Every expected role (separated by commas), and the credentials file names them.
+demo_has_roles() {
   local token
   token=$(demo_login) || return 1
   curl -s -m 20 "http://$IP/++api++/@users/$DEMO_USER" -H 'Accept: application/json' \
-      -H "Authorization: Bearer $token" | jq -e --arg r "${DEMO_ROLE:-Site Administrator}" '.roles | index($r)' >/dev/null
+      -H "Authorization: Bearer $token" \
+    | jq -e --arg r "$EXPECT_DEMO_ROLES" \
+        '.roles as $have | [$r | split(",")[] | gsub("^ +| +$"; "") | select(. != "")] | all(. as $x | $have | index($x))' \
+      >/dev/null
+}
+# With email set up: the demo login isn't a Site Administrator, and can't
+# read Site Setup > Mail.
+demo_not_site_admin() {
+  local token
+  token=$(demo_login) || return 1
+  curl -s -m 20 "http://$IP/++api++/@users/$DEMO_USER" -H 'Accept: application/json' \
+      -H "Authorization: Bearer $token" | jq -e '.roles | index("Site Administrator") == null' >/dev/null
+}
+demo_cant_read_mail_settings() {
+  local token out code
+  token=$(demo_login) || return 1
+  out=$(curl -s -m 20 -w '\n%{http_code}' "http://$IP/++api++/@controlpanels/mail" -H 'Accept: application/json' \
+      -H "Authorization: Bearer $token")
+  code=${out##*$'\n'}
+  [[ "$code" == 401 || "$code" == 403 ]] && [[ "$out" != *"$SMTP_PASSWORD"* ]]
 }
 # The add-on names without versions or extras, e.g. collective.easyform.
 addon_names() { for a in ${1-$ADDONS}; do a=${a%%[[~=!<>]*}; echo "$a"; done; }
@@ -677,12 +716,22 @@ fi
 
 if [[ -n "$DEMO_USER" ]]; then
   grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'demo login' | sed 's/^/      /' || true
-  DEMO_PASSWORD=$(rssh "awk '/^Demo login:/ {print \$5}' /root/plone-credentials.txt" 2>/dev/null || true)
+  if [[ -n "$DEMO_PASSWORD_SET" ]]; then
+    DEMO_PASSWORD=$DEMO_PASSWORD_SET
+    check "credentials file doesn't contain the demo password chosen" \
+      rssh "grep -q '^Demo login: $DEMO_USER / (the password you entered' /root/plone-credentials.txt && ! grep -qF -- '$DEMO_PASSWORD' /root/plone-credentials.txt"
+  else
+    DEMO_PASSWORD=$(rssh "awk '/^Demo login:/ {print \$5}' /root/plone-credentials.txt" 2>/dev/null || true)
+    check "credentials file gives the demo login's password" test -n "$DEMO_PASSWORD"
+  fi
   echo "demo login: $DEMO_USER / $DEMO_PASSWORD" >> "$WORK/notes.txt"
-  check "credentials file gives the demo login's password" test -n "$DEMO_PASSWORD"
   check "setup log doesn't contain the demo password" demo_password_not_logged
   check "the demo login can log in" demo_login
-  check "the demo login has the role ${DEMO_ROLE:-Site Administrator}" demo_has_role
+  check "the demo login has the roles ${EXPECT_DEMO_ROLES}" demo_has_roles
+  if [[ -n "$MAIL_TO" ]]; then
+    check "with email set up, the demo login isn't a Site Administrator" demo_not_site_admin
+    check "the demo login can't read Site Setup > Mail" demo_cant_read_mail_settings
+  fi
 fi
 
 # --- Network -------------------------------------------------------------------------

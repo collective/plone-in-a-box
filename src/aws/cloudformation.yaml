@@ -41,7 +41,8 @@ Metadata:
           default: Demo login (optional)
         Parameters:
           - DemoUser
-          - DemoRole
+          - DemoPassword
+          - DemoRoles
       - Label:
           default: Updates
         Parameters:
@@ -86,8 +87,10 @@ Metadata:
         default: Frontend image
       DemoUser:
         default: Demo login
-      DemoRole:
-        default: Role of the demo login
+      DemoPassword:
+        default: Demo login password
+      DemoRoles:
+        default: Roles of the demo login
       AutoUpdate:
         default: Automatic updates
       NotifyUrl:
@@ -194,16 +197,23 @@ Parameters:
     Description: >-
       A username such as demo, for people you let try the site. Setup creates it with a generated
       password, saved next to the admin password in /root/plone-credentials.txt. Leave empty for none.
-  DemoRole:
+  DemoPassword:
     Type: String
-    Default: Site Administrator
-    AllowedValues:
-      - Site Administrator
-      - Editor
-      - Contributor
-      - Reviewer
-      - Member
-    Description: The demo login's role on the site.
+    Default: ""
+    NoEcho: true
+    AllowedPattern: '^(.{12,})?$'
+    ConstraintDescription: Must be at least 12 characters, or empty.
+    Description: >-
+      Optional, at least 12 characters. Leave empty to have one generated and saved next to the admin
+      password.
+  DemoRoles:
+    Type: String
+    Default: ""
+    AllowedPattern: '^[A-Za-z0-9 ,._-]*$'
+    ConstraintDescription: Must be role names separated by commas, such as Editor, or empty.
+    Description: >-
+      Roles of the demo login, separated by commas, for example Editor or Site Administrator. Leave
+      empty for the roles the frontend image suggests, or Site Administrator.
   AutoUpdate:
     Type: String
     Default: "yes"
@@ -271,7 +281,7 @@ Parameters:
     Description: plone/plone-frontend Docker image tag.
   Release:
     Type: String
-    Default: "2.13"
+    Default: "2.14"
     AllowedPattern: '^[A-Za-z0-9._/-]+$'
     Description: The Plone in a Box release whose provisioning script the server downloads.
   LatestAmiId:
@@ -352,7 +362,8 @@ Resources:
             ADDONS="$(d '${AddonsB64}')"
             FRONTEND_IMAGE="$(d '${FrontendImageB64}')"
             DEMO_USER='${DemoUser}'
-            DEMO_ROLE='${DemoRole}'
+            DEMO_PASSWORD="$(d '${DemoPasswordB64}')"
+            DEMO_ROLES='${DemoRoles}'
             AUTO_UPDATE='${AutoUpdate}'
             NOTIFY_URL="$(d '${NotifyUrlB64}')"
             SMTP_HOST='${SmtpHost}'
@@ -361,7 +372,7 @@ Resources:
             SMTP_PASSWORD="$(d '${SmtpPasswordB64}')"
             EMAIL_FROM="$(d '${EmailFromB64}')"
             REPORT_EMAIL="$(d '${ReportEmailB64}')"
-            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_ROLE AUTO_UPDATE NOTIFY_URL
+            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL
             export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)
@@ -378,6 +389,7 @@ Resources:
             AddonsB64: !Base64 {Ref: Addons}
             FrontendImageB64: !Base64 {Ref: FrontendImage}
             NotifyUrlB64: !Base64 {Ref: NotifyUrl}
+            DemoPasswordB64: !Base64 {Ref: DemoPassword}
             SmtpUserB64: !Base64 {Ref: SmtpUser}
             SmtpPasswordB64: !Base64 {Ref: SmtpPassword}
             EmailFromB64: !Base64 {Ref: EmailFrom}

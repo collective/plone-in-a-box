@@ -52,10 +52,14 @@ export ADDONS=''
 export FRONTEND_IMAGE=''
 # Demo login, optional: a username such as 'demo', for people you let try the
 # site. Setup creates it with a generated password, saved next to the admin
-# password in /root/plone-credentials.txt. Its role: 'Site Administrator',
-# 'Editor', 'Contributor', 'Reviewer' or 'Member'.
+# password in /root/plone-credentials.txt. Its roles, separated by commas, for
+# example 'Editor' or 'Site Administrator'; leave empty for the roles the
+# frontend image suggests, or Site Administrator.
 export DEMO_USER=''
-export DEMO_ROLE='Site Administrator'
+# Its password, optional, at least 12 characters; leave empty to have one
+# generated and saved in /root/plone-credentials.txt.
+export DEMO_PASSWORD=''
+export DEMO_ROLES=''
 # Automatic updates: 'yes' installs Plone, Volto and PostgreSQL patch releases
 # every week, after a database backup, and undoes them if the site doesn't come
 # back. 'no' leaves updates to you (sudo plone-update).
@@ -78,7 +82,7 @@ export REPORT_EMAIL=''
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.
-PIAB_RELEASE='2.13'
+PIAB_RELEASE='2.14'
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 set -uo pipefail

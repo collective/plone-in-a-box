@@ -3,13 +3,13 @@
 # Print a Linode StackScript for trying one add-on: the Plone in a Box form with
 # the add-on's frontend image (or backend add-ons) and a demo login already
 # filled in. Paste it into a new StackScript in Cloud Manager, make it public,
-# and its link is the add-on's "Try it" button for Linode (Cloud Manager can't
+# and its link is the add-on's "Try It" button for Linode (Cloud Manager can't
 # prefill a StackScript's fields from a link, so each add-on gets its own).
 #
 # Usage:
 #   scripts/linode-addon-stackscript.sh --name "Juizi Dashboard" \
 #     --frontend-image ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard \
-#     [--addons "PKG ..."] [--demo-user demo] [--demo-role "Site Administrator"] \
+#     [--addons "PKG ..."] [--demo-user demo] [--demo-roles "Editor"] \
 #     [--ref REF] > juizi-dashboard.stackscript
 #
 # Options:
@@ -18,7 +18,8 @@
 #   --addons "PKG ..."     backend add-ons to fill in (for add-ons without a
 #                          frontend part); at least one of these two is needed
 #   --demo-user NAME       the demo login to fill in (default: demo)
-#   --demo-role ROLE       its role (default: Site Administrator)
+#   --demo-roles ROLES     its roles, separated by commas (default: empty, so
+#                          the frontend image's suggestion, or Site Administrator)
 #   --ref REF              download src/StackScript from this branch, tag or
 #                          commit instead of the latest release: for testing
 #                          only, e.g. with scripts/test-deploy.sh --linode-script
@@ -33,14 +34,14 @@ set -euo pipefail
 usage() { sed -n '3,29p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 die() { echo "error: $*" >&2; exit 1; }
 
-NAME="" FRONTEND_IMAGE="" ADDONS="" DEMO_USER=demo DEMO_ROLE="Site Administrator" REF=""
+NAME="" FRONTEND_IMAGE="" ADDONS="" DEMO_USER=demo DEMO_ROLES="" REF=""
 while (( $# )); do
   case "$1" in
     --name) NAME=${2:?--name needs a value}; shift ;;
     --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
     --addons) ADDONS=${2:?--addons needs a value}; shift ;;
     --demo-user) DEMO_USER=${2:?--demo-user needs a value}; shift ;;
-    --demo-role) DEMO_ROLE=${2:?--demo-role needs a value}; shift ;;
+    --demo-roles) DEMO_ROLES=${2:?--demo-roles needs a value}; shift ;;
     --ref) REF=${2:?--ref needs a value}; shift ;;
     *) usage ;;
   esac
@@ -54,7 +55,7 @@ done
 [[ "$FRONTEND_IMAGE" =~ ^[a-z0-9./:@_-]*$ ]] || die "--frontend-image: not an image name"
 [[ "$ADDONS" =~ ^[A-Za-z0-9\ ._,~=!\<\>*+-]*$ ]] || die "--addons: Python package names separated by spaces"
 [[ -z "$DEMO_USER" || "$DEMO_USER" =~ ^[a-z][a-z0-9._-]{1,31}$ ]] || die "--demo-user: lowercase letters, digits, . _ -"
-case "$DEMO_ROLE" in "Site Administrator"|Editor|Contributor|Reviewer|Member) ;; *) die "--demo-role: not one of the roles offered" ;; esac
+[[ "$DEMO_ROLES" =~ ^[A-Za-z0-9\ ,._-]*$ ]] || die "--demo-roles: role names separated by commas"
 [[ "$REF" =~ ^[A-Za-z0-9._/-]*$ ]] || die "--ref: not a branch, tag or commit"
 
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -70,9 +71,9 @@ udfs=$(grep '^# <UDF ' "$stackscript" \
   | set_default FRONTEND_IMAGE "$FRONTEND_IMAGE" \
   | set_default ADDONS "$ADDONS" \
   | set_default DEMO_USER "$DEMO_USER" \
-  | set_default DEMO_ROLE "$DEMO_ROLE")
+  | set_default DEMO_ROLES "$DEMO_ROLES")
 names=$(sed -n 's/^# <UDF name="\([A-Z_]*\)".*/\1/p' <<<"$udfs" | tr '\n' ' ')
-for field in FRONTEND_IMAGE ADDONS DEMO_USER DEMO_ROLE; do
+for field in FRONTEND_IMAGE ADDONS DEMO_USER DEMO_ROLES; do
   [[ " $names" == *" $field "* ]] || die "src/StackScript has no $field field"
 done
 
@@ -101,7 +102,7 @@ ${udfs}
 
 # This add-on's settings, if the form didn't send them (a server created
 # through the API with only some fields); a field emptied in the form stays empty.
-: "\${FRONTEND_IMAGE=${FRONTEND_IMAGE}}" "\${ADDONS=${ADDONS}}" "\${DEMO_USER=${DEMO_USER}}" "\${DEMO_ROLE=${DEMO_ROLE}}"
+: "\${FRONTEND_IMAGE=${FRONTEND_IMAGE}}" "\${ADDONS=${ADDONS}}" "\${DEMO_USER=${DEMO_USER}}" "\${DEMO_ROLES=${DEMO_ROLES}}"
 
 ${release_lines}
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/\${PIAB_RELEASE}/src/StackScript"
