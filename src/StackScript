@@ -407,12 +407,21 @@ export -n ADDONS FRONTEND_IMAGE
 cat > "$APP_DIR/docker-compose.yml" <<'EOF'
 name: plone
 
+# Each container keeps at most 30 MB of logs (Docker's default keeps them all,
+# which can fill a small server's disk).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   frontend:
     # FRONTEND_IMAGE in .env replaces the standard Volto image.
     image: ${FRONTEND_IMAGE:-plone/plone-frontend:${VOLTO_VERSION}}
     environment:
       RAZZLE_INTERNAL_API_PATH: http://backend:8080/Plone
+    logging: *logging
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
@@ -432,6 +441,7 @@ services:
     # before Plone starts: failed checks only count after five minutes.
     healthcheck:
       start_period: 5m
+    logging: *logging
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"
@@ -451,6 +461,7 @@ services:
       POSTGRES_USER: plone
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: plone
+    logging: *logging
     restart: unless-stopped
     volumes:
       - data:/var/lib/postgresql/data
@@ -756,9 +767,13 @@ GUIDE=https://github.com/collective/plone-in-a-box/blob/main/docs/setup-guide.md
 
 mkdir -p "$STATE_DIR"
 exec 9>"$STATE_DIR/update.lock"
+# Shared with plone-backup: wait for a backup or pack to finish.
 if ! flock -n 9; then
-  echo "plone-update is already running" >&2
-  exit 1
+  echo "Waiting for plone-update or plone-backup, which is running" >&2
+  if ! flock -w 7200 9; then
+    echo "plone-update or plone-backup is still running; try again later" >&2
+    exit 1
+  fi
 fi
 exec > >(tee -a "$LOG_FILE") 2>&1
 LOG_TEE_PID=$!
@@ -962,6 +977,82 @@ else:
         print("MAIL_SENT")
     except Exception as e:
         print(f"MAIL_FAILED {e!r}")
+EOF
+
+# Nightly database backup, and a weekly pack: sudo plone-backup, and every
+# night through plone-backup.timer.
+cat > /usr/local/bin/plone-backup <<'PLONE_BACKUP_EOF'
+#!/bin/bash
+# A database backup in /var/backups/plone (the three newest are kept, counting
+# those plone-update takes), and once a week a pack: it removes the history of
+# changes older than 7 days, which otherwise makes the database grow forever.
+# PostgreSQL then reuses the space. It waits while plone-update runs.
+# Usage: sudo plone-backup        (also run every night by plone-backup.timer)
+#        sudo plone-backup pack   (pack now, after the backup)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-backup" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+BACKUP_DIR=/var/backups/plone
+mkdir -p "$STATE_DIR"
+exec 9>"$STATE_DIR/update.lock"
+flock -w 10800 9 || { echo "plone-update is still running; no backup this time" >&2; exit 1; }
+exec >>/var/log/plone-backup.log 2>&1
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+compose() { docker compose --project-directory /opt/plone "$@"; }
+fail() {
+  say "$1"
+  /usr/local/lib/plone-in-a-box/notify "Plone in a Box: backup problem ($(cat "$STATE_DIR/site-url" 2>/dev/null || hostname))" \
+    "$1. The log is in /var/log/plone-backup.log on the server." >/dev/null 2>&1
+  exit 1
+}
+
+install -d -m 700 "$BACKUP_DIR"
+# Room for twice the last backup, at least 200 MB, so the disk doesn't fill up.
+# shellcheck disable=SC2012
+last=$(ls -1t "$BACKUP_DIR"/plone-*.sql.gz 2>/dev/null | head -n 1)
+need=$(( ${last:+$(stat -c %s "$last") * 2 +} 0 ))
+(( need > 200000000 )) || need=200000000
+(( $(df --output=avail -B1 "$BACKUP_DIR" | tail -n 1) > need )) || fail "No backup: the disk is nearly full"
+DUMP="$BACKUP_DIR/plone-$(date +%F-%H%M).sql.gz"
+compose exec -T db pg_dump -U plone plone | gzip > "$DUMP.part"
+[[ "${PIPESTATUS[*]}" == "0 0" ]] || { rm -f "$DUMP.part"; fail "The database backup failed"; }
+mv "$DUMP.part" "$DUMP"
+say "Backed up the database to $DUMP"
+# shellcheck disable=SC2012
+ls -1t "$BACKUP_DIR"/plone-*.sql.gz | tail -n +4 | xargs -r rm -f
+
+if [[ "${1:-}" == pack ]] || (( $(date +%s) - $(cat "$STATE_DIR/last-pack" 2>/dev/null || echo 0) > 597600 )); then
+  say "Packing the database"
+  compose run --rm --no-deps -T -e ADDONS= backend pack -d 7 || fail "Packing the database failed"
+  date +%s > "$STATE_DIR/last-pack"
+  say "Packed"
+fi
+PLONE_BACKUP_EOF
+chmod 755 /usr/local/bin/plone-backup
+cat > /etc/systemd/system/plone-backup.service <<'EOF'
+[Unit]
+Description=Plone in a Box: database backup, and a weekly pack
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/plone-backup
+TimeoutStartSec=4h
+EOF
+cat > /etc/systemd/system/plone-backup.timer <<'EOF'
+[Unit]
+Description=Nightly Plone in a Box database backup
+
+[Timer]
+# Shortly after midnight (server time, usually UTC), at a random time within
+# an hour, before the weekly update early on Sunday.
+OnCalendar=*-*-* 00:15:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
 EOF
 
 cat > /etc/systemd/system/plone-update.service <<'EOF'
@@ -1254,6 +1345,8 @@ fi
 
 install -d -m 755 /var/lib/plone-in-a-box
 printf '%s\n' "$SITE_URL" > /var/lib/plone-in-a-box/site-url
+# Nightly database backups and a weekly pack, whatever AUTO_UPDATE says.
+systemctl enable --now plone-backup.timer
 if [[ "$AUTO_UPDATE" == yes ]]; then
   systemctl enable --now plone-update.timer
   UPDATES_LINE="Updates:   Plone, Volto and PostgreSQL patch releases install automatically every week (sudo plone-update to run it now)"

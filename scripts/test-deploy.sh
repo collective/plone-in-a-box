@@ -786,6 +786,13 @@ if [[ -n "$MAIL_TO" ]]; then
     rssh "! grep -qF -- $(printf '%q' "$SMTP_PASSWORD") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
 fi
 
+check "nightly backups are on (plone-backup.timer)" rssh \
+  'systemctl is-enabled --quiet plone-backup.timer && systemctl is-active --quiet plone-backup.timer'
+check "container logs are limited in size" rssh \
+  "docker inspect -f '{{.HostConfig.LogConfig.Config}}' \$(docker compose --project-directory /opt/plone ps -q) | grep -c max-size:10m | grep -qx 3"
+check "plone-backup backs up and packs the database" rssh \
+  'rm -f /var/lib/plone-in-a-box/last-pack && plone-backup pack && test -s /var/lib/plone-in-a-box/last-pack && find /var/backups/plone -name "plone-*.sql.gz" -mmin -10 | grep -q . && grep -q "^\[.*\] Packed$" /var/log/plone-backup.log'
+rssh 'tail -n 4 /var/log/plone-backup.log' 2>/dev/null | sed 's/^/      /'
 check "automatic updates are on (plone-update.timer)" rssh \
   'systemctl is-enabled --quiet plone-update.timer && systemctl is-active --quiet plone-update.timer'
 check "credentials file mentions updates" rssh "grep -q '^Updates: .*automatically' /root/plone-credentials.txt"
