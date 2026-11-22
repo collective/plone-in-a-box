@@ -732,7 +732,7 @@ need it.
 | An add-on isn't listed in **Site Setup → Add-ons** | Read `/root/plone-credentials.txt` and `grep add-ons /var/log/plone-in-a-box.log`: setup leaves the add-ons out if pip can't install them. Packages without an install profile don't appear there, since there's nothing to activate. See [Add-ons](#add-ons). |
 | Linode: "A UDF is missing the required 'name' attribute" | The script was modified with a `<UDF>` tag that has no `name`. Use the current `src/StackScript`. |
 
-Not listed here, or still stuck? Ask in the **#plone-in-a-box** channel on [the Plone Discord](https://discord.gg/jRrsnYkNvS), or
+Not listed here, or still stuck? Ask in the **[#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082)** channel on [the Plone Discord](https://discord.gg/jRrsnYkNvS), or
 [open an issue](https://github.com/tkimnguyen/plone-in-a-box/issues).
 
 The [2020 Plone Conference guide](archive/) describes the original Plone 5.2 version and is kept for reference.
