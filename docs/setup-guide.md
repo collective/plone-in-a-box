@@ -384,7 +384,7 @@ many of which have a free plan.
 A box has two kinds of software, and each one updates differently.
 
 **Ubuntu, nginx and Docker** come from Ubuntu's packages. Setup installs all updates and restarts the server once
-if they need it. After that, Ubuntu installs security updates automatically, nginx's included, but never restarts by
+if they need it. After that, Ubuntu installs security updates automatically, nginx's included, but doesn't restart by
 itself, and it leaves out Docker, which comes from Docker's own repository. Every month or so, and whenever the
 login message says `*** System restart required ***`, run:
 
@@ -458,7 +458,7 @@ curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/
 for example after a new Plone in a Box release, brings these tools up to date; the weekly updates stay on or off as
 they were.
 
-**A new Plone or Volto release** (6.2 to 6.3, Volto 19 to 20) can need content and add-on changes, so it's never
+**A new Plone or Volto release** (6.2 to 6.3, Volto 19 to 20) can need content and add-on changes, so it isn't
 automatic. Read the Plone upgrade notes, take a backup, change `PLONE_VERSION` and `VOLTO_VERSION` in
 `/opt/plone/.env`, then run:
 
