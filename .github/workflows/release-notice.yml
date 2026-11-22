@@ -1,14 +1,18 @@
 name: Release notice
 
-# Posts a notice to Discord (the #plone-in-a-box channel) when a release is
-# published here. The channel's webhook URL is the repository secret
+# Posts a notice to Discord (the #plone-in-a-box channel) when a release
+# reaches collective/plone-in-a-box: the sync pushes its tag there, the last
+# step of a release (RELEASING.md). The notes come from the GitHub release of
+# the same name in tkimnguyen/plone-in-a-box, where releases are published.
+# Only the latest release is announced, so pushing older tags posts nothing.
+# The channel's webhook URL is collective's repository secret
 # DISCORD_WEBHOOK_URL; without it, this does nothing. Run it by hand
 # (Actions → Release notice → Run workflow) to post the latest release again,
 # for example to test a new webhook.
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["[0-9]*"]
   workflow_dispatch:
 
 permissions:
@@ -16,28 +20,26 @@ permissions:
 
 jobs:
   notify:
-    # Only the repository releases are made in, not forks or mirrors.
-    if: github.repository == 'tkimnguyen/plone-in-a-box'
+    # Only the project's public home, not tkimnguyen or other forks.
+    if: github.repository == 'collective/plone-in-a-box'
     runs-on: ubuntu-24.04
     steps:
       - name: Post to Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          RELEASES: tkimnguyen/plone-in-a-box
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           if [ -z "$WEBHOOK" ]; then
             echo "::notice::No DISCORD_WEBHOOK_URL secret, so no notice was posted"
             exit 0
           fi
-          if [ -n "$TAG" ]; then
-            release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")
-          else
-            release=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest")
-          fi
-          # Drafts and pre-releases are not announced.
-          if [ "$(jq -r '.draft or .prerelease' <<<"$release")" = true ]; then
-            echo "::notice::Not announcing a draft or pre-release"
+          # The latest published release (never a draft or pre-release).
+          release=$(gh api "repos/$RELEASES/releases/latest")
+          latest=$(jq -r .tag_name <<<"$release")
+          if [ -n "$TAG" ] && [ "$TAG" != "$latest" ]; then
+            echo "::notice::$TAG isn't the latest release ($latest), so no notice was posted"
             exit 0
           fi
           payload=$(jq -c '
