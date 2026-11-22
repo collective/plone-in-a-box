@@ -19,8 +19,8 @@ backend, the Volto front end and PostgreSQL) behind nginx, with:
 Default versions: Plone 6.2 with Volto 19. Both are configurable; for the previous release line, use Plone `6.1`
 with Volto `18`.
 
-Questions, ideas, or stuck? Come and talk in the **#plone-in-a-box** channel on
-[the Plone Discord](https://discord.gg/jRrsnYkNvS) (already a member? [go straight to the channel](https://discord.com/channels/786421998426521600/903993234248835082)).
+Questions, ideas, or stuck? Come and talk in the **[#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082)** channel on
+[the Plone Discord](https://discord.gg/jRrsnYkNvS).
 
 ## Get started
 

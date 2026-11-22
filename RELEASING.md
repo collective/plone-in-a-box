@@ -102,9 +102,9 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
    Try It pages in `docs/try/` name it too. CI checks that they all match. Commit to `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes. End the notes with
-   the invitation to the Discord channel: `Questions or ideas? Join #plone-in-a-box on the
-   [Plone Discord](https://discord.gg/jRrsnYkNvS) (already a member? [go to the channel](https://discord.com/channels/786421998426521600/903993234248835082)).` The invite brings
-   newcomers into the Plone Discord; the channel link only opens for people already in it. (The invite is set never to expire; Discord's default is 7
+   the invitation to the Discord channel: `Questions or ideas? Join [#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082) on the
+   [Plone Discord](https://discord.gg/jRrsnYkNvS).` The channel name opens the channel for people already in the Plone
+   Discord, and "Plone Discord" is the invite that brings newcomers in. (The invite is set never to expire; Discord's default is 7
    days, so a replacement must be set to never expire too.)
 
 
