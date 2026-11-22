@@ -202,7 +202,7 @@ progress() {
 on_error() {
   log "Setup failed at line $1 (step ${CURRENT_STEP})"
   write_progress_page "Setup didn't finish" \
-    "Something went wrong while setting up Plone. Often it's a temporary download problem: deleting this server and deploying a new one usually fixes it. To see what happened, log in to the server as root and look at <code>${LOG_FILE}</code>." \
+    "Something went wrong while setting up Plone. It's often a temporary download problem: deploying a new server usually fixes it. To see what happened, log in to the server as root and read <code>${LOG_FILE}</code>." \
     "$(step_list failed)" 0
 }
 trap 'on_error $LINENO' ERR
@@ -1273,6 +1273,19 @@ progress 7
 log "Configuring nginx"
 SERVER_NAME="${DOMAIN:-_}"
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/plone-in-a-box-setup
+# No nginx version in responses, and compressed text, JavaScript and JSON.
+cat > /etc/nginx/conf.d/plone-in-a-box.conf <<'EOF'
+server_tokens off;
+gzip_proxied any;
+gzip_types text/css application/javascript application/json image/svg+xml;
+EOF
+# Security headers for the whole site. (A location with an add_header of its
+# own would drop them, so none has one.) Browsers' default Referrer-Policy,
+# strict-origin-when-cross-origin, is already the right one.
+cat > /etc/nginx/snippets/plone-headers.conf <<'EOF'
+add_header X-Frame-Options SAMEORIGIN always;
+add_header X-Content-Type-Options nosniff always;
+EOF
 cat > /etc/nginx/sites-available/plone <<EOF
 upstream backend {
   server 127.0.0.1:8080;
@@ -1287,6 +1300,7 @@ server {
   server_name ${SERVER_NAME};
 
   client_max_body_size 100m;
+  include snippets/plone-headers.conf;
 
   proxy_set_header Host \$host;
   proxy_set_header X-Real-IP \$remote_addr;
@@ -1307,7 +1321,7 @@ server {
 
   # Long-lived caching for Volto's static build assets.
   location ~* \.(js|css|eot|ttf|otf|woff|woff2)\$ {
-    add_header Cache-Control "public";
+    # Sends Cache-Control: max-age too.
     expires 1y;
     proxy_pass http://frontend;
   }
@@ -1335,6 +1349,9 @@ if [[ -n "$DOMAIN" ]]; then
     if certbot --nginx --non-interactive --agree-tos --redirect \
          -m "$LETSENCRYPT_EMAIL" -d "$DOMAIN"; then
       SITE_URL="https://${DOMAIN}"
+      # Browsers then use HTTPS only, for a year.
+      echo 'add_header Strict-Transport-Security max-age=31536000 always;' >> /etc/nginx/snippets/plone-headers.conf
+      systemctl reload nginx
     else
       log "certbot failed (is DNS for ${DOMAIN} pointing at this server?). The site is still available over HTTP; re-run: certbot --nginx -d ${DOMAIN}"
     fi
@@ -1362,12 +1379,9 @@ fi
 MAIL_LINE=""
 if [[ -n "$SMTP_HOST" && "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
   REPORT_EMAIL="${REPORT_EMAIL:-$EMAIL_FROM}"
-  if [[ ! "$SMTP_HOST" =~ ^[A-Za-z0-9.-]+$ || ! "$SMTP_PORT" =~ ^[0-9]{1,5}$ ]]; then
-    MAIL_LINE="Email:     not set up: the SMTP server or port isn't valid. Set it in Site Setup > Mail."
-  elif ! valid_email "$EMAIL_FROM"; then
-    MAIL_LINE="Email:     not set up: it needs a valid From address. Set it in Site Setup > Mail."
-  elif ! valid_email "$REPORT_EMAIL"; then
-    MAIL_LINE="Email:     not set up: the address for reports isn't valid. Set it in Site Setup > Mail."
+  if [[ ! "$SMTP_HOST" =~ ^[A-Za-z0-9.-]+$ || ! "$SMTP_PORT" =~ ^[0-9]{1,5}$ ]] \
+      || ! valid_email "$EMAIL_FROM" || ! valid_email "$REPORT_EMAIL"; then
+    MAIL_LINE="Email:     not set up: the SMTP server, port, From address or address for reports isn't valid. Set them in Site Setup > Mail."
   else
     log "Setting up email through ${SMTP_HOST}:${SMTP_PORT}, from ${EMAIL_FROM}"
     # Passed by name, so the password isn't on a command line.

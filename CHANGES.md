@@ -1,3 +1,12 @@
+2.17 (unreleased)
+-----------------
+
+- nginx: security headers on every response (X-Frame-Options SAMEORIGIN,
+  X-Content-Type-Options nosniff, and Strict-Transport-Security once HTTPS
+  is set up), no version number in responses, and compressed CSS,
+  JavaScript, JSON and SVG, on new servers. scripts/test-deploy.sh checks
+  them.
+
 2.16 (2026-11-22)
 -----------------
 

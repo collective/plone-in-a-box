@@ -789,6 +789,21 @@ for port in 5432 8080 3000; do
   check "port $port is closed from outside" port_closed "$port"
 done
 
+# nginx: security headers everywhere (pages, the REST API, static files), no
+# version number, and compressed JavaScript.
+headers() { curl -s -m 20 -o /dev/null -D - -H 'Accept-Encoding: gzip' "$@" | tr -d '\r'; }
+has_security_headers() {
+  local h
+  h=$(headers "$@")
+  grep -qix 'x-frame-options: SAMEORIGIN' <<<"$h" && grep -qix 'x-content-type-options: nosniff' <<<"$h"
+}
+js=$(curl -s -m 20 "http://$IP/" | grep -o '/static/js/[^"]*\.js' | head -n 1)
+check "security headers on pages" has_security_headers "http://$IP/"
+check "security headers on the REST API" has_security_headers -H 'Accept: application/json' "http://$IP/++api++/"
+check "security headers and compression on JavaScript ($js)" \
+  bash -c "h=\$(curl -s -m 20 -o /dev/null -D - -H 'Accept-Encoding: gzip' 'http://$IP$js' | tr -d '\r'); grep -qix 'x-content-type-options: nosniff' <<<\"\$h\" && grep -qix 'content-encoding: gzip' <<<\"\$h\""
+check "nginx doesn't show its version" bash -c "! curl -s -m 20 -o /dev/null -D - 'http://$IP/' | grep -i '^server:' | grep -q '[0-9]'"
+
 # --- Server state ---------------------------------------------------------------------
 
 mem=$(rssh "awk '/MemTotal|SwapTotal/ {s += \$2} END {print s}' /proc/meminfo")
