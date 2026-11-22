@@ -20,7 +20,8 @@
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
 # <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
 # <UDF name="DEMO_USER" label="Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password" default="" />
-# <UDF name="DEMO_ROLE" label="Role of the demo login" oneOf="Site Administrator,Editor,Contributor,Reviewer,Member" default="Site Administrator" />
+# <UDF name="DEMO_PASSWORD" label="Demo login password, optional, at least 12 characters. Leave empty to have one generated and saved next to the admin password" default="" />
+# <UDF name="DEMO_ROLES" label="Roles of the demo login, optional, separated by commas, for example Editor or Site Administrator. Empty: what the frontend image suggests, or Site Administrator" default="" />
 # <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back" oneOf="yes,no" default="yes" />
 # <UDF name="NOTIFY_URL" label="Notification URL, optional: update reports go here, for example https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook" default="" />
 #
@@ -57,9 +58,16 @@ ADDONS="${ADDON_LIST[*]}"
 # behaviors they need; setup installs and activates those too.
 FRONTEND_IMAGE="$(printf '%s' "${FRONTEND_IMAGE:-}" | tr -d ' \t\r\n')"
 # Demo login: an extra Plone user, created once at setup, for letting other
-# people try the site (DEMO_USER, with the role DEMO_ROLE).
+# people try the site (DEMO_USER, with the roles DEMO_ROLES, separated by
+# commas). Empty: the roles the frontend image's label suggests, or Site
+# Administrator. DEMO_ROLE is the one-role setting of 2.13; its old default,
+# Site Administrator, counts as no choice.
 DEMO_USER="$(printf '%s' "${DEMO_USER:-}" | tr -d ' \t\r\n')"
-DEMO_ROLE="${DEMO_ROLE:-Site Administrator}"
+DEMO_PASSWORD="${DEMO_PASSWORD:-}"
+DEMO_ROLES="$(printf '%s' "${DEMO_ROLES:-}" | tr '\t\r\n' '   ')"
+if [[ -z "${DEMO_ROLES// /}" && -n "${DEMO_ROLE:-}" && "$DEMO_ROLE" != "Site Administrator" ]]; then
+  DEMO_ROLES="$DEMO_ROLE"
+fi
 # Notification URL: reports from setup and plone-update are posted here.
 NOTIFY_URL="$(printf '%s' "${NOTIFY_URL:-}" | tr -d ' \t\r\n')"
 # Automatic updates (plone-update.timer): on unless set to no.
@@ -257,7 +265,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_ROLE AUTO_UPDATE NOTIFY_URL STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -523,9 +531,11 @@ transaction.commit()
 print("Frontend add-ons are set up")
 EOF
 
-# Creates the demo login (DEMO_USER) with the role DEMO_ROLE, or resets its
-# password and role if it exists. The new password is verified before
-# committing.
+# Creates the demo login (DEMO_USER) with the roles DEMO_ROLES (separated by
+# commas), or resets its password and adds the roles if it exists. Roles the
+# site doesn't have, such as an add-on's that wasn't installed, are skipped,
+# and Manager is never given. The new password is verified before
+# committing. The last line says which roles it got.
 cat > "$APP_DIR/create_demo_user.py" <<'EOF'
 import os
 import sys
@@ -542,23 +552,33 @@ newSecurityManager(None, admin.__of__(app.acl_users))
 
 name = os.environ["DEMO_USER"]
 password = os.environ["DEMO_PASSWORD"]
-role = os.environ["DEMO_ROLE"]
+roles = []
+for role in (r.strip() for r in os.environ["DEMO_ROLES"].split(",")):
+    if not role or role in roles or role == "Member":
+        continue
+    if role in ("Manager", "Owner", "Authenticated", "Anonymous"):
+        print(f"The demo login can't have the role {role}; skipped")
+    elif role not in site.validRoles():
+        print(f"This site has no role {role}; skipped")
+    else:
+        roles.append(role)
 if api.user.get(username=name) is None:
     api.user.create(
         username=name,
         email=f"{name}@example.invalid",
         password=password,
-        roles=["Member", role],
+        roles=["Member"] + roles,
         properties={"fullname": "Demo"},
     )
 else:
     site.acl_users.userSetPassword(name, password)
-    api.user.grant_roles(username=name, roles=[role])
+    api.user.grant_roles(username=name, roles=["Member"] + roles)
 if site.acl_users.authenticate(name, password, None) is None:
     transaction.abort()
     sys.exit(f"The demo login {name} could not be verified; nothing was changed")
 transaction.commit()
 print(f"Demo login {name} is set up")
+print("DEMO_ROLES_GIVEN=" + ", ".join(roles or ["Member"]))
 EOF
 
 # Command for resetting the admin password later: sudo plone-reset-admin-password
@@ -946,7 +966,7 @@ progress 4
 # A frontend image that can't be pulled (misspelled, private, gone) is left
 # out, so the site still starts with the standard Volto image. A ready-made
 # image's labels name the backend add-ons and site behaviors it needs.
-IMAGE_ADDONS="" IMAGE_BEHAVIORS="" IMAGE_ACTIVATED=0
+IMAGE_ADDONS="" IMAGE_BEHAVIORS="" IMAGE_DEMO_ROLES="" IMAGE_ACTIVATED=0
 if [[ -n "$FRONTEND_IMAGE" ]]; then
   log "Pulling the frontend image ${FRONTEND_IMAGE}"
   if docker pull --quiet "$FRONTEND_IMAGE"; then
@@ -961,6 +981,9 @@ if [[ -n "$FRONTEND_IMAGE" ]]; then
     for addon in $IMAGE_ADDONS; do
       [[ " $ADDONS " == *" $addon "* ]] || missing+="${missing:+ }$addon"
     done
+    # The roles a demo login needs to try the image's add-ons, separated by
+    # commas (used when DEMO_ROLES is empty).
+    IMAGE_DEMO_ROLES="$(label demo-roles | tr -cd 'A-Za-z0-9 ,._-')"
     for behavior in $(label site-behaviors); do
       if [[ "$behavior" =~ ^[A-Za-z0-9._-]+$ ]]; then
         IMAGE_BEHAVIORS+="${IMAGE_BEHAVIORS:+ }$behavior"
@@ -997,7 +1020,7 @@ if [[ -n "$ADDONS" ]]; then
     if [[ -n "$IMAGE_ADDONS" ]]; then
       log "The frontend image ${FRONTEND_IMAGE} needs those add-ons; using the standard Volto image"
       FRONTEND_NOTE="The frontend image ${FRONTEND_IMAGE} needs backend add-ons that couldn't be installed, so the site uses the standard Volto image."
-      FRONTEND_IMAGE="" IMAGE_ADDONS="" IMAGE_BEHAVIORS=""
+      FRONTEND_IMAGE="" IMAGE_ADDONS="" IMAGE_BEHAVIORS="" IMAGE_DEMO_ROLES=""
       sed -i "s/^FRONTEND_IMAGE=.*/FRONTEND_IMAGE=''/" "$APP_DIR/.env"
     fi
   fi
@@ -1036,26 +1059,41 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && ( -n "$IMAGE_ADDONS" || -n "$IMAGE_BEHAV
 fi
 
 # The demo login, once: a username of lowercase letters, digits, dots,
-# hyphens and underscores, not admin, with one of the roles the form offers.
+# hyphens and underscores, not admin. Its roles: DEMO_ROLES, or the frontend
+# image's suggestion, or Site Administrator.
 DEMO_LINE=""
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
   if [[ ! "$DEMO_USER" =~ ^[a-z][a-z0-9._-]{1,31}$ || "$DEMO_USER" == admin ]]; then
     log "Not creating the demo login: \"$DEMO_USER\" isn't a username (lowercase letters, digits, . _ -), or is admin"
     DEMO_LINE="Demo login: not created; \"${DEMO_USER}\" isn't a username (lowercase letters, digits, . _ -)."
   else
-    case "$DEMO_ROLE" in
-      "Site Administrator"|Editor|Contributor|Reviewer|Member) ;;
-      *) log "The demo login's role \"$DEMO_ROLE\" isn't one of the roles offered; using Site Administrator"
-         DEMO_ROLE="Site Administrator" ;;
-    esac
-    log "Creating the demo login ${DEMO_USER} (${DEMO_ROLE})"
-    DEMO_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
-    if DEMO_USER="$DEMO_USER" DEMO_PASSWORD="$DEMO_PASSWORD" DEMO_ROLE="$DEMO_ROLE" \
-        compose run --rm --no-deps -e DEMO_USER -e DEMO_PASSWORD -e DEMO_ROLE -e ADDONS= \
-        -v "$APP_DIR/create_demo_user.py:/app/scripts/create_demo_user.py:ro" \
-        backend run /app/scripts/create_demo_user.py; then
-      DEMO_LINE="Demo login: ${DEMO_USER} / ${DEMO_PASSWORD} (${DEMO_ROLE})"
+    roles="${DEMO_ROLES}"
+    [[ -n "${roles// /}" ]] || roles="${IMAGE_DEMO_ROLES}"
+    [[ -n "${roles// /}" ]] || roles="Site Administrator"
+    log "Creating the demo login ${DEMO_USER} (${roles})"
+    # Its password: the one entered when deploying, if it has at least 12
+    # characters, or a generated one.
+    DEMO_PASSWORD_SHOWN="" DEMO_PASSWORD_NOTE=""
+    if [[ -n "$DEMO_PASSWORD" ]] && (( ${#DEMO_PASSWORD} < 12 )); then
+      log "The demo login password given is shorter than 12 characters; generating one instead"
+      DEMO_PASSWORD_NOTE=" The password entered was shorter than 12 characters, so this one was generated instead."
+      DEMO_PASSWORD=""
+    fi
+    if [[ -n "$DEMO_PASSWORD" ]]; then
+      DEMO_PASSWORD_SHOWN="(the password you entered when deploying)"
     else
+      DEMO_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+      DEMO_PASSWORD_SHOWN="$DEMO_PASSWORD"
+    fi
+    if demo_out=$(DEMO_USER="$DEMO_USER" DEMO_PASSWORD="$DEMO_PASSWORD" DEMO_ROLES="$roles" \
+        compose run --rm --no-deps -e DEMO_USER -e DEMO_PASSWORD -e DEMO_ROLES -e ADDONS= \
+        -v "$APP_DIR/create_demo_user.py:/app/scripts/create_demo_user.py:ro" \
+        backend run /app/scripts/create_demo_user.py 2>&1); then
+      printf '%s\n' "$demo_out" | grep -v '^DEMO_ROLES_GIVEN='
+      given=$(printf '%s\n' "$demo_out" | sed -n 's/^DEMO_ROLES_GIVEN=//p' | tail -n 1)
+      DEMO_LINE="Demo login: ${DEMO_USER} / ${DEMO_PASSWORD_SHOWN} (${given:-$roles})${DEMO_PASSWORD_NOTE}"
+    else
+      printf '%s\n' "$demo_out"
       log "Creating the demo login failed (see above); add it in Site Setup > Users"
       DEMO_LINE="Demo login: creating ${DEMO_USER} failed; add it in Site Setup > Users. The reason is in /var/log/plone-in-a-box.log."
     fi

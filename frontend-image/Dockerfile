@@ -9,8 +9,10 @@
 #   BACKEND_ADDONS  Python packages the backend needs for these add-ons, with
 #                   exact versions; setup adds them to ADDONS and activates them
 #   SITE_BEHAVIORS  behaviors setup enables on the Plone Site type
+#   DEMO_ROLES      the roles a demo login needs to try the add-ons, separated
+#                   by commas; setup gives them when DEMO_ROLES isn't set
 #
-# The last two only become labels, which setup reads after pulling the image.
+# The last three only become labels, which setup reads after pulling the image.
 ARG VOLTO_VERSION=19
 FROM plone/frontend-builder:${VOLTO_VERSION} AS builder
 ARG PACKAGES
@@ -36,7 +38,9 @@ EOT
 FROM plone/frontend-prod-config:${VOLTO_VERSION}
 ARG BACKEND_ADDONS=""
 ARG SITE_BEHAVIORS=""
+ARG DEMO_ROLES=""
 LABEL org.plone-in-a-box.backend-addons="${BACKEND_ADDONS}" \
-      org.plone-in-a-box.site-behaviors="${SITE_BEHAVIORS}"
+      org.plone-in-a-box.site-behaviors="${SITE_BEHAVIORS}" \
+      org.plone-in-a-box.demo-roles="${DEMO_ROLES}"
 COPY --from=builder /app/ /app/
 RUN corepack install

@@ -52,7 +52,7 @@ locations are in Germany and Finland. All four offer automatic server backups fo
    * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
    * **Frontend image**, for example `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` for Volto Light Theme
      (see [Themes and frontend images](#themes-and-frontend-images)).
-   * **Demo login** and its role: an extra login, for example `demo`, for people you let try the site (see
+   * **Demo login**, its password and its roles: an extra login, for example `demo`, for people you let try the site (see
      [Demo login](#demo-login)).
    * **Automatic updates**: `yes` (the default) installs Plone, Volto and PostgreSQL patch releases every week; see
      [Updates](#updates).
@@ -173,7 +173,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # site_timezone     = "America/Chicago"
 # addons            = "collective.easyform"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
-# demo_user         = "demo"   # demo_role = "Editor"; Site Administrator by default
+# demo_user         = "demo"   # demo_roles = "Editor"; by default the image's suggestion, or Site Administrator
 # auto_update       = false  # weekly patch releases are on by default
 # notify_url        = "https://ntfy.sh/a-long-random-topic"
 ```
@@ -208,7 +208,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.13/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.14/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -274,7 +274,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.13/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.14/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -426,7 +426,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.13/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.14/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -434,7 +434,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.13/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.14/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,
@@ -493,7 +493,7 @@ the `frontend_image` Terraform variable). Plone in a Box publishes ready-made im
 | Frontend image | What you get |
 | --- | --- |
 | `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` | [Volto Light Theme](https://github.com/kitconcept/volto-light-theme) 8.1.4 on Volto 19 |
-| `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | [Juizi Dashboard](https://pypi.org/project/juizi.dashboard/) 1.0.0b2 (beta) on Volto 19: an activity record and dashboard for site administrators, in Site Setup → Activity |
+| `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard` | [Juizi Dashboard](https://pypi.org/project/juizi.dashboard/) 1.0.0b3 (beta) on Volto 19: an activity record and dashboard for site administrators, in Site Setup → Activity. A demo login gets Editor and Site Activity Viewer |
 
 A ready-made image brings its backend half: setup installs and activates the matching backend add-on (for Volto Light
 Theme, `kitconcept.voltolighttheme`) and turns on its site settings. Edit the home page to find them: the logo,
@@ -526,20 +526,31 @@ behaviors under Site Setup → Content Types → Plone Site → Behaviors.
 
 The **Demo login** setting creates a second login on the site, for people you let try it: a client looking at a
 draft site, or someone trying an add-on. Give it a username, for example `demo` (the `DEMO_USER` line in
-`src/user-data.sh`, the `DemoUser` parameter, or the `demo_user` Terraform variable), and a role: **Site
-Administrator** (the default), **Editor**, **Contributor**, **Reviewer** or **Member** (`DEMO_ROLE`, `DemoRole`,
-`demo_role`).
+`src/user-data.sh`, the `DemoUser` parameter, or the `demo_user` Terraform variable).
 
-Setup creates it with a generated password and saves it in `/root/plone-credentials.txt`, next to the admin
-password:
+Its roles (`DEMO_ROLES`, `DemoRoles`, `demo_roles`) are one or more role names separated by commas, for example
+`Editor` or `Editor, Reviewer`: **Site Administrator**, **Editor**, **Contributor**, **Reviewer**, **Member**, or a
+role an add-on adds. Left empty, it gets the roles the frontend image suggests (its
+[`demo-roles` label](../frontend-image/README.md#how-setup-uses-an-image), for example Editor and Site Activity Viewer
+for Juizi Dashboard), or Site Administrator. A role the site doesn't have, such as an add-on's that failed to
+install, is skipped, and Manager is never given. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
+another role than Site Administrator.)
+
+Its password (`DEMO_PASSWORD`, `DemoPassword`, `demo_password`) is optional: enter one of at least 12 characters
+to choose it, or leave it empty and setup generates one and saves it in `/root/plone-credentials.txt`, next to the
+admin password:
 
 ```
-Demo login: demo / 7Gq2v8xRmT4pLwZs9KcN (Site Administrator)
+Demo login: demo / 7Gq2v8xRmT4pLwZs9KcN (Editor, Site Activity Viewer)
 ```
 
-Share that username and password; whoever has them can do anything the role allows. A Site Administrator can edit
+A password you chose isn't saved on the server; that line then says `(the password you entered when deploying)`.
+To read the file, open your provider's browser console and run `sudo cat /root/plone-credentials.txt`. Or log in as
+`admin` and set the demo login's password in **Site Setup → Users**.
+
+Share that username and password; whoever has them can do anything its roles allow. A Site Administrator can edit
 and delete all content, change most site settings and manage the other users except `admin`. The demo login is an
-ordinary Plone user: change its password, its role, or remove it in **Site Setup → Users**. Setup creates it only
+ordinary Plone user: change its password, its roles, or remove it in **Site Setup → Users**. Setup creates it only
 once, when the server is created; to add one later, add a user there.
 
 Add-on authors can give their README a button that sets up a server with their add-on and a demo login; see
