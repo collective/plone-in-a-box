@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# OBSOLETE: this copy of the Plone in a Box StackScript is no longer maintained
-# and will be removed. Use the Plone in a Box StackScript 931893 by
-# nguyen-plone instead: https://cloud.linode.com/stackscripts/931893
+# OBSOLETE: this copy of the Plone in a Box StackScript is no longer maintained.
+# Use the Plone in a Box StackScript 931893 by nguyen-plone instead:
+# https://cloud.linode.com/stackscripts/931893
 #
-# Until then, this script sets up your server with the latest Plone in a Box
+# Linode doesn't remove public StackScripts, so this one stays. It sets up your server with the latest Plone in a Box
 # release, exactly as 931893 does: it downloads that release's provisioning
 # script and runs it with the settings from this form.
 #

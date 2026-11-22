@@ -94,7 +94,7 @@ when a server is created, so it doesn't need updating at each release.
    `Plone in a Box: Juizi Dashboard`, choose **Ubuntu 26.04 LTS** and **Ubuntu 24.04 LTS** as Target Images, paste
    the script, and save.
 3. Deploy a Linode from it once, to check it works. Then **⋯ → Make StackScript Public**. **This can't be undone:**
-   public StackScripts can't be deleted or made private again, only removed by Linode support.
+   public StackScripts can't be deleted or made private again, not even by Linode support.
 4. The button links to `https://cloud.linode.com/stackscripts/<its number>`; there, **Deploy New Linode** opens the
    form with the add-on filled in.
 

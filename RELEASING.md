@@ -219,13 +219,16 @@ By hand instead:
 4. Save, then confirm **Last Revision** shows today's date. (Community StackScripts leaves out your own
    account's StackScripts, so check it there from another account.)
 
-An older public copy, 692002 owned by **tknguyen2**, is waiting for Linode support to remove it. It runs
+An older public copy, 692002 owned by **tknguyen2**, stays listed: Linode support confirmed (ticket 27858783, November
+2026) that public StackScripts are never removed, since people may rely on them. Its label says
+`[DEPRECATED] Plone in a Box: use 931893`, and its description points to 931893. It runs
 [`scripts/linode-obsolete-stackscript.sh`](scripts/linode-obsolete-stackscript.sh), which says it's obsolete (in the
 setup log and the login message), points to 931893, and sets up the latest release, so it doesn't need updating at
 each release. Its form fields are those of 2.15; if a release adds a field, copy the new `# <UDF` lines into the
 script and paste it into 692002 again.
 
-Public StackScripts can't be deleted or made private by their owner; only Linode support can remove one.
+Public StackScripts can't be deleted or made private, not even by Linode support; only their label, description and
+script can change.
 
 ### Per-add-on StackScripts
 

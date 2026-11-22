@@ -8,9 +8,10 @@
 
 ## Retire the duplicate Linode StackScript
 
-- [ ] Ask Linode support (from the tknguyen2 account) to remove the public StackScript 692002, a duplicate of
-  nguyen-plone's 931893. Until then it runs scripts/linode-obsolete-stackscript.sh, which sets up the latest
-  release; once it's gone, drop it from step 3 of RELEASING.md and delete that script.
+- [x] Asked Linode support (ticket 27858783) to remove the public StackScript 692002, a duplicate of
+  nguyen-plone's 931893. They don't remove public StackScripts, so it's labeled
+  `[DEPRECATED] Plone in a Box: use 931893` instead, and keeps running scripts/linode-obsolete-stackscript.sh,
+  which sets up the latest release (see step 3 of RELEASING.md).
 
 ## Keep the Plone images up to date
 
