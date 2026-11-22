@@ -188,7 +188,9 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
-`src/aws/main.tf`. The account needs a default VPC, which new AWS accounts have.
+`src/aws/main.tf`. The server downloads its setup script from the Plone in a Box release in `release` (the current
+one by default), so edits to `src/StackScript` in your copy aren't used. To try changes, push them to a branch and
+set `release` to it (in a fork, also change the GitHub address in `src/aws/main.tf`). The account needs a default VPC, which new AWS accounts have.
 
 Type `yes` to confirm. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server then provisions
 itself. Open the `site_url` in your browser to watch the setup progress page, which turns into your site when it's
@@ -730,7 +732,7 @@ need it.
 | An add-on isn't listed in **Site Setup → Add-ons** | Read `/root/plone-credentials.txt` and `grep add-ons /var/log/plone-in-a-box.log`: setup leaves the add-ons out if pip can't install them. Packages without an install profile don't appear there, since there's nothing to activate. See [Add-ons](#add-ons). |
 | Linode: "A UDF is missing the required 'name' attribute" | The script was modified with a `<UDF>` tag that has no `name`. Use the current `src/StackScript`. |
 
-Not listed here, or still stuck? Ask in the **#plone-in-a-box** channel on [the Plone Discord](https://discord.gg/jRrsnYkNvS), or
+Not listed here, or still stuck? Ask in the **[#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082)** channel on [the Plone Discord](https://discord.gg/jRrsnYkNvS), or
 [open an issue](https://github.com/tkimnguyen/plone-in-a-box/issues).
 
 The [2020 Plone Conference guide](archive/) describes the original Plone 5.2 version and is kept for reference.

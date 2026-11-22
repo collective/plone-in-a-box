@@ -96,14 +96,16 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 
 1. In `CHANGES.md`, replace `(unreleased)` with today's date, and add a few plain sentences for site owners above
    the list of changes; they become the Discord notice ([below](#one-time-setup-of-the-discord-notice)). If `src/StackScript` changed, set the new version in
-   `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, and
+   `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, the
+   `release` variable's `default` in `src/aws/main.tf`, and
    the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
    URL), so pasted launchers and the Launch Stack button download it, and run `python3 scripts/catalog.py pages` so the
    Try It pages in `docs/try/` name it too. CI checks that they all match. Commit to `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes. End the notes with
-   the invitation to the Discord channel: `Questions or ideas? Join #plone-in-a-box on the
-   [Plone Discord](https://discord.gg/jRrsnYkNvS).` (The invite is set never to expire; Discord's default is 7
+   the invitation to the Discord channel: `Questions or ideas? Join [#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082) on the
+   [Plone Discord](https://discord.gg/jRrsnYkNvS).` The channel name opens the channel for people already in the Plone
+   Discord, and "Plone Discord" is the invite that brings newcomers in. (The invite is set never to expire; Discord's default is 7
    days, so a replacement must be set to never expire too.)
 
 
