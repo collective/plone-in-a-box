@@ -219,7 +219,7 @@ By hand instead:
 An older public copy, 692002 owned by **tknguyen2**, is waiting for Linode support to remove it. It runs
 [`scripts/linode-obsolete-stackscript.sh`](scripts/linode-obsolete-stackscript.sh), which says it's obsolete (in the
 setup log and the login message), points to 931893, and sets up the latest release, so it doesn't need updating at
-each release. Its form fields are those of 2.14; if a release adds a field, copy the new `# <UDF` lines into the
+each release. Its form fields are those of 2.15; if a release adds a field, copy the new `# <UDF` lines into the
 script and paste it into 692002 again.
 
 Public StackScripts can't be deleted or made private by their owner; only Linode support can remove one.

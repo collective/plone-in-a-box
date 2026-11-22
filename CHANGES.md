@@ -1,5 +1,11 @@
-2.15 (unreleased)
+2.15 (2026-11-22)
 -----------------
+
+Your site can now send email (password resets, forms and the weekly update
+reports) through an email relay service such as SMTP2GO or Brevo: fill in
+its settings when you create the server, and setup sends you a test email.
+The setup guide compares the services. And add-on authors can now offer a
+"Try It" page for their add-on with a single pull request.
 
 - Releasing: .github/workflows/publish-template.yml uploads the Launch Stack
   template to S3 when a release is published (signing in to AWS with
