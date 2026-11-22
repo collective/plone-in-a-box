@@ -1,0 +1,14 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublishLaunchStackTemplate",
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": [
+        "arn:aws:s3:::plone-in-a-box-templates/latest/cloudformation.yaml",
+        "arn:aws:s3:::plone-in-a-box-templates/*/cloudformation.yaml"
+      ]
+    }
+  ]
+}

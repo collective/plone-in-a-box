@@ -1,3 +1,12 @@
+2.15 (unreleased)
+-----------------
+
+- Releasing: .github/workflows/publish-template.yml uploads the Launch Stack
+  template to S3 when a release is published (signing in to AWS with
+  GitHub's OpenID Connect, no stored keys), and
+  scripts/update-public-stackscripts.sh updates the public Linode
+  StackScripts (931893, 2318969, 692002) from a release's tag.
+
 2.14 (2026-11-22)
 -----------------
 

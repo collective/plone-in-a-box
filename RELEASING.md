@@ -98,12 +98,37 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.
 
 
-3. If `src/aws/cloudformation.yaml` changed (including its `Release` default), publish it for the **Launch Stack**
-   button, which opens `https://plone-in-a-box-templates.s3.us-east-1.amazonaws.com/latest/cloudformation.yaml`. In
-   the AWS console (Plone Foundation account), open **S3 → plone-in-a-box-templates**, and upload
-   `src/aws/cloudformation.yaml` from `main` twice: into the folder `latest/`, replacing the file there, and into a
-   new folder named after the version (for example `2.6/`), to keep a copy of each release. Then click the button
-   in the README and check that the form shows the new version's defaults.
+3. Publishing the release also publishes `src/aws/cloudformation.yaml` for the **Launch Stack** button, which opens
+   `https://plone-in-a-box-templates.s3.us-east-1.amazonaws.com/latest/cloudformation.yaml`:
+   `.github/workflows/publish-template.yml` uploads it to `latest/` and to a folder named after the version (for
+   example `2.14/`), and checks both. Approve its `aws-templates` deployment in the release's Actions run if asked.
+   Then click the button in the README and check that the form shows the new version's defaults. To publish a
+   release's template again: **Actions → Publish template → Run workflow**.
+
+   By hand, if the workflow can't run: in the AWS console (Plone Foundation account), **S3 →
+   plone-in-a-box-templates**, upload the release's `src/aws/cloudformation.yaml` into `latest/` and into
+   `<version>/`.
+
+### One-time setup of the template upload
+
+The workflow signs in to AWS with GitHub's OpenID Connect token, so no AWS keys are stored. In the AWS console (Plone
+Foundation account):
+
+1. **IAM → Identity providers → Add provider**, if `token.actions.githubusercontent.com` isn't listed: **OpenID
+   Connect**, provider URL `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com`.
+2. **IAM → Roles → Create role → Custom trust policy**: paste
+   [`scripts/aws-templates-role-trust.json`](scripts/aws-templates-role-trust.json), replacing `ACCOUNT_ID` with the
+   account's 12-digit number (top right menu). It trusts only this repository's jobs in the `aws-templates`
+   environment. **Next**, skip the permissions list, **Next**, name it `piab-publish-templates`, **Create role**.
+3. Open the role → **Add permissions → Create inline policy → JSON**: paste
+   [`scripts/aws-templates-role-policy.json`](scripts/aws-templates-role-policy.json) (it can only write
+   `cloudformation.yaml` files in the bucket), name it `publish-templates`, **Create policy**. Copy the role's
+   **ARN**.
+4. On GitHub, in tkimnguyen/plone-in-a-box: **Settings → Environments → New environment** `aws-templates`; under
+   **Deployment branches and tags**, choose **Selected branches and tags** and add the tag rule `[0-9]*` and the
+   branch `main`. Optionally add yourself as a required reviewer. Then **Settings → Secrets and variables → Actions
+   → Variables → New repository variable** `AWS_TEMPLATE_ROLE_ARN`, with the role's ARN.
+5. To check it: **Actions → Publish template → Run workflow** publishes the latest release's template again.
 
 ### One-time setup of the template bucket
 
@@ -145,7 +170,26 @@ Discord and create a new one.
 ## 3. Update the public Linode StackScript
 
 The public **Plone in a Box** StackScript is [931893](https://cloud.linode.com/stackscripts/931893), owned by
-**nguyen-plone**; the README and setup guide link to it. To update it:
+**nguyen-plone**; the README and setup guide link to it. `scripts/update-public-stackscripts.sh` updates it, the
+Juizi Dashboard one (2318969, also nguyen-plone's) and the obsolete copy (692002, tknguyen2's) through Linode's API,
+each made from the release's tag:
+
+```
+scripts/update-public-stackscripts.sh 2.14            # what would change, and the form fields
+scripts/update-public-stackscripts.sh 2.14 --apply    # update them, with the note "2.14: Plone in a Box 2.14"
+```
+
+Add `--note "demo login password and roles"` for a more useful revision note. It checks each StackScript's owner and
+that it's public before changing it, and that Linode has exactly the new script afterwards. It doesn't change
+**Target Images**: when a release supports a new Ubuntu version, add it in Cloud Manager.
+
+One-time setup: log in to Cloud Manager as **nguyen-plone**, **Profile → API Tokens → Create a Personal Access
+Token**: label `piab-stackscripts`, expiry 1 month (or longer), **StackScripts Read/Write** and every other scope
+**No Access**. Store it with `security add-generic-password -a "$USER" -s piab-linode-nguyen-plone -w`. Do the same
+as **tknguyen2**, stored as `piab-linode-tknguyen2`. These StackScripts run as root on other people's servers, so
+keep the tokens only in the Keychain, never in GitHub, and revoke them in Cloud Manager if in doubt.
+
+By hand instead:
 
 1. Log in to Cloud Manager as **nguyen-plone**.
 2. **StackScripts → Account StackScripts → ⋯ → Edit** on **Plone in a Box** (not the private
