@@ -1,18 +1,70 @@
 # "Try It" buttons for add-ons
 
-An add-on's README can say **Try It in Plone in a Box**: a link that opens a cloud provider's form with everything
-filled in, so someone can have a real Plone 6 site with the add-on, and a demo login to share, in about 10 minutes.
-They use their own cloud account and pay for the server (a few cents an hour), and delete it when they're done.
+An add-on's README can say **Try It in Plone in a Box**: a button that leads to a page with everything filled in, so
+someone can have a real Plone 6 site with the add-on, and a demo login to share, in about 10 minutes. They use their
+own cloud account and pay for the server (a few cents an hour), and delete it when they're done.
 
-This page is for add-on authors. It needs Plone in a Box 2.13 or later, for the demo login; 2.14 or later for its
-roles from the frontend image, and for choosing its password.
+This page is for add-on authors.
 
-## What you need first
+## The easy way: add your add-on to the catalog
+
+1. **Open a pull request** to [`collective/plone-in-a-box`](https://github.com/collective/plone-in-a-box) that adds
+   one entry to [`addons.yml`](../addons.yml). For an add-on with a Volto part:
+
+   ```yaml
+   - id: my-addon
+     name: My Add-on
+     description: a short description, finishing "Your own Plone 6 site with My Add-on, ..."
+     url: https://github.com/me/my-addon
+     volto: 19
+     packages: volto-my-addon@1.2.0
+     addons: volto-my-addon
+     backend_addons: my.addon==1.2.0
+     demo_roles: Editor
+     try_it: yes
+     try_hint: open My Add-on in the toolbar and try it on a page
+   ```
+
+   A backend-only add-on needs no image: leave out `volto`, `packages` and `addons`, and setup installs
+   `backend_addons` on the site. The comments at the top of `addons.yml` explain every key.
+2. **When it's merged**, Plone in a Box builds your add-on's frontend image (`ghcr.io/collective/plone-in-a-box-frontend:19-my-addon`,
+   rebuilt every week), and publishes its Try It page at
+   `https://collective.github.io/plone-in-a-box/try/my-addon/`, with:
+   * a Launch Stack link for AWS, with your add-on and the demo login filled in;
+   * the Linode steps, and the lines to paste on DigitalOcean and Hetzner, for the current release;
+   * what to do after logging in as `demo` (your `try_hint`), what its roles allow, and how to find a forgotten
+     password.
+3. **Add the button to your README.** The bottom of your Try It page has it, ready to copy:
+
+   ```markdown
+   [![Try It in Plone in a Box](https://img.shields.io/badge/Try%20It-Plone%20in%20a%20Box-0083be)](https://collective.github.io/plone-in-a-box/try/my-addon/)
+   ```
+
+That's all. The page follows Plone in a Box's releases by itself. To release a new version of your add-on, open
+another pull request that changes the versions in your entry.
+
+**Choose the demo login's roles carefully:** the narrowest ones that show off the add-on, for example **Editor**,
+or a role your add-on defines for looking without administering. People who get the demo login can do anything those
+roles allow on that site. Without `demo_roles`, it's a Site Administrator. Manager is never allowed.
+
+CI checks each entry (exact versions, allowed roles) and builds the image before anyone merges it, and
+`python3 scripts/catalog.py check` does the same on your computer.
+
+**On Linode**, the page links to the main Plone in a Box StackScript and says which values to paste into it, since
+Linode can't fill in a form from a link. For one click instead, make a public StackScript for your add-on (see
+[Linode](#linode) below), and add `linode_stackscript: <its number>` to your entry.
+
+## Doing it yourself
+
+You can also make the buttons yourself, without the catalog: for example, for an image you build in your own fork
+([Building your own](../frontend-image/README.md#building-your-own)), or to put the steps in your README.
+
+### What you need first
 
 * **An add-on with a Volto part:** a public frontend image with it built in, whose labels name its backend add-on.
   Plone in a Box can build and publish one for you; see
-  [Building your own](../frontend-image/README.md#building-your-own) (or ask for a ready-made one in
-  `collective/plone-in-a-box`).
+  [Building your own](../frontend-image/README.md#building-your-own) (or add it to
+  [the catalog](#the-easy-way-add-your-add-on-to-the-catalog)).
 * **A backend-only add-on:** nothing; the buttons fill in the **Backend add-ons** setting with its package name and
   version, for example `collective.easyform==4.2.0`.
 
@@ -22,7 +74,7 @@ allow on that site. For an add-on with a frontend image, set them once in the im
 ([Frontend images](../frontend-image/README.md#how-setup-uses-an-image)): every button then gets them without saying
 so. Otherwise the demo login is a Site Administrator unless the button sets its roles.
 
-## Linode
+### Linode
 
 Linode's Cloud Manager can't fill in a StackScript's fields from a link, so each add-on gets its own small public
 StackScript, with the add-on's settings as the form's defaults. It downloads the latest Plone in a Box release
@@ -46,7 +98,7 @@ when a server is created, so it doesn't need updating at each release.
 4. The button links to `https://cloud.linode.com/stackscripts/<its number>`; there, **Deploy New Linode** opens the
    form with the add-on filled in.
 
-## Amazon AWS
+### Amazon AWS
 
 The Launch Stack link can fill in the template's parameters: add `&param_<Name>=<value>` to it, URL-encoded.
 
@@ -58,7 +110,7 @@ The parameters are `FrontendImage`, `Addons`, `DemoUser` and `DemoRoles` (for ex
 by default, the image's suggestion or Site Administrator). The person still sets the admin password and the server size, then clicks
 **Create stack**.
 
-## DigitalOcean and Hetzner
+### DigitalOcean and Hetzner
 
 Neither can fill in a startup script from a link, so the button links to a section of your README with these lines,
 ready to copy into **Startup scripts** (DigitalOcean) or **Cloud config** (Hetzner):
@@ -74,7 +126,7 @@ curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.
 Add `export DEMO_PASSWORD='...'` to choose the demo login's password (at least 12 characters), `export DEMO_ROLES='Editor'` to set the roles here, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
 the steps are in the [setup guide](setup-guide.md#option-c-digitalocean).
 
-## The buttons
+### The buttons
 
 Two buttons at the top of a **Try It** section in the add-on's README: AWS's own Launch Stack image, and a matching
 badge for Linode (Linode has no official button). Replace the image name and the StackScript number with yours:
@@ -94,7 +146,7 @@ Put the rest in a folded `<details>` section: each provider's steps, the Digital
 button), and how to find a generated demo password. [Juizi Dashboard's README](https://github.com/tkimnguyen/juizi.dashboard#try-it)
 is a complete example, with the public StackScript [2318969](https://cloud.linode.com/stackscripts/2318969).
 
-## After the server is set up
+### After the server is set up
 
 Whoever creates the server can choose the demo login's password in the form (**Demo login password**, or
 `DemoPassword` on AWS, which the link leaves for them to fill in), so they know it without reading a file. Never

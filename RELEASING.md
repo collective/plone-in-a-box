@@ -94,7 +94,8 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
    the list of changes; they become the Discord notice ([below](#one-time-setup-of-the-discord-notice)). If `src/StackScript` changed, set the new version in
    `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, and
    the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
-   URL), so pasted launchers and the Launch Stack button download it. CI checks that they all match. Commit to `main` (or include it in the last PR).
+   URL), so pasted launchers and the Launch Stack button download it, and run `python3 scripts/catalog.py pages` so the
+   Try It pages in `docs/try/` name it too. CI checks that they all match. Commit to `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes.
 

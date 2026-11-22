@@ -1,0 +1,150 @@
+<!doctype html>
+<!-- Written by scripts/catalog.py from addons.yml; don't edit by hand. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Try Juizi Dashboard</title>
+<meta name="description" content="Your own Plone 6 site with Juizi Dashboard in about 10 minutes, on your own cloud server.">
+<style>
+:root {
+  --bg: #ffffff; --fg: #1d2329; --muted: #5a6570; --line: #d9dee3; --panel: #f4f6f8;
+  --link: #0068a8; --accent: #0083be; --code: #eef1f4;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
+    --link: #6cc4f0; --accent: #3aa9dc; --code: #222a31;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
+  --link: #6cc4f0; --accent: #3aa9dc; --code: #222a31;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 46rem; margin: 0 auto; padding: 2rem 16px 4rem; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+a { color: var(--link); }
+p, ol, ul { margin: .6rem 0; }
+li { margin: .3rem 0; }
+.lead { font-size: 1.1rem; color: var(--muted); }
+.buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.4rem 0; }
+.button { display: inline-block; padding: .65rem 1.1rem; border-radius: 6px; background: var(--accent);
+  color: #fff; font-weight: 600; text-decoration: none; }
+.button:hover { filter: brightness(1.1); }
+.steps { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .6rem 1.2rem .6rem 2.4rem; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+code { background: var(--code); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: var(--code); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0; }
+pre code { background: none; padding: 0; overflow-wrap: normal; }
+.copy { position: relative; margin: .6rem 0; }
+.copy button { position: absolute; top: .4rem; right: .4rem; font: inherit; font-size: .8rem; padding: .2rem .6rem;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); cursor: pointer; }
+table { border-collapse: collapse; width: 100%; margin: .6rem 0; }
+th, td { text-align: left; vertical-align: top; padding: .45rem .5rem; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; width: 40%; }
+.note { color: var(--muted); font-size: .95rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Try Juizi Dashboard</h1>
+<p class="lead">Your own Plone 6 site with <a href="https://github.com/tkimnguyen/juizi.dashboard">Juizi Dashboard</a>, the Juizi activity dashboard, in about
+10 minutes.</p>
+<p>It runs on a cloud server in your own account, set up by Plone in a Box. A small server costs a few cents an
+hour, paid to the cloud provider; delete it when you're done, which deletes the site too.</p>
+
+<div class="buttons">
+<a class="button" href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=juizi-dashboard-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-frontend%3A19-juizi-dashboard">Launch on AWS</a>
+<a class="button" href="#linode">Deploy on Linode</a>
+<a class="button" href="#digitalocean-and-hetzner">DigitalOcean or Hetzner</a>
+</div>
+
+<ol class="steps">
+<li>Choose a provider below and create the server. You fill in two passwords: one for <code>admin</code>, and one
+for the <code>demo</code> login you'll share.</li>
+<li>Open the server's address in a browser. Setup takes about 10 minutes, and the page shows how far it got.</li>
+<li>Log in as <code>demo</code> with the demo password, then open Activity in the user menu, make a change to a page, and watch it appear.</li>
+</ol>
+
+<p>The <code>demo</code> login has the roles <strong>Editor, Site Activity Viewer</strong>: it can do what those roles allow
+on the site, and nothing more. Share it with whoever you want to try Juizi Dashboard.</p>
+<p class="note">The site has no domain, so it uses plain HTTP and passwords cross the network unencrypted. Choose
+passwords you don't use anywhere else.</p>
+
+<h2 id="aws">Amazon AWS</h2>
+<ol>
+<li>Sign in to the <a href="https://console.aws.amazon.com/">AWS console</a>, then click
+<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=juizi-dashboard-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-frontend%3A19-juizi-dashboard">Launch on AWS</a>: a form with Juizi Dashboard and the demo login filled in.</li>
+<li>Fill in <strong>AdminPassword</strong> and <strong>DemoPassword</strong> (at least 12 characters each), and click
+<strong>Create stack</strong>.</li>
+<li>When the stack says <strong>CREATE_COMPLETE</strong>, open the <strong>SiteURL</strong> on its
+<strong>Outputs</strong> tab.</li>
+</ol>
+<p class="note">The default <code>t3.small</code> server costs more than the other providers' 1 GB ones. To delete it,
+delete the stack.</p>
+
+<h2 id="linode">Linode (Akamai)</h2>
+<p>The <a href="https://cloud.linode.com/stackscripts/2318969">Juizi Dashboard StackScript</a> has Juizi Dashboard and the demo login filled in.</p>
+<ol>
+<li>Log in to <a href="https://cloud.linode.com">Cloud Manager</a>, open the <a href="https://cloud.linode.com/stackscripts/2318969">StackScript</a>,
+and click <strong>Deploy New Linode</strong>.</li>
+<li>Fill in the passwords:
+<table><tr><th>Plone admin password</th><td>a password of at least 12 characters, for you</td></tr>
+<tr><th>Demo login password</th><td>at least 12 characters, for the people you let try it</td></tr></table></li>
+<li>Choose <strong>Ubuntu 26.04 LTS</strong>, a region, a 1 GB <strong>Nanode</strong> and <strong>No firewall</strong>,
+set a root password, and click <strong>Create Linode</strong>.</li>
+</ol>
+<p class="note">Then open the Linode's IP address in a browser. To delete it: <strong>⋯ → Delete</strong>.</p>
+
+<h2 id="digitalocean-and-hetzner">DigitalOcean and Hetzner</h2>
+<p>Create an Ubuntu 26.04 server with 1 GB of memory or more, and paste these lines into <strong>Additional Options →
+Startup scripts</strong> (DigitalOcean) or <strong>Cloud config</strong> (Hetzner). Replace
+<code>CHANGE-ME</code> with an admin password and <code>CHANGE-ME-TOO</code> with a demo password, each at least 12
+characters:</p>
+<div class="copy"><pre><code>#!/bin/bash
+export ADMIN_PASSWORD=&#x27;CHANGE-ME&#x27;
+export FRONTEND_IMAGE=&#x27;ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard&#x27;
+export DEMO_USER=&#x27;demo&#x27;
+export DEMO_PASSWORD=&#x27;CHANGE-ME-TOO&#x27;
+curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.14/src/StackScript &amp;&amp; bash /root/plone-in-a-box.sh</code></pre></div>
+<p class="note">Then open the server's IP address in a browser. More detail:
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-c-digitalocean">DigitalOcean</a>,
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-d-hetzner">Hetzner</a>.</p>
+
+<h2 id="password">Forgot the demo password?</h2>
+<p>Log in as <code>admin</code>, open <strong>Site Setup → Users</strong>, click <code>demo</code> and set a new one.
+If you left it empty, setup made one up: open your provider's browser console (Linode's <strong>Launch LISH
+Console</strong>, DigitalOcean's <strong>Access → Launch Droplet Console</strong>, AWS's <strong>Connect → EC2 Instance
+Connect</strong>, Hetzner's <strong>&gt;_ Console</strong>) and run:</p>
+<div class="copy"><pre><code>sudo cat /root/plone-credentials.txt</code></pre></div>
+
+<h2 id="button">For Juizi Dashboard's README</h2>
+<p>A button that links here:</p>
+<div class="copy"><pre><code>[![Try It in Plone in a Box](https://img.shields.io/badge/Try%20It-Plone%20in%20a%20Box-0083be)](https://collective.github.io/plone-in-a-box/try/juizi-dashboard/)</code></pre></div>
+
+<footer>Set up by <a href="https://github.com/tkimnguyen/plone-in-a-box">Plone in a Box</a>, which installs Plone 6 on a cloud server of your own.
+Plone and the Plone logo are trademarks of the Plone Foundation.</footer>
+</main>
+<script>
+document.querySelectorAll('.copy').forEach(function (box) {
+  var button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Copy';
+  button.addEventListener('click', function () {
+    var text = box.querySelector('code').textContent;
+    var done = function () { button.textContent = 'Copied'; setTimeout(function () { button.textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done, function () {}); }
+  });
+  box.appendChild(button);
+});
+</script>
+</body>
+</html>

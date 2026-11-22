@@ -1,7 +1,7 @@
 name: Frontend images
 
-# Builds the ready-made frontend images from frontend-image/Dockerfile and
-# publishes them to ghcr.io/<owner>/plone-in-a-box-frontend: the real images
+# Builds the ready-made frontend images listed in addons.yml (the entries with
+# packages) from frontend-image/Dockerfile, and publishes them to ghcr.io/<owner>/plone-in-a-box-frontend: the real images
 # from collective/plone-in-a-box, test images from forks. Pull requests only
 # build. A failed build publishes nothing, so the previous image stays.
 # Afterwards, old builds are deleted (scripts/cleanup-frontend-images.py): each
@@ -10,9 +10,9 @@ name: Frontend images
 on:
   push:
     branches: [main]
-    paths: [frontend-image/**, .github/workflows/frontend-images.yml]
+    paths: [frontend-image/**, addons.yml, scripts/catalog.py, .github/workflows/frontend-images.yml]
   pull_request:
-    paths: [frontend-image/**, .github/workflows/frontend-images.yml]
+    paths: [frontend-image/**, addons.yml, scripts/catalog.py, .github/workflows/frontend-images.yml]
   schedule:
     # Weekly, to pick up Volto patch releases in the builder image.
     - cron: "17 4 * * 1"
@@ -28,34 +28,22 @@ permissions:
   packages: write
 
 jobs:
+  images:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: The images in addons.yml
+        id: list
+        run: echo "matrix=$(python3 scripts/catalog.py matrix)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: images
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # One entry per image. Pin exact versions, and keep the frontend and
-          # backend halves of an add-on at matching versions.
-          - variant: vlt
-            volto: "19"
-            description: Volto Light Theme
-            packages: "@kitconcept/volto-light-theme@8.1.4"
-            addons: "@kitconcept/volto-light-theme"
-            theme: "@kitconcept/volto-light-theme"
-            backend_addons: "kitconcept.voltolighttheme==8.1.4"
-            site_behaviors: "voltolighttheme.header voltolighttheme.theme voltolighttheme.footer"
-            demo_roles: ""
-          - variant: juizi-dashboard
-            volto: "19"
-            description: the Juizi activity dashboard
-            packages: "volto-juizi-dashboard@1.0.0-beta.3"
-            addons: "volto-juizi-dashboard"
-            theme: ""
-            backend_addons: "juizi.dashboard==1.0.0b3"
-            site_behaviors: ""
-            # Editors who can watch their changes on the dashboard, without
-            # being site administrators.
-            demo_roles: "Editor, Site Activity Viewer"
+      matrix: ${{ fromJSON(needs.images.outputs.matrix) }}
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/plone-in-a-box-frontend
       TAG: ${{ matrix.volto }}-${{ matrix.variant }}
