@@ -8,7 +8,7 @@ one package version in ghcr.io/<owner>/plone-in-a-box-frontend, tagged
 itself and its provenance attestation) that the tagged one points to.
 
 What it deletes:
-  - builds of an image in the workflow's list, beyond the newest KEEP_BUILDS
+  - builds of an image in addons.yml, beyond the newest KEEP_BUILDS
     (default 26, about six months of weekly builds); the newest build, the one
     with the plain <image> tag, is always kept;
   - builds of a test image (a name containing "test", not in the list) older
@@ -19,8 +19,8 @@ What it deletes:
 It never deletes untagged versions on their own, nor builds of images that
 are no longer in the list but aren't test images: servers may still use them.
 
-Environment: GITHUB_TOKEN (packages: write), OWNER, WORKFLOW (the workflow
-file, to read the list of images), DRY_RUN=1 to only report, and optionally
+Environment: GITHUB_TOKEN (packages: write), OWNER, CATALOG (addons.yml, the
+list of images), DRY_RUN=1 to only report, and optionally
 KEEP_BUILDS and TEST_DAYS. With VERSIONS_FILE (a JSON list of versions as the
 API returns them), it only reports what it would delete, for testing.
 """
@@ -57,16 +57,11 @@ def request(url, token=None, method="GET", accept="application/vnd.github+json")
         return json.loads(body) if body else None
 
 
-def images_in_workflow(path):
-    """The <volto>-<variant> names of the images the workflow builds."""
-    text = open(path, encoding="utf-8").read()
-    names = []
-    for entry in re.split(r"\n\s*- variant:", text)[1:]:
-        variant = entry.split("\n", 1)[0].strip().strip('"')
-        volto = re.search(r'^\s*volto:\s*"?([^"\n]+)"?', entry, re.M)
-        if volto:
-            names.append(f"{volto.group(1).strip()}-{variant}")
-    return names
+def images_in_catalog(path):
+    """The <volto>-<id> names of the images built from addons.yml."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import catalog
+    return [f"{e['volto']}-{e['id']}" for e in catalog.read(path) if catalog.has_image(e)]
 
 
 def owner_path(owner, token):
@@ -127,11 +122,11 @@ def plan(versions, images, keep_builds, test_days, now):
 
 def main():
     owner = os.environ["OWNER"]
-    images = images_in_workflow(os.environ.get("WORKFLOW", ".github/workflows/frontend-images.yml"))
+    images = images_in_catalog(os.environ.get("CATALOG", "addons.yml"))
     keep_builds = int(os.environ.get("KEEP_BUILDS") or 26)
     test_days = int(os.environ.get("TEST_DAYS") or 7)
     now = datetime.datetime.now(datetime.timezone.utc)
-    say(f"Images in the workflow: {', '.join(images)}; keeping {keep_builds} builds of each, "
+    say(f"Images in addons.yml: {', '.join(images)}; keeping {keep_builds} builds of each, "
         f"test images for {test_days} days")
 
     if os.environ.get("VERSIONS_FILE"):

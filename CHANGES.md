@@ -6,6 +6,14 @@
   GitHub's OpenID Connect, no stored keys), and
   scripts/update-public-stackscripts.sh updates the public Linode
   StackScripts (931893, 2318969, 692002) from a release's tag.
+- Add-on catalog and Try It pages: addons.yml lists the ready-made frontend
+  images (the image workflow builds from it) and the add-ons with a Try It
+  page. For each, scripts/catalog.py writes docs/try/<id>/, published at
+  https://collective.github.io/plone-in-a-box/try/<id>/: the AWS Launch
+  Stack link, the Linode steps, and the DigitalOcean and Hetzner lines for
+  the current release. An add-on author's whole job is one pull request
+  with an entry and one button in their README. CI checks the entries
+  (exact versions, never Manager) and that the pages are up to date.
 - Old frontend image builds are deleted after each image build
   (scripts/cleanup-frontend-images.py): each image keeps its newest 26
   builds, about six months, and test images go after 7 days.

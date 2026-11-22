@@ -2,8 +2,8 @@
 
 Volto add-ons and themes are built into the frontend image; the official `plone/plone-frontend` image can't load
 them at runtime. This folder builds frontend images: the official build with Volto add-ons added.
-[`.github/workflows/frontend-images.yml`](../.github/workflows/frontend-images.yml) builds one image per entry in
-its matrix and publishes it to `ghcr.io/<owner>/plone-in-a-box-frontend`: the ready-made images from
+[`.github/workflows/frontend-images.yml`](../.github/workflows/frontend-images.yml) builds one image per entry with
+`packages` in the add-on catalog, [`addons.yml`](../addons.yml), and publishes it to `ghcr.io/<owner>/plone-in-a-box-frontend`: the ready-made images from
 `collective/plone-in-a-box`, and your own images from your fork. Pull requests only build. The images are rebuilt
 every Monday, to pick up Volto patch releases.
 
@@ -30,41 +30,43 @@ You need a GitHub account; the build runs on GitHub, so nothing needs installing
 1. **Fork** [`collective/plone-in-a-box`](https://github.com/collective/plone-in-a-box) on GitHub.
 2. In your fork, open the **Actions** tab and click **I understand my workflows, go ahead and enable them**. Forks
    start with workflows turned off.
-3. Edit [`.github/workflows/frontend-images.yml`](../.github/workflows/frontend-images.yml) in your fork, and add an
-   entry under `matrix: include:`, or replace the `vlt` one. For example, the form block:
+3. Edit [`addons.yml`](../addons.yml) in your fork, and add an entry, or replace the `vlt` one. For example, the
+   form block:
 
    ```yaml
-             - variant: formblock
-               volto: "19"
-               description: the form block
-               packages: "volto-form-block@3.20.0"
-               addons: "volto-form-block"
-               theme: ""
-               backend_addons: "collective.volto.formsupport==3.3.3"
-               site_behaviors: ""
+   - id: formblock
+     name: Form block
+     description: the form block
+     url: https://github.com/collective/volto-form-block
+     volto: 19
+     packages: volto-form-block@3.20.0
+     addons: volto-form-block
+     backend_addons: collective.volto.formsupport==3.3.3
+     demo_roles: Editor
    ```
 
-   * `variant`: a short name, which becomes the tag (`:19-formblock`)
+   * `id`: a short name, which becomes the tag (`:19-formblock`)
    * `volto`: the Volto major version, which must match the site's Plone version: Volto 19 for Plone 6.2,
      Volto 18 for Plone 6.1
    * `packages`: npm packages to install, with exact versions (`name@1.2.3`), separated by spaces
    * `addons`: the Volto add-ons to load, in order; a theme add-on goes last
    * `theme`: the theme add-on, if any
-   * `backend_addons`: the Python packages the backend needs for these add-ons, at versions matching the frontend's;
-     setup installs and activates them
+   * `backend_addons`: the Python packages the backend needs for these add-ons, at versions matching the frontend's
+     (`name==1.2.3`); setup installs and activates them
    * `site_behaviors`: behaviors to enable on the Plone Site type, if the add-on's instructions ask for any
    * `demo_roles`: the roles a [demo login](../docs/setup-guide.md#demo-login) needs to try the add-ons, separated
      by commas, for example `Editor, Site Activity Viewer`. Empty: Site Administrator. Choose the narrowest roles
      that show the add-on off; they can include roles the add-on defines.
 
+   The comments at the top of `addons.yml` list every key. `python3 scripts/catalog.py check` checks the file.
    An add-on's README says which npm package, Python package and behaviors it needs.
 4. **Commit** to `main`. The workflow builds the image (about 5 minutes) and publishes it as
-   `ghcr.io/<your GitHub name>/plone-in-a-box-frontend:19-<variant>`. Watch it in the Actions tab; to build again
+   `ghcr.io/<your GitHub name>/plone-in-a-box-frontend:19-<id>`. Watch it in the Actions tab; to build again
    without a change, open **Frontend images** there and click **Run workflow**.
 5. **Check that the image is public**, so the server can download it: on your GitHub profile, open **Packages →
    plone-in-a-box-frontend**. If it says **Private**, open **Package settings**, and under **Danger Zone** click
    **Change visibility → Public**. This is needed only once; later builds keep the setting.
-6. Put `ghcr.io/<your GitHub name>/plone-in-a-box-frontend:19-<variant>` in the **Frontend image** setting when
+6. Put `ghcr.io/<your GitHub name>/plone-in-a-box-frontend:19-<id>` in the **Frontend image** setting when
    you create a server.
 
 If the build fails, the Actions log shows why; often a package name or version is wrong. A failed build publishes
@@ -88,7 +90,7 @@ docker buildx build --platform linux/amd64 --push \
   frontend-image
 ```
 
-The build arguments are the matrix fields above, in capitals; `THEME`, `SITE_BEHAVIORS` and `DEMO_ROLES` work the
+The build arguments are the `addons.yml` keys above, in capitals; `THEME`, `SITE_BEHAVIORS` and `DEMO_ROLES` work the
 same way.
 
 ## How setup uses an image

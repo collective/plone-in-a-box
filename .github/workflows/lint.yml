@@ -23,6 +23,9 @@ jobs:
             | grep -vE "plone-in-a-box/$release/src/(StackScript|add-updates\.sh)" || true)
           if [ -n "$bad" ]; then echo "Launchers in the docs download another release:"; echo "$bad"; exit 1; fi
 
+      - name: The add-on catalog, and the Try It pages made from it
+        run: python3 scripts/catalog.py check
+
       - name: The script fits in the Terraform user data
         run: |
           # src/*/main.tf embed src/StackScript compressed. EC2 allows 16384 bytes

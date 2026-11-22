@@ -1,0 +1,84 @@
+<!doctype html>
+<!-- Written by scripts/catalog.py from addons.yml; don't edit by hand. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Try a Plone add-on</title>
+<meta name="description" content="Try Plone add-ons on a Plone 6 site of your own, set up by Plone in a Box.">
+<style>
+:root {
+  --bg: #ffffff; --fg: #1d2329; --muted: #5a6570; --line: #d9dee3; --panel: #f4f6f8;
+  --link: #0068a8; --accent: #0083be; --code: #eef1f4;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
+    --link: #6cc4f0; --accent: #3aa9dc; --code: #222a31;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
+  --link: #6cc4f0; --accent: #3aa9dc; --code: #222a31;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 46rem; margin: 0 auto; padding: 2rem 16px 4rem; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+a { color: var(--link); }
+p, ol, ul { margin: .6rem 0; }
+li { margin: .3rem 0; }
+.lead { font-size: 1.1rem; color: var(--muted); }
+.buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.4rem 0; }
+.button { display: inline-block; padding: .65rem 1.1rem; border-radius: 6px; background: var(--accent);
+  color: #fff; font-weight: 600; text-decoration: none; }
+.button:hover { filter: brightness(1.1); }
+.steps { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .6rem 1.2rem .6rem 2.4rem; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+code { background: var(--code); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: var(--code); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0; }
+pre code { background: none; padding: 0; overflow-wrap: normal; }
+.copy { position: relative; margin: .6rem 0; }
+.copy button { position: absolute; top: .4rem; right: .4rem; font: inherit; font-size: .8rem; padding: .2rem .6rem;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); cursor: pointer; }
+table { border-collapse: collapse; width: 100%; margin: .6rem 0; }
+th, td { text-align: left; vertical-align: top; padding: .45rem .5rem; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; width: 40%; }
+.note { color: var(--muted); font-size: .95rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Try a Plone add-on</h1>
+<p class="lead">Your own Plone 6 site with one of these add-ons, and a demo login to share, in about 10 minutes, on
+a cloud server of your own.</p>
+<ul>
+<li><a href="juizi-dashboard/">Juizi Dashboard</a>: the Juizi activity dashboard</li>
+</ul>
+<p>Add-on authors: add yours with a pull request; see
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/try-it-buttons.md">Try It buttons</a>.</p>
+
+<footer>Set up by <a href="https://github.com/tkimnguyen/plone-in-a-box">Plone in a Box</a>, which installs Plone 6 on a cloud server of your own.
+Plone and the Plone logo are trademarks of the Plone Foundation.</footer>
+</main>
+<script>
+document.querySelectorAll('.copy').forEach(function (box) {
+  var button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Copy';
+  button.addEventListener('click', function () {
+    var text = box.querySelector('code').textContent;
+    var done = function () { button.textContent = 'Copied'; setTimeout(function () { button.textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done, function () {}); }
+  });
+  box.appendChild(button);
+});
+</script>
+</body>
+</html>

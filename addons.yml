@@ -1,0 +1,67 @@
+# Plone in a Box add-on catalog: the ready-made frontend images, and the add-ons
+# with a "Try It" page (docs/try/<id>/, at
+# https://collective.github.io/plone-in-a-box/try/<id>/).
+#
+# To add yours, open a pull request with one entry; see docs/try-it-buttons.md.
+# CI checks the entries, builds the image, and checks that the pages are up to
+# date (python3 scripts/catalog.py pages writes them).
+#
+# Each entry is "- id: ..." followed by "key: value" lines, one value per line
+# (quote values that contain ": " or start with a quote). Keys:
+#
+#   id              a short name: lowercase letters, digits and hyphens. The
+#                   image is tagged <volto>-<id> and the page is try/<id>/
+#   name            the add-on's name, for the page
+#   description     what it is, in a few words ("the Juizi activity dashboard")
+#   url             the add-on's home page or repository
+#
+#   An add-on with a Volto part gets a frontend image, built from these (pin
+#   exact versions, and keep the frontend and backend halves matching):
+#   volto           the Volto major version: 19 for Plone 6.2, 18 for 6.1
+#   packages        npm packages, name@1.2.3, separated by spaces
+#   addons          the Volto add-ons to load, in order; a theme goes last
+#   theme           the theme add-on, if any
+#   backend_addons  the Python packages the backend needs, name==1.2.3,
+#                   separated by spaces. Without packages, there's no image:
+#                   setup installs these as Backend add-ons (backend-only)
+#   site_behaviors  behaviors to enable on the Plone Site type, if any
+#   demo_roles      the demo login's roles, separated by commas: the narrowest
+#                   that show the add-on off. Empty: Site Administrator
+#
+#   For a Try It page:
+#   try_it          yes
+#   try_hint        what to do after logging in as demo ("open Activity in the
+#                   user menu"), finishing the sentence "Log in as demo, then ..."
+#   linode_stackscript  optional: the add-on's own public Linode StackScript
+#                   (scripts/linode-addon-stackscript.sh), for a one-click
+#                   Linode button. Without it, the page uses the main
+#                   StackScript and says what to paste into it.
+
+- id: vlt
+  name: Volto Light Theme
+  description: Volto Light Theme
+  url: https://github.com/kitconcept/volto-light-theme
+  volto: 19
+  packages: "@kitconcept/volto-light-theme@8.1.4"
+  addons: "@kitconcept/volto-light-theme"
+  theme: "@kitconcept/volto-light-theme"
+  backend_addons: kitconcept.voltolighttheme==8.1.4
+  site_behaviors: voltolighttheme.header voltolighttheme.theme voltolighttheme.footer
+  demo_roles:
+
+- id: juizi-dashboard
+  name: Juizi Dashboard
+  description: the Juizi activity dashboard
+  url: https://github.com/tkimnguyen/juizi.dashboard
+  volto: 19
+  packages: volto-juizi-dashboard@1.0.0-beta.3
+  addons: volto-juizi-dashboard
+  theme:
+  backend_addons: juizi.dashboard==1.0.0b3
+  site_behaviors:
+  # Editors who can watch their changes on the dashboard, without being site
+  # administrators.
+  demo_roles: Editor, Site Activity Viewer
+  try_it: yes
+  try_hint: open Activity in the user menu, make a change to a page, and watch it appear
+  linode_stackscript: 2318969
