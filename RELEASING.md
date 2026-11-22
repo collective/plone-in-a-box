@@ -15,7 +15,9 @@ release, and the public Linode StackScript is updated by hand.
    * **Hetzner** (if `src/hetzner/` or the script changed): `terraform apply` from `src/hetzner/`.
    * **AWS Launch Stack** (if `src/aws/cloudformation.yaml` changed): in the CloudFormation console, **Create stack →
      With new resources → Upload a template file**, choose the branch's `src/aws/cloudformation.yaml`, and set
-     **Plone in a Box release** to the branch name if the script changed too. Delete the stack afterwards.
+     **Plone in a Box release** to the branch name if the script changed too. Delete the stack afterwards. Or let
+     `scripts/test-deploy.sh aws --cloudformation --ref <branch>` create the stack from the branch's template, with
+     the release set to the commit tested, run the usual checks, and delete it.
    * Checks on each test server:
      * right after creating the server, its address shows the setup progress page, which turns into the site
      * `/root/plone-credentials.txt` exists, the site loads, and `admin` can log in with the generated password
@@ -65,7 +67,8 @@ One-time setup for `scripts/test-deploy.sh`:
   policies are at their size limit) from
   [`scripts/aws-test-cloudformation-policy.json`](scripts/aws-test-cloudformation-policy.json), and attach it to
   `piab-test`. It allows only stacks named `piab-test-*`. Create test stacks with the stack tag `piab-test=true`
-  (`aws cloudformation create-stack --tags Key=piab-test,Value=true`), so their instance and Elastic IP carry it.
+  (`aws cloudformation create-stack --tags Key=piab-test,Value=true`), so their instance and Elastic IP carry it;
+  `scripts/test-deploy.sh aws --cloudformation` does this, and `list` and `cleanup` include such stacks.
 * **Chat notices**, for `scripts/test-notify.sh`, which sends sample update notices to real channels when the
   notify script changes: a webhook in a test channel per service, stored as `piab-webhook-<service>`
   (`teams`, `slack`, `discord`, `gchat`, `mattermost` or `ntfy`). Copy the URL, then
