@@ -1273,16 +1273,16 @@ progress 7
 log "Configuring nginx"
 SERVER_NAME="${DOMAIN:-_}"
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/plone-in-a-box-setup
-# No nginx version in responses, and compressed text, JavaScript and JSON.
-cat > /etc/nginx/conf.d/plone-in-a-box.conf <<'EOF'
+# For the site's server block: no nginx version in responses, compressed CSS,
+# JavaScript and JSON (overriding Ubuntu's nginx.conf here, as it sets some of
+# these itself), and security headers. A location with an add_header of its
+# own would drop the headers, so none has one. Browsers' default
+# Referrer-Policy, strict-origin-when-cross-origin, is already the right one.
+cat > /etc/nginx/snippets/plone-headers.conf <<'EOF'
 server_tokens off;
+gzip on;
 gzip_proxied any;
 gzip_types text/css application/javascript application/json image/svg+xml;
-EOF
-# Security headers for the whole site. (A location with an add_header of its
-# own would drop them, so none has one.) Browsers' default Referrer-Policy,
-# strict-origin-when-cross-origin, is already the right one.
-cat > /etc/nginx/snippets/plone-headers.conf <<'EOF'
 add_header X-Frame-Options SAMEORIGIN always;
 add_header X-Content-Type-Options nosniff always;
 EOF
