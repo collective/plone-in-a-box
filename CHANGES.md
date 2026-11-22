@@ -1,6 +1,14 @@
 2.16 (unreleased)
 -----------------
 
+- Nightly database backups and a weekly pack: plone-backup, run every night
+  by plone-backup.timer, saves a database backup in /var/backups/plone (the
+  three newest are kept, with plone-update's), and once a week packs the
+  database, removing history older than 7 days, which otherwise makes it
+  grow forever. A failure is reported at the notification URL. Older
+  servers get it from src/add-updates.sh.
+- Container logs are limited to 30 MB each (Docker keeps them all by
+  default), on new servers.
 - scripts/test-deploy.sh aws --cloudformation: creates the server as the
   Launch Stack button does, from the branch's template, and deletes the
   stack afterwards; list and cleanup include test stacks.

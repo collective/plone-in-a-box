@@ -357,13 +357,22 @@ docker compose --project-directory /opt/plone logs -f backend   # logs (backend,
 
 For updates, see [Updates](#updates).
 
-**Backups**: turn on your provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or
-Hetzner Backups), and/or dump the
-database regularly:
+**Backups**: every night, the server saves a database backup in `/var/backups/plone/`. The three newest are kept,
+counting those taken before updates, and each one is the whole site, files and images included. Once a week it
+also packs the database: it removes the history of changes older than a week, which would otherwise make the
+database grow forever. `sudo plone-backup` runs both now (`sudo plone-backup pack` packs as well), and the log is in
+`/var/log/plone-backup.log`. If a backup fails, a notice goes to the notification URL.
+
+These backups are on the same server, so they don't help if the server itself is lost. For that, turn on your
+provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or Hetzner Backups), or copy a
+backup somewhere else now and then:
 
 ```
-sudo docker compose --project-directory /opt/plone exec -T db pg_dump -U plone plone | gzip > plone-$(date +%F).sql.gz
+scp root@<server>:/var/backups/plone/plone-<date>.sql.gz .
 ```
+
+A server set up before 2.16 gets the nightly backups with the [same command](#servers-set-up-before-212) as automatic
+updates.
 
 **Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
 the site's address every few minutes and alert you. DigitalOcean has this built in (**Monitoring → Uptime**, then

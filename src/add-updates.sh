@@ -5,8 +5,9 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.15/src/add-updates.sh | sudo bash
 #
-# It installs plone-update, the weekly plone-update.timer and the login
-# message, exactly as setup does on new servers, and then runs plone-update
+# It installs plone-update, the weekly plone-update.timer, plone-backup with
+# the nightly plone-backup.timer, and the login message, exactly as setup does
+# on new servers, and then runs plone-update
 # once. Running it again brings these tools up to date with the release.
 #
 # Settings go between "sudo" and "bash", for example
@@ -61,7 +62,9 @@ main() {
   block=$(sed -n '/^# >>> update tools$/,/^# <<< update tools$/p' <<<"$script")
   [[ -n "$block" ]] || die "Plone in a Box ${ref} doesn't have the update tools; use release 2.12 or later"
   APP_DIR="$APP_DIR" bash -euo pipefail -c "$block"
-  say "Installed plone-update"
+  say "Installed plone-update and plone-backup"
+  systemctl enable --now plone-backup.timer
+  say "The database is backed up every night, and packed once a week (sudo plone-backup to run it now)"
 
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then
