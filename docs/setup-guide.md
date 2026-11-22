@@ -384,7 +384,7 @@ many of which have a free plan.
 A box has two kinds of software, and each one updates differently.
 
 **Ubuntu, nginx and Docker** come from Ubuntu's packages. Setup installs all updates and restarts the server once
-if they need it. After that, Ubuntu installs security updates automatically, nginx's included, but never restarts by
+if they need it. After that, Ubuntu installs security updates automatically, nginx's included, but doesn't restart by
 itself, and it leaves out Docker, which comes from Docker's own repository. Every month or so, and whenever the
 login message says `*** System restart required ***`, run:
 
@@ -398,7 +398,7 @@ Ubuntu release: deploy a new server instead.
 
 **Plone, Volto and PostgreSQL** run from Docker images. With **Automatic updates** on (the default), every Sunday
 early in the morning (server time, usually UTC) the server installs newer images of the **same** versions: patch
-releases and security fixes, such as Plone 6.2.2 to 6.2.3, never 6.2 to 6.3. If there's anything new, it first
+releases and security fixes, such as Plone 6.2.2 to 6.2.3; moving to 6.3 is up to you. If there's anything new, it first
 saves a database backup in `/var/backups/plone/` (the three newest are kept), then updates, and checks that the
 site comes back. If it doesn't, it goes back to the previous images, and skips that build from then on. A
 ready-made frontend image whose new build needs a different backend add-on is left for you to update (see
@@ -458,7 +458,7 @@ curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.16/src/
 for example after a new Plone in a Box release, brings these tools up to date; the weekly updates stay on or off as
 they were.
 
-**A new Plone or Volto release** (6.2 to 6.3, Volto 19 to 20) can need content and add-on changes, so it's never
+**A new Plone or Volto release** (6.2 to 6.3, Volto 19 to 20) can need content and add-on changes, so it isn't
 automatic. Read the Plone upgrade notes, take a backup, change `PLONE_VERSION` and `VOLTO_VERSION` in
 `/opt/plone/.env`, then run:
 
@@ -550,7 +550,7 @@ Its roles (`DEMO_ROLES`, `DemoRoles`, `demo_roles`) are one or more role names s
 role an add-on adds. Left empty, it gets the roles the frontend image suggests (its
 [`demo-roles` label](../frontend-image/README.md#how-setup-uses-an-image), for example Editor and Site Activity Viewer
 for Juizi Dashboard), or Site Administrator. A role the site doesn't have, such as an add-on's that failed to
-install, is skipped, and Manager is never given. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
+install, is skipped, and so is Manager. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
 another role than Site Administrator.)
 
 If the site [sends email](#sending-email), the demo login gets **Editor** instead of Site Administrator: a Site
