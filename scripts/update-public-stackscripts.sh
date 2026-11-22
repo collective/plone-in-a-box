@@ -3,7 +3,7 @@
 # Update the public Linode StackScripts to a release, through Linode's API:
 #
 #   931893   Plone in a Box (nguyen-plone)            src/StackScript
-#   2318969  Juizi Dashboard Try it (nguyen-plone)    scripts/linode-addon-stackscript.sh
+#   2318969  Juizi Dashboard "Try It" (nguyen-plone)  scripts/linode-addon-stackscript.sh
 #   692002   the obsolete copy (tknguyen2)            scripts/linode-obsolete-stackscript.sh
 #
 # Usage:

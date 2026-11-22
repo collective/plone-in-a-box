@@ -554,7 +554,7 @@ ordinary Plone user: change its password, its roles, or remove it in **Site Setu
 once, when the server is created; to add one later, add a user there.
 
 Add-on authors can give their README a button that sets up a server with their add-on and a demo login; see
-[Try it buttons](try-it-buttons.md).
+["Try It" buttons](try-it-buttons.md).
 
 ## Custom backend image
 

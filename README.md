@@ -113,7 +113,7 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
 * **Demo login:** an extra login, with the roles and password you choose (or a generated password), for letting
   others try the site; see
   [Demo login](docs/setup-guide.md#demo-login). Add-on authors can use it for a
-  [Try it button](#for-add-on-authors-a-try-it-button).
+  ["Try It" button](#for-add-on-authors-a-try-it-button).
 * **Updates:** Ubuntu installs its security updates by itself, and every week the server installs Plone, Volto and
   PostgreSQL patch releases, after a database backup, and undoes them if the site doesn't come back. Reports can go
   to your phone (ntfy), a team chat, or by email; see [Updates](docs/setup-guide.md#updates). A server set up
@@ -121,7 +121,7 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
 
 The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
 
-## For add-on authors: a "Try it" button
+## For add-on authors: a "Try It" button
 
 Let people try your Plone add-on in a real site of their own, in about 10 minutes, without installing anything:
 buttons in your add-on's README set up Plone in a Box on their cloud account, with your add-on installed and a
@@ -141,7 +141,7 @@ What it takes:
    latest Plone in a Box release, so it needs no updates.
 3. **Your README:** paste the buttons, two short steps, and what the demo login can do.
 
-The [Try it guide](docs/try-it-buttons.md) has each step, the Markdown to copy, and DigitalOcean and Hetzner, which
+The ["Try It" guide](docs/try-it-buttons.md) has each step, the Markdown to copy, and DigitalOcean and Hetzner, which
 have no button. Ask in [collective/plone-in-a-box](https://github.com/collective/plone-in-a-box/issues) if you'd like
 your add-on's image built there.
 

@@ -1,6 +1,6 @@
-# "Try it" buttons for add-ons
+# "Try It" buttons for add-ons
 
-An add-on's README can say **Try it in Plone in a Box**: a link that opens a cloud provider's form with everything
+An add-on's README can say **Try It in Plone in a Box**: a link that opens a cloud provider's form with everything
 filled in, so someone can have a real Plone 6 site with the add-on, and a demo login to share, in about 10 minutes.
 They use their own cloud account and pay for the server (a few cents an hour), and delete it when they're done.
 
@@ -76,7 +76,7 @@ the steps are in the [setup guide](setup-guide.md#option-c-digitalocean).
 
 ## The buttons
 
-Two buttons at the top of a **Try it** section in the add-on's README: AWS's own Launch Stack image, and a matching
+Two buttons at the top of a **Try It** section in the add-on's README: AWS's own Launch Stack image, and a matching
 badge for Linode (Linode has no official button). Replace the image name and the StackScript number with yours:
 
 ```markdown
