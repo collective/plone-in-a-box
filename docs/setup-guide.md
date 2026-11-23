@@ -110,7 +110,11 @@ IP), so the address stays the same if you stop and start the server. **PublicIP*
 point a domain at. Forgot the password? Open **InstanceConnect** on the Outputs tab, click **Connect**, and run
 `sudo cat /root/plone-credentials.txt` or `sudo plone-reset-admin-password`.
 
-To remove everything, select the stack in CloudFormation and click **Delete**.
+The server is protected from being deleted by mistake: AWS refuses to terminate it, also when the stack is deleted,
+and deleting the stack keeps the Elastic IP. Don't use **Update** on the stack: every update looks up the newest
+Ubuntu image, so it builds a new, empty server and moves the address to it (the old server is kept, and you can
+move the Elastic IP back to it). Change settings on the server instead; it keeps itself current with `plone-update`.
+To remove everything, see [Removing the box](#removing-the-box).
 
 #### Or launch the server yourself
 
@@ -219,7 +223,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.17/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.18/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -248,9 +252,17 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
    If that SSH key is already in your DigitalOcean account (**Settings → Security**), DigitalOcean won't accept it a
    second time. Pass its fingerprint instead: `-var 'ssh_key_fingerprint=aa:bb:cc:...'`.
 
-   Options go in `src/digitalocean/terraform.tfvars` the same way as for AWS. Variables include `region` (default
-   `nyc3`), `size` (default `s-1vcpu-2gb`), `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions.
-3. Terraform prints `site_url`, `public_ip` and `credentials_command`. The Droplet also gets a DigitalOcean Cloud
+   Options go in `src/digitalocean/terraform.tfvars` the same way as for AWS. Variables include `size` (default
+   `s-1vcpu-2gb`), `region`, `preferred_regions`, `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the
+   versions. Unlike AWS, where the default server type is offered in every region, DigitalOcean's regions don't all
+   offer every size, and that changes over time as they fill up. With `region` empty (the default),
+   Terraform picks the first region in `preferred_regions` that offers the size (Toronto, New York, San Francisco, then
+   Amsterdam, Frankfurt, London; put your own part of the world first), and prints the one it chose. A `region` you
+   set is always used; if it doesn't offer the size, `terraform apply` stops before creating anything and lists the
+   regions that do. Once created, the Droplet stays in its region.
+   As on AWS, the Droplet downloads its setup script from the Plone in a Box release in `release`, so to try
+   changes, push them to a branch and set `release` to it.
+3. Terraform prints `site_url`, `public_ip`, `region` and `credentials_command`. The Droplet also gets a DigitalOcean Cloud
    Firewall that allows only ports 22, 80 and 443.
 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
@@ -285,7 +297,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.17/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.18/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -312,14 +324,42 @@ The server keeps its IPv4 address (a Primary IP) for as long as it exists, so yo
    terraform init
    terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
    ```
-   Options go in `src/hetzner/terraform.tfvars` the same way as for AWS. Variables include `location` (default
-   `hel1`), `server_type` (default `cpx02`, 1 GB; `cpx11` in `ash` and `hil`; Arm types such as `cax11` work too),
-   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions.
-3. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server also gets a Hetzner Firewall that
+   Options go in `src/hetzner/terraform.tfvars` the same way as for AWS. Variables include `server_type` (default
+   `cpx02`, 1 GB; `cpx11` in `ash` and `hil`; Arm types such as `cax11` work too), `location`, `preferred_locations`,
+   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions. As on DigitalOcean, not every location
+   offers every server type, and a type can run out in a location for a while. With `location` empty (the default), Terraform picks the first location in `preferred_locations` that
+   offers the server type (Helsinki, Falkenstein, Nuremberg) and prints the one it chose. A `location` you set is
+   always used; if it doesn't offer the server type, `terraform apply` stops before creating anything and lists the
+   locations that do. Once created, the server stays in its location. As on AWS, the server downloads its
+   setup script from the Plone in a Box release in `release`, so to try changes, push them to a branch and set
+   `release` to it.
+3. Terraform prints `site_url`, `public_ip`, `location` and `credentials_command`. The server also gets a Hetzner Firewall that
    allows only ports 22, 80 and 443.
 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
 /var/log/plone-in-a-box.log`), then continue with [After provisioning](#after-provisioning).
+
+### Changing a Terraform server later
+
+This applies to AWS, DigitalOcean and Hetzner. Most owners never run Terraform again: the server keeps itself
+current with `plone-update` (see [Updates](#updates)), and everything else is done on the server. You might come
+back to the same `src/<provider>/` folder to:
+
+* **Change who can use SSH** (`ssh_allowed_cidrs`), **turn the provider's backups on or off** (`backups`, on DigitalOcean and Hetzner), or
+  **resize the server** (`instance_type` and `volume_size_gb` on AWS, `size` on DigitalOcean, `server_type` on
+  Hetzner). Run `terraform apply` with the new value; Terraform changes these on the existing server (resizing
+  restarts it).
+* **See the site address and other outputs again**: `terraform output`.
+* **Remove the box**: see [Removing the box](#removing-the-box).
+
+The other settings (the admin password, domain, versions, add-ons, email, `release`, the region or location, the
+SSH key) and the Ubuntu image are used only when the server is created. Changing them later does nothing to the
+existing server. Neither does `git pull` to get a newer Plone in a Box and running `terraform apply` again: that
+doesn't update the server (`plone-update` does), and it can't rebuild it, which would start an empty site.
+
+Terraform also never deletes the server: `terraform destroy`, and any change that would need a new server, stop
+with an error. On AWS and Hetzner the provider refuses too (termination protection, and delete and rebuild
+protection), also in its web console. To remove a box on purpose, see [Removing the box](#removing-the-box).
 
 ## After provisioning
 
@@ -438,6 +478,22 @@ sudo systemctl enable --now plone-update.timer
 
 The log is in `/var/log/plone-update.log`.
 
+**Security notices.** Once a day the server checks the
+[Security category](https://community.plone.org/c/announcements/security) of the Plone forum, where the Plone
+Security Team announces security fixes, often a week or so ahead. Each new post goes to the same places as update
+reports: the notification URL, email, and the login message (for 30 days). Each post is sent once, and a new server
+starts with the newest post, so it doesn't get the old ones. The notice links to the post, which says what to do;
+usually it's installing the Plone release with the fix, which the weekly update does, or `sudo plone-update` right
+away. To check now: `sudo plone-security-notices`. To turn the notices off:
+
+```
+sudo systemctl disable --now plone-security-notices.timer
+```
+
+The log is in `/var/log/plone-security-notices.log`. To hear about every Plone release and announcement, not only
+security, also subscribe to the forum's [Announcements](https://community.plone.org/c/announcements) category
+(its bell icon, after logging in).
+
 ### Servers set up before 2.12
 
 A server set up with an older Plone in a Box (2.0 or later) can get automatic updates too. Open its console
@@ -445,7 +501,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.17/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.18/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -453,7 +509,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.17/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.18/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,
@@ -697,14 +753,22 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
 ## Removing the box
 
 * **Linode**: delete the Linode in Cloud Manager.
-* **AWS** or **DigitalOcean** with Terraform: `terraform destroy` from `src/aws/` or `src/digitalocean/`, with the
-  same `-var` options (or `terraform.tfvars`) and, for DigitalOcean, the same `DIGITALOCEAN_TOKEN`.
+* **AWS**, **DigitalOcean** or **Hetzner** with Terraform: Terraform protects the server from being deleted, so
+  removing it takes three steps, from `src/aws/`, `src/digitalocean/` or `src/hetzner/`, with the same `-var` options
+  (or `terraform.tfvars`) and token as when you created it:
+  1. On AWS and Hetzner only, turn the provider's protection off: `terraform apply -var deletion_protection=false`.
+  2. In `main.tf`, change `prevent_destroy = true` to `prevent_destroy = false`.
+  3. `terraform destroy` (on AWS and Hetzner: `terraform destroy -var deletion_protection=false`).
 * **DigitalOcean** without Terraform: destroy the Droplet in the control panel.
-* **AWS** with the Launch Stack button: in CloudFormation, select the stack and click **Delete**. That removes the
-  server, its disk, the firewall and the fixed IP address.
+* **AWS** with the Launch Stack button: the server is protected from being deleted, so:
+  1. In **EC2 → Instances**, select the server, choose **Actions → Instance settings → Change termination
+     protection**, untick **Enable** and save.
+  2. In CloudFormation, select the stack and click **Delete**. That removes the server, its disk and the firewall.
+  3. In **EC2 → Elastic IPs**, select the stack's address (named after the stack), then **Actions → Release Elastic
+     IP addresses**. It's kept when the stack is deleted, so a mistake can't lose the site's address, and AWS
+     charges for it until it's released.
 * **AWS** launched yourself in EC2: terminate the instance, and release its Elastic IP if you allocated one.
-* **Hetzner**: delete the server in the Hetzner Console (**Delete** on the server's page), or `terraform destroy` from
-  `src/hetzner/` with the same `HCLOUD_TOKEN`.
+* **Hetzner** without Terraform: delete the server in the Hetzner Console (**Delete** on the server's page).
 
 If you used Terraform, delete the AWS access key, DigitalOcean API token or Hetzner API token when you no longer
 need it.

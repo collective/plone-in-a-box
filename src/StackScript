@@ -1080,12 +1080,129 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 EOF
-# The result of the last update check, at the top of the login message.
+
+# Security notices: sudo plone-security-notices, and every day through
+# plone-security-notices.timer. New posts in the Security category of the Plone
+# forum (security fixes and their pre-announcements) go to the notification
+# URL, the address for reports and the login message, each post once.
+cat > /usr/local/bin/plone-security-notices <<'PLONE_NOTICES_EOF'
+#!/bin/bash
+# Pass on new posts in the Plone forum's Security category, each once. The
+# first run only notes the newest. Also run daily by plone-security-notices.timer.
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-security-notices" >&2; exit 1; }
+FEED=${PLONE_SECURITY_FEED:-https://community.plone.org/c/announcements/security/37.json}
+FORUM=${FEED%%/c/*}
+APP_DIR=/opt/plone
+STATE_DIR=/var/lib/plone-in-a-box
+SEEN="$STATE_DIR/security-seen"
+LOG_FILE=/var/log/plone-security-notices.log
+mkdir -p "$STATE_DIR"
+exec > >(tee -a "$LOG_FILE") 2>&1
+LOG_TEE_PID=$!
+trap 'exec >/dev/null 2>&1; wait "$LOG_TEE_PID" 2>/dev/null || true' EXIT
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+SITE_URL=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+
+if ! json=$(curl -fsS -m 30 --retry 3 -H 'Accept: application/json' "$FEED"); then
+  say "Could not read $FEED; the next check is tomorrow"
+  exit 0
+fi
+seen=$(cat "$SEEN" 2>/dev/null || true)
+[[ "$seen" =~ ^[0-9]+$ ]] || seen=""
+# New posts as "id<TAB>date<TAB>title", oldest first; with nothing seen, the newest id.
+if ! posts=$(python3 -c '
+import json, re, sys
+seen = sys.argv[1]
+topics = [t for t in json.load(sys.stdin)["topic_list"]["topics"]
+          if not re.fullmatch(r"About the .* category", t["title"])]
+topics.sort(key=lambda t: t["id"])
+if not seen:
+    print(topics[-1]["id"] if topics else 0)
+    sys.exit()
+for t in topics:
+    if t["id"] > int(seen):
+        title = re.sub(r"[\x00-\x1f\x7f]", " ", t["title"])[:200]
+        print(t["id"], (t.get("created_at") or "")[:10], title, sep="\t")
+' "$seen" <<<"$json"); then
+  say "Unexpected answer from $FEED; the next check is tomorrow"
+  exit 0
+fi
+if [[ -z "$seen" ]]; then
+  printf '%s\n' "$posts" > "$SEEN"
+  say "Watching the Plone forum's Security category from post ${posts} on"
+  exit 0
+fi
+if [[ -z "$posts" ]]; then
+  say "No new security posts"
+  exit 0
+fi
+
+count=$(grep -c . <<<"$posts")
+(( count > 3 )) && say "$count new security posts; sending the newest 3"
+notice=""
+while IFS=$'\t' read -r id date title; do
+  link="$FORUM/t/$id"
+  advice="Read the post for what to do."
+  [[ "${title,,}" == *pre-announce* ]] && advice="A fix is coming; the post says when."
+  subject="Plone security notice: ${title} (${SITE_URL})"
+  body=$(printf '%s\n\n%s (%s)\n%s\n\n%s Plone releases with fixes are installed by the weekly update, if on, or by: sudo plone-update\n\nFrom the Plone forum. Turn these off: sudo systemctl disable --now plone-security-notices.timer' \
+    "$SITE_URL" "$title" "$date" "$link" "$advice")
+  say "New: $title ($link)"
+  /usr/local/lib/plone-in-a-box/notify "$subject" "$body" </dev/null
+  case $? in
+    0) say "Sent it to the notification URL" ;;
+    3) ;;
+    *) say "Sending it to the notification URL failed" ;;
+  esac
+  if [[ -f "$APP_DIR/send_mail.py" ]]; then
+    out=$(docker compose --project-directory "$APP_DIR" run --rm --no-deps -T -e ADDONS= \
+      -e MAIL_SUBJECT="$subject" -e MAIL_BODY="$body" -e MAIL_TO="$(cat "$STATE_DIR/report-email" 2>/dev/null)" \
+      -v "$APP_DIR/send_mail.py:/app/scripts/send_mail.py:ro" backend run /app/scripts/send_mail.py 2>&1 </dev/null)
+    case "$out" in
+      *MAIL_SENT*) say "Emailed it" ;;
+      *NO_MAIL_SETTINGS*) ;;
+      *) say "Emailing it failed:"; tail -3 <<<"$out" ;;
+    esac
+  fi
+  notice+=$(printf 'Plone security notice, %s: %s\n  %s' "$date" "$title" "$link")$'\n'
+done < <(tail -n 3 <<<"$posts")
+printf '%s' "$notice" > "$STATE_DIR/security-notice"
+tail -n 1 <<<"$posts" | cut -f1 > "$SEEN"
+PLONE_NOTICES_EOF
+chmod 755 /usr/local/bin/plone-security-notices
+cat > /etc/systemd/system/plone-security-notices.service <<'EOF'
+[Unit]
+Description=Plone in a Box: pass on Plone security announcements
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/plone-security-notices
+TimeoutStartSec=30min
+EOF
+cat > /etc/systemd/system/plone-security-notices.timer <<'EOF'
+[Unit]
+Description=Daily check for Plone security announcements
+
+[Timer]
+# At a random time, so that not every server asks the forum at once.
+OnCalendar=*-*-* 06:00:00
+RandomizedDelaySec=12h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+# The result of the last update check, at the top of the login message, and
+# security notices from the last 30 days.
 cat > /etc/update-motd.d/90-plone-in-a-box <<'EOF'
 #!/bin/sh
 dir=/var/lib/plone-in-a-box
 [ -s "$dir/update-status" ] && printf '\nPlone in a Box, last update: %s\n' "$(cat "$dir/update-status")"
 [ -s "$dir/update-notice" ] && cat "$dir/update-notice"
+[ -s "$dir/security-notice" ] && [ -n "$(find "$dir/security-notice" -mtime -30)" ] && cat "$dir/security-notice"
 exit 0
 EOF
 chmod 755 /etc/update-motd.d/90-plone-in-a-box
@@ -1364,6 +1481,9 @@ install -d -m 755 /var/lib/plone-in-a-box
 printf '%s\n' "$SITE_URL" > /var/lib/plone-in-a-box/site-url
 # Nightly database backups and a weekly pack, whatever AUTO_UPDATE says.
 systemctl enable --now plone-backup.timer
+# Daily security notices; the first check only notes the newest post.
+/usr/local/bin/plone-security-notices >/dev/null 2>&1 || true
+systemctl enable --now plone-security-notices.timer
 if [[ "$AUTO_UPDATE" == yes ]]; then
   systemctl enable --now plone-update.timer
   UPDATES_LINE="Updates:   Plone, Volto and PostgreSQL patch releases install automatically every week (sudo plone-update to run it now)"
@@ -1459,6 +1579,7 @@ ${ADDONS_LINE}${ADDONS_NOTE}
 ${FRONTEND_IMAGE:+Frontend image: ${FRONTEND_IMAGE}}${FRONTEND_NOTE}
 ${DEMO_LINE}
 ${UPDATES_LINE}
+Security:  Plone security announcements are passed on every day, in the login message${NOTIFY_URL:+, at the notification URL}${SMTP_HOST:+ and by email}
 ${NOTIFY_LINE}
 ${MAIL_LINE}
 Store the password in a password manager, then delete this file.

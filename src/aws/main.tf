@@ -34,6 +34,12 @@ variable "instance_type" {
   default     = "t3.small"
 }
 
+variable "deletion_protection" {
+  description = "Termination protection: AWS refuses to terminate the instance, from Terraform, the EC2 console or anything else. To remove the box on purpose, set this to false and run terraform apply, change prevent_destroy to false in this file, then run terraform destroy."
+  type        = bool
+  default     = true
+}
+
 variable "ssh_public_key_path" {
   description = "Path to the SSH public key that will be allowed to log in as the 'ubuntu' user."
   type        = string
@@ -167,11 +173,11 @@ variable "auto_update" {
 variable "release" {
   description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
   type        = string
-  default     = "2.17"
+  default     = "2.18"
 
   validation {
     condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
-    error_message = "release: a release, branch or commit, such as 2.17."
+    error_message = "release: a release, branch or commit, such as 2.18."
   }
 }
 
@@ -296,10 +302,24 @@ resource "aws_instance" "app_server" {
     "fi",
     "exec bash /root/plone-in-a-box.sh",
   ])
-  user_data_replace_on_change = true
+  user_data_replace_on_change = false
+  disable_api_termination     = var.deletion_protection
 
   tags = {
     Name = "Plone in a Box"
+  }
+
+  lifecycle {
+    # Terraform never deletes or replaces the server, which would delete the
+    # site: terraform destroy and any change that needs a new server stop with
+    # an error. To remove the box on purpose, see deletion_protection.
+    prevent_destroy = true
+
+    # Settings used only when the server is created: the user data (the
+    # release and settings, read at first boot), the SSH key and the image.
+    # Changing them later, or a newer release or Ubuntu image, must not replace
+    # the server; plone-update keeps it current.
+    ignore_changes = [ami, user_data, user_data_base64, key_name]
   }
 }
 
