@@ -999,10 +999,13 @@ flock -w 10800 9 || { echo "plone-update is still running; no backup this time" 
 exec >>/var/log/plone-backup.log 2>&1
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 compose() { docker compose --project-directory /opt/plone "$@"; }
-fail() {
+problem() {
   say "$1"
   /usr/local/lib/plone-in-a-box/notify "Plone in a Box: backup problem ($(cat "$STATE_DIR/site-url" 2>/dev/null || hostname))" \
     "$1. The log is in /var/log/plone-backup.log on the server." >/dev/null 2>&1
+}
+fail() {
+  problem "$1"
   exit 1
 }
 
@@ -1020,6 +1023,10 @@ mv "$DUMP.part" "$DUMP"
 say "Backed up the database to $DUMP"
 # shellcheck disable=SC2012
 ls -1t "$BACKUP_DIR"/plone-*.sql.gz | tail -n +4 | xargs -r rm -f
+# A copy off the server, encrypted, if sudo plone-offsite setup was run.
+if [[ -s "$STATE_DIR/offsite.conf" ]]; then
+  /usr/local/bin/plone-offsite upload "$DUMP" || problem "Copying the backup off the server failed"
+fi
 
 if [[ "${1:-}" == pack ]] || (( $(date +%s) - $(cat "$STATE_DIR/last-pack" 2>/dev/null || echo 0) > 597600 )); then
   say "Packing the database"
@@ -1110,6 +1117,148 @@ fi
 exit 1
 PLONE_RESTORE_EOF
 chmod 755 /usr/local/bin/plone-restore
+
+# Encrypted copies of the nightly backups in S3-compatible storage (AWS S3,
+# Backblaze B2, DigitalOcean Spaces, Hetzner Object Storage and others), once
+# the owner runs sudo plone-offsite setup.
+cat > /usr/local/bin/plone-offsite <<'PLONE_OFFSITE_EOF'
+#!/bin/bash
+# Copies of the nightly backups off the server, encrypted with a passphrase,
+# in S3-compatible storage.
+# Usage: sudo plone-offsite setup        (storage settings and passphrase; a test upload)
+#        sudo plone-offsite list         (the copies in the bucket, from every server using it)
+#        sudo plone-offsite fetch NAME   (download and decrypt one into /var/backups/plone)
+#        sudo plone-offsite upload FILE  (done by plone-backup every night)
+#        sudo plone-offsite off          (stop making copies; the bucket is left as it is)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-offsite ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+BACKUP_DIR=/var/backups/plone
+CONF=$STATE_DIR/offsite.conf
+RCLONE_CONF=$STATE_DIR/offsite-rclone.conf
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+die() { echo "$*" >&2; exit 1; }
+rc() { rclone --config "$RCLONE_CONF" --retries 3 --low-level-retries 5 "$@"; }
+# gpg with a throwaway home, so root's keyring isn't touched.
+crypt() { local home; home=$(mktemp -d); gpg --homedir "$home" --batch --yes --quiet --pinentry-mode loopback \
+  --passphrase-file "$STATE_DIR/offsite-passphrase" "$@"; local status=$?; rm -rf "$home"; return $status; }
+load() {
+  [[ -s "$CONF" ]] || die "Copies off the server aren't set up. Run: sudo plone-offsite setup"
+  # shellcheck disable=SC1090
+  source "$CONF"
+}
+
+case "${1:-}" in
+setup)
+  command -v rclone >/dev/null || { echo "Installing rclone"; apt-get install -y -qq rclone >/dev/null || die "Installing rclone failed"; }
+  command -v gpg >/dev/null || { apt-get install -y -qq gnupg >/dev/null || die "Installing gnupg failed"; }
+  ask() {  # ask VAR "question" [default] [secret]: from the environment (OFFSITE_VAR) or the keyboard
+    local var=$1 q=$2 def=${3:-} env="OFFSITE_$1" v
+    v=${!env:-}
+    if [[ -z "$v" ]]; then
+      if [[ -n "${4:-}" ]]; then read -r -s -p "$q: " v; echo; else read -r -p "$q${def:+ [$def]}: " v; fi
+    fi
+    printf -v "$var" '%s' "${v:-$def}"
+  }
+  echo "Copies of the nightly backups go to S3-compatible storage, encrypted. Make a private bucket and an"
+  echo "access key that can read and write it at your storage service first. Endpoints, for example:"
+  echo "  AWS S3: https://s3.us-east-1.amazonaws.com   Backblaze B2: https://s3.us-west-004.backblazeb2.com"
+  echo "  DigitalOcean Spaces: https://nyc3.digitaloceanspaces.com   Hetzner: https://fsn1.your-objectstorage.com"
+  ask ENDPOINT "Endpoint"
+  ask REGION "Region (Enter if the service doesn't use one)" ""
+  ask BUCKET "Bucket"
+  ask ACCESS_KEY "Access key ID"
+  ask SECRET_KEY "Secret access key" "" secret
+  ask KEEP "How many copies to keep" 14
+  site=$(sed -E 's#^https?://##; s#/.*##' "$STATE_DIR/site-url" 2>/dev/null || hostname)
+  ask FOLDER "Folder in the bucket for this server's copies" "plone-in-a-box/$site"
+  # (http only for storage on the server itself, such as a test.)
+  [[ "$ENDPOINT" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?/?$ || "$ENDPOINT" =~ ^http://(localhost|127\.0\.0\.1)(:[0-9]+)?/?$ ]] \
+    || die "The endpoint has to look like https://host"
+  [[ "$BUCKET" =~ ^[A-Za-z0-9._-]+$ ]] || die "That bucket name isn't valid"
+  [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || die "How many to keep has to be a number"
+  [[ "$FOLDER" =~ ^[A-Za-z0-9._/-]+$ ]] || die "Use letters, digits, dots, dashes and slashes for the folder"
+  [[ -n "$ACCESS_KEY" && -n "$SECRET_KEY" ]] || die "The access key and secret are both needed"
+  echo "Passphrase: press Enter to make a new one, or paste the one another server uses, so this server can"
+  echo "read that server's copies (for moving a site)."
+  ask PASSPHRASE "Passphrase" "" secret
+  new_passphrase=0
+  [[ -n "$PASSPHRASE" ]] || { PASSPHRASE=$(openssl rand -base64 30 | tr -d '/+=' | cut -c1-32); new_passphrase=1; }
+  umask 077
+  cat > "$RCLONE_CONF" <<CONF
+[offsite]
+type = s3
+provider = Other
+access_key_id = $ACCESS_KEY
+secret_access_key = $SECRET_KEY
+endpoint = ${ENDPOINT%/}
+region = ${REGION:-us-east-1}
+no_check_bucket = true
+CONF
+  printf '%s' "$PASSPHRASE" > "$STATE_DIR/offsite-passphrase"
+  printf 'BUCKET=%q\nFOLDER=%q\nKEEP=%q\n' "$BUCKET" "${FOLDER%/}" "$KEEP" > "$CONF.new"
+  test_name="setup-test-$(date +%s).txt"
+  if ! echo "Plone in a Box test file" | rc rcat "offsite:$BUCKET/${FOLDER%/}/$test_name" \
+     || ! rc lsf "offsite:$BUCKET/${FOLDER%/}/" | grep -qx "$test_name" \
+     || ! rc deletefile "offsite:$BUCKET/${FOLDER%/}/$test_name"; then
+    rm -f "$CONF.new" "$RCLONE_CONF" "$STATE_DIR/offsite-passphrase"
+    die "Uploading, listing or deleting a test file failed (see the message above). Check the endpoint, bucket and key, and that the key can read, write and delete in the bucket."
+  fi
+  mv "$CONF.new" "$CONF"
+  echo
+  echo "Copies off the server are set up: every night's backup goes to $BUCKET/${FOLDER%/}/, encrypted, and the"
+  echo "$KEEP newest are kept."
+  if (( new_passphrase )); then
+    echo
+    echo "The passphrase for the copies is:  $PASSPHRASE"
+    echo "Keep it in your password manager. Without it, the copies can't be read, also if this server is lost."
+  fi
+  echo "Make the first copy now with: sudo plone-backup"
+  ;;
+upload)
+  load; FILE=${2:-}
+  [[ -s "$FILE" ]] || die "No backup at $FILE"
+  name="$(basename "$FILE").gpg"
+  tmp=$(mktemp "$BACKUP_DIR/.offsite-XXXXXX")
+  trap 'rm -f "$tmp"' EXIT
+  crypt --symmetric --cipher-algo AES256 -o "$tmp" "$FILE" || die "Encrypting $FILE failed"
+  rc copyto "$tmp" "offsite:$BUCKET/$FOLDER/$name" || die "Uploading to $BUCKET/$FOLDER failed"
+  say "Copied $name to $BUCKET/$FOLDER"
+  # Keep the newest KEEP copies (the names sort by date).
+  rc lsf --files-only "offsite:$BUCKET/$FOLDER/" | grep -E '^plone-.*\.sql\.gz\.gpg$' | sort -r | tail -n +"$((KEEP + 1))" \
+    | while read -r old; do rc deletefile "offsite:$BUCKET/$FOLDER/$old" && say "Removed the old copy $old"; done
+  ;;
+list)
+  load
+  echo "Copies in $BUCKET, by folder (this server uses $FOLDER):"
+  rc lsf -R --files-only --format "tsp" "offsite:$BUCKET/" | grep -E '\.sql\.gz\.gpg' | sort -t ';' -k1,1r \
+    | awk -F';' '{printf "  %s  %s  %.1f MB\n", substr($1, 1, 16), $3, $2 / 1048576}'
+  echo "Download one with: sudo plone-offsite fetch FOLDER/NAME, then restore it with sudo plone-restore."
+  ;;
+fetch)
+  load; NAME=${2:-}
+  [[ "$NAME" =~ ^[A-Za-z0-9._/-]+\.sql\.gz\.gpg$ ]] || die "Give the name as plone-offsite list shows it"
+  [[ "$NAME" == */* ]] || NAME="$FOLDER/$NAME"
+  install -d -m 700 "$BACKUP_DIR"
+  out="$BACKUP_DIR/offsite-$(basename "$NAME" .gpg)"
+  tmp=$(mktemp "$BACKUP_DIR/.offsite-XXXXXX")
+  trap 'rm -f "$tmp"' EXIT
+  rc copyto "offsite:$BUCKET/$NAME" "$tmp" || die "Downloading $NAME failed"
+  crypt -d -o "$out" "$tmp" || { rm -f "$out"; die "Decrypting $NAME failed: is this the passphrase it was made with?"; }
+  echo "Downloaded and decrypted to $out"
+  echo "Restore it with: sudo plone-restore $out"
+  ;;
+off)
+  rm -f "$CONF" "$RCLONE_CONF" "$STATE_DIR/offsite-passphrase"
+  echo "Copies off the server are off. The copies already in the bucket are left as they are."
+  ;;
+*)
+  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+  ;;
+esac
+PLONE_OFFSITE_EOF
+chmod 755 /usr/local/bin/plone-offsite
 cat > /etc/systemd/system/plone-backup.service <<'EOF'
 [Unit]
 Description=Plone in a Box: database backup, and a weekly pack
