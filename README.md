@@ -26,7 +26,8 @@ Volto front end and PostgreSQL) behind nginx.
 * HTTPS from Let's Encrypt when you give it a domain name, now or [later](docs/setup-guide.md#adding-https-later).
 * Standard security headers on every page, and nginx doesn't reveal its version.
 * Ubuntu installs its security updates by itself.
-* [Plone security announcements](docs/setup-guide.md#updates) reach you within a day, often a week before the fix is out.
+* [Plone security announcements](docs/setup-guide.md#security-fixes-and-new-plone-releases) reach you within a day,
+  often a week before the fix is out, and a released fix installs the same day.
 * Servers made with Terraform or AWS's Launch Stack button are protected from being deleted or rebuilt by mistake.
 
 **Updates**
@@ -104,7 +105,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.18/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.19/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Create the Droplet, then open its IP address in your browser.
 
@@ -132,7 +133,7 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.18/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.19/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
 

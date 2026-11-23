@@ -1,6 +1,20 @@
-2.19 (unreleased)
+2.19 (2026-11-23)
 -----------------
 
+When a Plone security fix comes out, servers with automatic updates now
+install it the same day instead of waiting for Sunday, and tell you they did.
+The setup guide has a table of what the server does and what you do for each
+kind of Plone announcement. And `sudo plone-restore` puts a backup back, or
+moves your site to a new server. Servers set up before 2.19 get both by
+running `add-updates.sh` again (see the setup guide).
+
+- When a Plone security fix is released and automatic updates are on, the
+  server installs it the same day instead of on Sunday, and if its images
+  aren't out yet, tries again every day for a week. The security notice says
+  what happened: installed, not out yet, or failed and undone. The setup
+  guide's new "Security fixes and new Plone releases" section has a table of
+  what the server does and what you do for each kind of announcement, and
+  upgrading to a new Plone version has its own section.
 - `sudo plone-restore` puts a database backup back: the whole site as it was
   when the backup was taken. It saves a backup of the site as it is first, and
   puts that back if the restore fails. It also moves a site to a new server:
