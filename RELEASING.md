@@ -105,7 +105,11 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
    `release` variable's `default` in `src/aws/main.tf`, `src/hetzner/main.tf` and `src/digitalocean/main.tf`, and
    the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
    URL), so pasted launchers and the Launch Stack button download it, and run `python3 scripts/catalog.py pages` so the
-   Try It pages in `docs/try/` name it too. CI checks that they all match. Commit to `main` (or include it in the last PR).
+   Try It pages in `docs/try/` name it too. CI checks that they all match. Update the slides too
+   (`docs/slides/plone-in-a-box.md`): the release number and month on the title slide, new features on their slides,
+   and "What's next". Rebuild `docs/slides/plone-in-a-box.html` with Marp (`marp --html docs/slides/plone-in-a-box.md
+   -o docs/slides/plone-in-a-box.html`), and render the slides to PNG (`--images png`) to check nothing overflows.
+   Commit to `main` (or include it in the last PR).
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes. End the notes with
    the invitation to the Discord channel: `Questions or ideas? Join [#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082) on the
