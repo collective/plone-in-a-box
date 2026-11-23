@@ -196,16 +196,6 @@ Other variables (region, instance type, SSH source addresses, versions, disk siz
 one by default), so edits to `src/StackScript` in your copy aren't used. To try changes, push them to a branch and
 set `release` to it (in a fork, also change the GitHub address in `src/aws/main.tf`). The account needs a default VPC, which new AWS accounts have.
 
-The settings that go to the server (the admin password, domain, versions, add-ons, email and the others above), the
-release, the SSH key and the Ubuntu image are used only when Terraform creates the server. Changing them later, or
-pulling a newer Plone in a Box, doesn't rebuild the server, so a later `terraform apply` (for example to change
-`ssh_allowed_cidrs`) leaves your site alone; the server keeps itself current with `plone-update`.
-
-Terraform also never deletes the server: `terraform destroy`, and any change that would need a new server, stop
-with an error. On AWS and Hetzner, the provider refuses too (termination protection, and delete and rebuild
-protection), also in its web console. The same goes for DigitalOcean and Hetzner below. To remove a box on purpose,
-see [Removing the box](#removing-the-box).
-
 Type `yes` to confirm. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server then provisions
 itself. Open the `site_url` in your browser to watch the setup progress page, which turns into your site when it's
 ready. Or follow the log:
@@ -264,7 +254,8 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
 
    Options go in `src/digitalocean/terraform.tfvars` the same way as for AWS. Variables include `size` (default
    `s-1vcpu-2gb`), `region`, `preferred_regions`, `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the
-   versions. Not every region offers every size, and that changes over time. With `region` empty (the default),
+   versions. Unlike AWS, where the default server type is offered in every region, DigitalOcean's regions don't all
+   offer every size, and that changes over time as they fill up. With `region` empty (the default),
    Terraform picks the first region in `preferred_regions` that offers the size (Toronto, New York, San Francisco, then
    Amsterdam, Frankfurt, London; put your own part of the world first), and prints the one it chose. A `region` you
    set is always used; if it doesn't offer the size, `terraform apply` stops before creating anything and lists the
@@ -335,8 +326,8 @@ The server keeps its IPv4 address (a Primary IP) for as long as it exists, so yo
    ```
    Options go in `src/hetzner/terraform.tfvars` the same way as for AWS. Variables include `server_type` (default
    `cpx02`, 1 GB; `cpx11` in `ash` and `hil`; Arm types such as `cax11` work too), `location`, `preferred_locations`,
-   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions. Not every location offers every server
-   type. With `location` empty (the default), Terraform picks the first location in `preferred_locations` that
+   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions. As on DigitalOcean, not every location
+   offers every server type, and a type can run out in a location for a while. With `location` empty (the default), Terraform picks the first location in `preferred_locations` that
    offers the server type (Helsinki, Falkenstein, Nuremberg) and prints the one it chose. A `location` you set is
    always used; if it doesn't offer the server type, `terraform apply` stops before creating anything and lists the
    locations that do. Once created, the server stays in its location. As on AWS, the server downloads its
@@ -347,6 +338,28 @@ The server keeps its IPv4 address (a Primary IP) for as long as it exists, so yo
 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
 /var/log/plone-in-a-box.log`), then continue with [After provisioning](#after-provisioning).
+
+### Changing a Terraform server later
+
+This applies to AWS, DigitalOcean and Hetzner. Most owners never run Terraform again: the server keeps itself
+current with `plone-update` (see [Updates](#updates)), and everything else is done on the server. You might come
+back to the same `src/<provider>/` folder to:
+
+* **Change who can use SSH** (`ssh_allowed_cidrs`), **turn the provider's backups on or off** (`backups`, on DigitalOcean and Hetzner), or
+  **resize the server** (`instance_type` and `volume_size_gb` on AWS, `size` on DigitalOcean, `server_type` on
+  Hetzner). Run `terraform apply` with the new value; Terraform changes these on the existing server (resizing
+  restarts it).
+* **See the site address and other outputs again**: `terraform output`.
+* **Remove the box**: see [Removing the box](#removing-the-box).
+
+The other settings (the admin password, domain, versions, add-ons, email, `release`, the region or location, the
+SSH key) and the Ubuntu image are used only when the server is created. Changing them later does nothing to the
+existing server. Neither does `git pull` to get a newer Plone in a Box and running `terraform apply` again: that
+doesn't update the server (`plone-update` does), and it can't rebuild it, which would start an empty site.
+
+Terraform also never deletes the server: `terraform destroy`, and any change that would need a new server, stop
+with an error. On AWS and Hetzner the provider refuses too (termination protection, and delete and rebuild
+protection), also in its web console. To remove a box on purpose, see [Removing the box](#removing-the-box).
 
 ## After provisioning
 
