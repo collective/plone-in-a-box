@@ -192,6 +192,16 @@ Other variables (region, instance type, SSH source addresses, versions, disk siz
 one by default), so edits to `src/StackScript` in your copy aren't used. To try changes, push them to a branch and
 set `release` to it (in a fork, also change the GitHub address in `src/aws/main.tf`). The account needs a default VPC, which new AWS accounts have.
 
+The settings that go to the server (the admin password, domain, versions, add-ons, email and the others above), the
+release, the SSH key and the Ubuntu image are used only when Terraform creates the server. Changing them later, or
+pulling a newer Plone in a Box, doesn't rebuild the server, so a later `terraform apply` (for example to change
+`ssh_allowed_cidrs`) leaves your site alone; the server keeps itself current with `plone-update`.
+
+Terraform also never deletes the server: `terraform destroy`, and any change that would need a new server, stop
+with an error. On AWS and Hetzner, the provider refuses too (termination protection, and delete and rebuild
+protection), also in its web console. The same goes for DigitalOcean and Hetzner below. To remove a box on purpose,
+see [Removing the box](#removing-the-box).
+
 Type `yes` to confirm. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server then provisions
 itself. Open the `site_url` in your browser to watch the setup progress page, which turns into your site when it's
 ready. Or follow the log:
@@ -726,14 +736,17 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
 ## Removing the box
 
 * **Linode**: delete the Linode in Cloud Manager.
-* **AWS** or **DigitalOcean** with Terraform: `terraform destroy` from `src/aws/` or `src/digitalocean/`, with the
-  same `-var` options (or `terraform.tfvars`) and, for DigitalOcean, the same `DIGITALOCEAN_TOKEN`.
+* **AWS**, **DigitalOcean** or **Hetzner** with Terraform: Terraform protects the server from being deleted, so
+  removing it takes three steps, from `src/aws/`, `src/digitalocean/` or `src/hetzner/`, with the same `-var` options
+  (or `terraform.tfvars`) and token as when you created it:
+  1. On AWS and Hetzner only, turn the provider's protection off: `terraform apply -var deletion_protection=false`.
+  2. In `main.tf`, change `prevent_destroy = true` to `prevent_destroy = false`.
+  3. `terraform destroy` (on AWS and Hetzner: `terraform destroy -var deletion_protection=false`).
 * **DigitalOcean** without Terraform: destroy the Droplet in the control panel.
 * **AWS** with the Launch Stack button: in CloudFormation, select the stack and click **Delete**. That removes the
   server, its disk, the firewall and the fixed IP address.
 * **AWS** launched yourself in EC2: terminate the instance, and release its Elastic IP if you allocated one.
-* **Hetzner**: delete the server in the Hetzner Console (**Delete** on the server's page), or `terraform destroy` from
-  `src/hetzner/` with the same `HCLOUD_TOKEN`.
+* **Hetzner** without Terraform: delete the server in the Hetzner Console (**Delete** on the server's page).
 
 If you used Terraform, delete the AWS access key, DigitalOcean API token or Hetzner API token when you no longer
 need it.

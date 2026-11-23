@@ -55,6 +55,12 @@ variable "server_type" {
   default     = "cpx02"
 }
 
+variable "deletion_protection" {
+  description = "Delete and rebuild protection: Hetzner refuses to delete or rebuild the server, from Terraform, the Hetzner Console or anything else. To remove the box on purpose, set this to false and run terraform apply, change prevent_destroy to false in this file, then run terraform destroy."
+  type        = bool
+  default     = true
+}
+
 variable "ssh_public_key_path" {
   description = "Path to the SSH public key to upload and allow as root."
   type        = string
@@ -243,6 +249,10 @@ resource "hcloud_server" "plone" {
   ssh_keys     = [hcloud_ssh_key.deployer.id]
   firewall_ids = [hcloud_firewall.plone.id]
   backups      = var.backups
+
+  delete_protection  = var.deletion_protection
+  rebuild_protection = var.deletion_protection
+
   labels = {
     "plone-in-a-box" = "true"
   }
@@ -287,8 +297,17 @@ resource "hcloud_server" "plone" {
   lifecycle {
     # The location is chosen when the server is created. Availability changes
     # over time, and a later run choosing another location must not replace
-    # the server (and delete the site); to move it, destroy and create it again.
-    ignore_changes = [location]
+    # the server (and delete the site).
+    # Terraform never deletes or replaces the server, which would delete the
+    # site: terraform destroy and any change that needs a new server stop with
+    # an error. To remove the box on purpose, see deletion_protection.
+    prevent_destroy = true
+
+    # Settings used only when the server is created: the user data (the
+    # release and settings, read at first boot), the SSH key and the image.
+    # Changing them later, or a newer release or Ubuntu image, must not replace
+    # the server; plone-update keeps it current.
+    ignore_changes = [location, user_data, ssh_keys, image]
 
     precondition {
       condition     = local.location != ""

@@ -271,8 +271,19 @@ resource "digitalocean_droplet" "plone" {
   lifecycle {
     # The region is chosen when the Droplet is created. Availability changes
     # over time, and a later run choosing another region must not replace the
-    # Droplet (and delete the site); to move it, destroy and create it again.
-    ignore_changes = [region]
+    # Droplet (and delete the site).
+    # Terraform never deletes or replaces the server, which would delete the
+    # site: terraform destroy and any change that needs a new server stop with
+    # an error. DigitalOcean has no deletion protection
+    # of its own, so this is the guard. To remove the box on purpose, change
+    # this to false, then run terraform destroy.
+    prevent_destroy = true
+
+    # Settings used only when the server is created: the user data (the
+    # release and settings, read at first boot), the SSH key and the image.
+    # Changing them later, or a newer release or Ubuntu image, must not replace
+    # the server; plone-update keeps it current.
+    ignore_changes = [region, user_data, ssh_keys, image]
 
     precondition {
       condition     = local.size_found

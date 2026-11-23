@@ -22,6 +22,16 @@
   halfway with "Size is not available in this region" (as nyc3, the old
   DigitalOcean default, did in November 2026). A server stays where it was
   created when availability changes later.
+- Terraform (AWS, DigitalOcean and Hetzner) no longer replaces a server, and
+  so deletes its site, when its user data, SSH key or Ubuntu image would
+  change: for example after pulling a newer Plone in a Box, whose new
+  `release` changes the user data, or when Canonical publishes a newer Ubuntu
+  image on AWS. Those settings are used only when the server is created.
+- Terraform never deletes a server: `terraform destroy` and changes that need
+  a new server stop with an error (`prevent_destroy`), and on AWS and Hetzner
+  the provider refuses too, also in its web console (the new
+  `deletion_protection` variable, on by default). "Removing the box" in the
+  setup guide shows how to remove one on purpose.
 
 2.17 (2026-11-22)
 -----------------
