@@ -277,8 +277,8 @@ delete_server() {
     # and its address is kept when the stack is deleted, as for site owners:
     # turn the protection off, delete the stack, then release the address.
     local instance alloc
-    instance=$(aws cloudformation describe-stack-resource --stack-name "$1" --logical-resource-id Instance \
-      --query StackResourceDetail.PhysicalResourceId --output text 2>/dev/null || true)
+    instance=$(aws cloudformation describe-stack-resources --stack-name "$1" --logical-resource-id Instance \
+      --query 'StackResources[0].PhysicalResourceId' --output text 2>/dev/null || true)
     alloc=$(aws ec2 describe-addresses --filters "Name=tag:aws:cloudformation:stack-name,Values=$1" \
       --query 'Addresses[0].AllocationId' --output text 2>/dev/null || true)
     if [[ "$instance" == i-* ]]; then
