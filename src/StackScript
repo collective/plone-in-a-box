@@ -1189,26 +1189,30 @@ say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 SITE_URL=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
 UNTIL="$STATE_DIR/security-update-until"
 auto_updates() { systemctl is-enabled --quiet plone-update.timer 2>/dev/null; }
-# Run plone-update (it reports by itself when it installs something), and
-# print the summary it left for the login message.
+# Run plone-update once per run (it reports by itself when it installs
+# something), and keep the summary it left for the login message in
+# UPDATE_RESULT. (Called directly, not in $(...), so the log lines go to the
+# log and the result is kept.)
 UPDATE_RESULT=""
 run_update() {
-  if [[ -z "$UPDATE_RESULT" ]]; then
-    say "Running plone-update for the security fix"
-    /usr/local/bin/plone-update >/dev/null 2>&1 </dev/null
-    UPDATE_RESULT=$(sed -E 's/^[0-9-]+ [0-9:]+  //' "$STATE_DIR/update-status" 2>/dev/null)
-    say "plone-update: ${UPDATE_RESULT:-no result}"
-  fi
-  printf '%s' "$UPDATE_RESULT"
+  [[ -z "$UPDATE_RESULT" ]] || return 0
+  say "Running plone-update for the security fix"
+  /usr/local/bin/plone-update >/dev/null 2>&1 </dev/null
+  UPDATE_RESULT=$(sed -E 's/^[0-9-]+ [0-9:]+  //' "$STATE_DIR/update-status" 2>/dev/null)
+  UPDATE_RESULT=${UPDATE_RESULT:-no result}
+  say "plone-update: $UPDATE_RESULT"
 }
 
 # A fix announced in the last week whose images weren't out yet: try again.
 if [[ -s "$UNTIL" ]]; then
   if (( $(date +%s) > $(cat "$UNTIL") )) || ! auto_updates; then
     rm -f "$UNTIL"
-  elif [[ "$(run_update)" == Updated:* ]]; then
-    say "The security fix is installed"
-    rm -f "$UNTIL"
+  else
+    run_update
+    if [[ "$UPDATE_RESULT" == Updated:* ]]; then
+      say "The security fix is installed"
+      rm -f "$UNTIL"
+    fi
   fi
 fi
 
@@ -1253,9 +1257,10 @@ posts=$(tail -n 3 <<<"$posts")
 fix_outcome=""
 if cut -f3 <<<"$posts" | grep -qviE 'pre-?announce'; then
   if ! auto_updates; then
-    fix_outcome="Automatic updates are off on this server, so install the fix yourself: sudo plone-update"
+    fix_outcome="Automatic updates are off on this server, so install the fix yourself with: sudo plone-update."
   else
-    result=$(run_update)
+    run_update
+    result=$UPDATE_RESULT
     case "$result" in
       Updated:*)
         rm -f "$UNTIL"
@@ -1264,7 +1269,7 @@ if cut -f3 <<<"$posts" | grep -qviE 'pre-?announce'; then
         fix_outcome="This server tried to install it right away, but the update failed and was undone (${result}). The log is in /var/log/plone-update.log." ;;
       *)
         echo $(( $(date +%s) + 7 * 86400 )) > "$UNTIL"
-        fix_outcome="This server found no new Plone images with the fix yet (${result:-no result}). It checks again every day for a week and installs them as soon as they appear; the update report tells you when." ;;
+        fix_outcome="This server found no new Plone images with the fix yet (${result}). It checks again every day for a week and installs them as soon as they appear; the update report tells you when." ;;
     esac
   fi
 fi
