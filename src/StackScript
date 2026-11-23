@@ -1029,6 +1029,85 @@ if [[ "${1:-}" == pack ]] || (( $(date +%s) - $(cat "$STATE_DIR/last-pack" 2>/de
 fi
 PLONE_BACKUP_EOF
 chmod 755 /usr/local/bin/plone-backup
+
+# Restore a database backup: sudo plone-restore [FILE]. Also for moving a site
+# to a new server: copy a backup there and restore it.
+cat > /usr/local/bin/plone-restore <<'PLONE_RESTORE_EOF'
+#!/bin/bash
+# Put a database backup back: the site's pages, files, users and settings
+# become what they were when the backup was taken. Takes a backup of the site
+# as it is now first, and goes back to it if the restore fails.
+# Usage: sudo plone-restore               (list the backups)
+#        sudo plone-restore FILE [--yes]  (restore FILE, a plone-*.sql.gz backup)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-restore" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+BACKUP_DIR=/var/backups/plone
+compose() { docker compose --project-directory /opt/plone "$@"; }
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+if [[ $# -eq 0 ]]; then
+  echo "Backups on this server, newest first:"
+  # shellcheck disable=SC2012
+  ls -1t "$BACKUP_DIR"/*.sql.gz 2>/dev/null | while read -r f; do
+    printf '  %s  (%s, %s)\n' "$f" "$(du -h "$f" | cut -f1)" "$(date -r "$f" '+%F %H:%M')"
+  done
+  echo "Restore one with: sudo plone-restore FILE"
+  exit 0
+fi
+FILE=$1
+[[ -s "$FILE" ]] || { echo "No backup at $FILE" >&2; exit 1; }
+gzip -t "$FILE" 2>/dev/null || { echo "$FILE isn't a complete .sql.gz backup" >&2; exit 1; }
+zcat "$FILE" | head -c 4000 | grep -q 'PostgreSQL database dump' \
+  || { echo "$FILE isn't a database backup made by plone-backup or pg_dump" >&2; exit 1; }
+if [[ "${2:-}" != --yes ]]; then
+  echo "This replaces everything on the site (pages, files, users, settings) with the backup"
+  echo "$FILE, from $(date -r "$FILE" '+%F %H:%M'). A backup of the site as it is now is taken first."
+  read -r -p "Type yes to continue: " answer
+  [[ "$answer" == yes ]] || { echo "Nothing was changed."; exit 1; }
+fi
+mkdir -p "$STATE_DIR"
+exec 9>"$STATE_DIR/update.lock"
+flock -w 3600 9 || { echo "plone-update or plone-backup is still running; try again later" >&2; exit 1; }
+exec > >(tee -a /var/log/plone-restore.log) 2>&1
+LOG_TEE_PID=$!
+trap 'exec >/dev/null 2>&1; wait "$LOG_TEE_PID" 2>/dev/null || true' EXIT
+
+load() {  # load FILE: replace the database with FILE, with the site stopped
+  compose stop backend frontend >/dev/null 2>&1
+  compose exec -T db psql -q -U plone -d postgres -v ON_ERROR_STOP=1 \
+    -c 'DROP DATABASE IF EXISTS plone WITH (FORCE)' -c 'CREATE DATABASE plone OWNER plone' || return 1
+  zcat "$1" | compose exec -T db psql -q -U plone -d plone -v ON_ERROR_STOP=1 >/dev/null || return 1
+}
+start() {  # start the site and wait for it
+  compose up -d >/dev/null 2>&1
+  for _ in $(seq 1 60); do
+    curl -fsS -m 10 -o /dev/null http://127.0.0.1:8080/ok && curl -fsS -m 30 -o /dev/null http://127.0.0.1:3000/ && return 0
+    sleep 10
+  done
+  return 1
+}
+
+# The site as it is now, named so plone-backup's rotation keeps it.
+BEFORE="$BACKUP_DIR/before-restore-$(date +%F-%H%M%S).sql.gz"
+install -d -m 700 "$BACKUP_DIR"
+say "Backing up the site as it is now to $BEFORE"
+compose exec -T db pg_dump -U plone plone | gzip > "$BEFORE.part"
+[[ "${PIPESTATUS[*]}" == "0 0" ]] || { rm -f "$BEFORE.part"; say "That backup failed, so nothing was changed"; exit 1; }
+mv "$BEFORE.part" "$BEFORE"
+say "Restoring $FILE"
+if load "$FILE" && start; then
+  say "Restored $FILE. Log in with the passwords from the time of that backup."
+  exit 0
+fi
+say "Restoring $FILE failed; putting back the site as it was"
+if load "$BEFORE" && start; then
+  say "The site is back as it was before. Nothing was restored."
+else
+  say "Putting the site back failed too. The backup of the site as it was is $BEFORE"
+fi
+exit 1
+PLONE_RESTORE_EOF
+chmod 755 /usr/local/bin/plone-restore
 cat > /etc/systemd/system/plone-backup.service <<'EOF'
 [Unit]
 Description=Plone in a Box: database backup, and a weekly pack
