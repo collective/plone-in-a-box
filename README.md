@@ -7,17 +7,55 @@ form on your cloud provider's website (Linode, DigitalOcean, Amazon AWS or Hetzn
 Create. About 10 minutes later, the server's address shows your new Plone site, ready to log in and edit. There's
 nothing to install on your computer.
 
-Behind the scenes, each box is a single Ubuntu 26.04 LTS server running the official Plone Docker images (the Plone
-backend, the Volto front end and PostgreSQL) behind nginx, with:
+## What you get
 
-* the admin password you choose when creating the server, or a randomly generated one (there's no `admin:admin`)
-* a page that shows setup progress while you wait, and turns into your site when it's ready
-* only the website (HTTP and HTTPS) and SSH reachable from the internet
-* optional HTTPS from Let's Encrypt when you give it a domain name
-* all Ubuntu updates installed during setup, and swap added on small servers
+Each box is a single Ubuntu 26.04 LTS server running the official Plone Docker images (the Plone backend, the
+Volto front end and PostgreSQL) behind nginx.
 
-Default versions: Plone 6.2 with Volto 19. Both are configurable; for the previous release line, use Plone `6.1`
-with Volto `18`.
+**Setting up**
+* A form on your provider's website ([Linode, DigitalOcean, AWS or Hetzner](#get-started)), or
+  [Terraform](docs/setup-guide.md#terraform-deployment-automated-more-technical) if you prefer automation. On
+  DigitalOcean and Hetzner, Terraform picks a region that offers the server size you chose.
+* The admin password you choose, or a randomly generated one (there's no `admin:admin`).
+* A page that shows setup progress while you wait, and turns into your site in about 10 minutes.
+* Plone 6.2 with Volto 19 by default; both are configurable (for the previous release line, use Plone `6.1` with
+  Volto `18`).
+
+**Security**
+* Only the website (HTTP and HTTPS) and SSH are reachable from the internet.
+* HTTPS from Let's Encrypt when you give it a domain name, now or [later](docs/setup-guide.md#adding-https-later).
+* Standard security headers on every page, and nginx doesn't reveal its version.
+* Ubuntu installs its security updates by itself.
+* [Plone security announcements](docs/setup-guide.md#updates) reach you within a day, often a week before the fix is out.
+* Servers made with Terraform or AWS's Launch Stack button are protected from being deleted or rebuilt by mistake.
+
+**Updates**
+* Every week, Plone, Volto and PostgreSQL patch releases install automatically, after a database backup, and are
+  undone if the site doesn't come back. You're told when a new Plone version is out to move to yourself. See
+  [Updates](docs/setup-guide.md#updates); a server set up before 2.12 gets them with
+  [one command](docs/setup-guide.md#servers-set-up-before-212).
+
+**Notices**
+* Update reports, security announcements and backup problems go to your phone ([ntfy](https://ntfy.sh)), a team
+  chat (Slack, Discord, Google Chat, Mattermost or Microsoft Teams), by email, and to the server's login message.
+
+**Backups**
+* A database backup every night (the whole site, files and images included), and a weekly pack so the database
+  doesn't grow forever. Your provider's server backups can be turned on too. See
+  [Backups](docs/setup-guide.md#day-to-day-administration).
+
+**Customizing**
+* [Backend add-ons](docs/setup-guide.md#add-ons) such as `collective.easyform`, installed when deploying or later.
+* [Ready-made frontend images](docs/setup-guide.md#themes-and-frontend-images) such as Volto Light Theme
+  (`ghcr.io/collective/plone-in-a-box-frontend:19-vlt`), or your own, and your own
+  [backend image](docs/setup-guide.md#custom-backend-image).
+* A [demo login](docs/setup-guide.md#demo-login), with the roles and password you choose, for letting others try the site.
+* [Email](docs/setup-guide.md#sending-email) for password resets, forms and reports, through a relay service such as SMTP2GO, Brevo
+  or Amazon SES, with your own domain; setup sends a test email.
+
+**For add-on authors**
+* A [Try It page and button](#for-add-on-authors-a-try-it-button) that sets up a box with your add-on and a demo
+  login.
 
 Questions, ideas, or stuck? Come and talk in the **[#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082)** channel on
 [the Plone Discord](https://discord.gg/jRrsnYkNvS).
@@ -108,24 +146,10 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
   domain and email settings to get HTTPS automatically. Adding a domain to an existing server takes a few commands;
   see [Adding HTTPS later](docs/setup-guide.md#adding-https-later).
 * **Removing the site:** delete the server in your provider's control panel. This deletes the site's content too.
+  Servers made with Terraform or the Launch Stack button are protected, so turn that off first; see
+  [Removing the box](docs/setup-guide.md#removing-the-box).
 
-* **Add-ons:** backend add-ons such as `collective.easyform` can be installed when deploying, or later; see
-  [Add-ons](docs/setup-guide.md#add-ons).
-* **Volto Light Theme:** set the frontend image to `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` when
-  deploying; see [Themes and frontend images](docs/setup-guide.md#themes-and-frontend-images).
-* **Demo login:** an extra login, with the roles and password you choose (or a generated password), for letting
-  others try the site; see
-  [Demo login](docs/setup-guide.md#demo-login). Add-on authors can use it for a
-  ["Try It" button](#for-add-on-authors-a-try-it-button).
-* **Updates:** Ubuntu installs its security updates by itself, and every week the server installs Plone, Volto and
-  PostgreSQL patch releases, after a database backup, and undoes them if the site doesn't come back. Reports can go
-  to your phone (ntfy), a team chat, or by email; see [Updates](docs/setup-guide.md#updates). A server set up
-  before 2.12 gets them with [one command](docs/setup-guide.md#servers-set-up-before-212).
-* **Email:** for password resets, forms and update reports, the site sends through an email relay service such as
-  SMTP2GO, Brevo or Amazon SES, with your own domain. Fill in its settings when deploying, and setup sends a test
-  email; see [Sending email](docs/setup-guide.md#sending-email), which compares the services.
-
-The setup guide also covers [backups, upgrades and troubleshooting](docs/setup-guide.md).
+The [setup guide](docs/setup-guide.md) covers all of this step by step, plus upgrades and troubleshooting.
 
 ## For add-on authors: a "Try It" button
 
