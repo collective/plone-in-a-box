@@ -486,7 +486,7 @@ ssh root@<new-server> plone-restore /root/plone-<date>.sql.gz
 Then point your domain at the new server, and delete the old one when you're sure.
 
 A server set up before 2.16 gets the nightly backups with the [same command](#servers-set-up-before-212) as automatic
-updates, and one set up before 2.19 gets `plone-restore` with it too.
+updates, and one set up before 2.19 gets `plone-restore` with it too (and before 2.20, `plone-offsite`).
 
 **Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
 the site's address every few minutes and alert you. DigitalOcean has this built in (**Monitoring → Uptime**, then
