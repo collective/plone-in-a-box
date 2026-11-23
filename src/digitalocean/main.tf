@@ -39,9 +39,9 @@ variable "release" {
 }
 
 variable "region" {
-  description = "DigitalOcean region slug, for example nyc3, sfo3, ams3, fra1 or tor1."
+  description = "DigitalOcean region slug, for example tor1, sfo3, nyc2, ams3 or fra1. Not every size is offered everywhere: in November 2026, nyc1 and nyc3 had no basic sizes."
   type        = string
-  default     = "nyc3"
+  default     = "tor1"
 }
 
 variable "size" {

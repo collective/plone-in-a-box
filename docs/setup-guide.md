@@ -249,7 +249,7 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
    second time. Pass its fingerprint instead: `-var 'ssh_key_fingerprint=aa:bb:cc:...'`.
 
    Options go in `src/digitalocean/terraform.tfvars` the same way as for AWS. Variables include `region` (default
-   `nyc3`), `size` (default `s-1vcpu-2gb`), `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions.
+   `tor1`, Toronto; not every region offers every size), `size` (default `s-1vcpu-2gb`), `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions.
    As on AWS, the Droplet downloads its setup script from the Plone in a Box release in `release`, so to try
    changes, push them to a branch and set `release` to it.
 3. Terraform prints `site_url`, `public_ip` and `credentials_command`. The Droplet also gets a DigitalOcean Cloud

@@ -14,6 +14,9 @@
   setup script of the release in the new `release` variable, so all three
   Terraform routes work the same way. On Hetzner, the compressed script had
   reached 29 of the 32 KB of user data allowed.
+- DigitalOcean Terraform: the default region is now tor1 (Toronto), because
+  nyc3 stopped offering the basic Droplet sizes, so the defaults failed with
+  "Size is not available in this region".
 
 2.17 (2026-11-22)
 -----------------
