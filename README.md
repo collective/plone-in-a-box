@@ -26,7 +26,8 @@ Volto front end and PostgreSQL) behind nginx.
 * HTTPS from Let's Encrypt when you give it a domain name, now or [later](docs/setup-guide.md#adding-https-later).
 * Standard security headers on every page, and nginx doesn't reveal its version.
 * Ubuntu installs its security updates by itself.
-* [Plone security announcements](docs/setup-guide.md#updates) reach you within a day, often a week before the fix is out.
+* [Plone security announcements](docs/setup-guide.md#security-fixes-and-new-plone-releases) reach you within a day,
+  often a week before the fix is out, and a released fix installs the same day.
 * Servers made with Terraform or AWS's Launch Stack button are protected from being deleted or rebuilt by mistake.
 
 **Updates**
