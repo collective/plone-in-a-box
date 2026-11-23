@@ -900,7 +900,7 @@ if check "a test page can be created" restore_page create \
   # shellcheck disable=SC2016  # expanded on the server
   check "plone-restore restores the newest backup" rssh \
     'plone-restore "$(ls -1t /var/backups/plone/plone-*.sql.gz | head -n 1)" --yes'
-  rssh 'tail -n 3 /var/log/plone-restore.log' 2>/dev/null | sed 's/^/      /'
+  rssh 'tail -n 3 /var/log/plone-restore.log' 2>/dev/null | sed 's/^/      /' || true
   check "the test page is back after the restore" restore_page exists
   check "the admin password still works after the restore" login "$NEW_PASSWORD"
   check "plone-restore kept a backup of the site as it was" rssh 'ls /var/backups/plone/before-restore-*.sql.gz'

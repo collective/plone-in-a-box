@@ -1057,7 +1057,9 @@ fi
 FILE=$1
 [[ -s "$FILE" ]] || { echo "No backup at $FILE" >&2; exit 1; }
 gzip -t "$FILE" 2>/dev/null || { echo "$FILE isn't a complete .sql.gz backup" >&2; exit 1; }
-zcat "$FILE" | head -c 4000 | grep -q 'PostgreSQL database dump' \
+# (Reading through <(...): with pipefail, zcat stopped early by head would
+# count as a failure.)
+grep -q 'PostgreSQL database dump' <(zcat "$FILE" 2>/dev/null | head -c 4000) \
   || { echo "$FILE isn't a database backup made by plone-backup or pg_dump" >&2; exit 1; }
 if [[ "${2:-}" != --yes ]]; then
   echo "This replaces everything on the site (pages, files, users, settings) with the backup"
@@ -1081,7 +1083,7 @@ load() {  # load FILE: replace the database with FILE, with the site stopped
 start() {  # start the site and wait for it
   compose up -d >/dev/null 2>&1
   for _ in $(seq 1 60); do
-    curl -fsS -m 10 -o /dev/null http://127.0.0.1:8080/ok && curl -fsS -m 30 -o /dev/null http://127.0.0.1:3000/ && return 0
+    curl -fs -m 10 -o /dev/null http://127.0.0.1:8080/ok && curl -fs -m 30 -o /dev/null http://127.0.0.1:3000/ && return 0
     sleep 10
   done
   return 1
