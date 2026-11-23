@@ -47,8 +47,10 @@ still deploy with no build step. Add optional settings for people who need more:
   - **Showcase Aurora in the catalog** (requested 2026-11-23): Aurora
     ([github.com/plone/aurora](https://github.com/plone/aurora), demo at aurora.demo.plone.org) is the new React
     frontend for Plone, the successor to Volto, developed for Plone 7. It replaces Volto rather than adding to it, so
-    it fits the ready-made image path, not the Volto build. To find out first: whether there's a published Aurora
-    image (or how to build one), which Plone backend version and packages it needs (does it run against Plone 6.2, or
+    it fits the ready-made image path, not the Volto build. Its images are published as
+    [plone/aurora](https://hub.docker.com/r/plone/aurora) on Docker Hub (amd64 and arm64; as of 2026-11-23, alpha
+    releases such as `1.0.0-alpha.26`, every few days, plus `latest` and `sha-...` builds), so a Try It page can pin a
+    release tag. Still to find out: which Plone backend version and packages it needs (does it run against Plone 6.2, or
     only a Plone 7 pre-release?), what port and settings the image expects compared with `plone-frontend`, and how
     stable it is today. A Try It page would say clearly that Aurora is in development.
   - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
