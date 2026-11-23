@@ -14,9 +14,14 @@
   setup script of the release in the new `release` variable, so all three
   Terraform routes work the same way. On Hetzner, the compressed script had
   reached 29 of the 32 KB of user data allowed.
-- DigitalOcean Terraform: the default region is now tor1 (Toronto), because
-  nyc3 stopped offering the basic Droplet sizes, so the defaults failed with
-  "Size is not available in this region".
+- DigitalOcean and Hetzner Terraform choose the region or location
+  automatically: the first one in the new `preferred_regions` or
+  `preferred_locations` list that offers the size, and print it. A region or
+  location you set that doesn't offer the size now stops Terraform before
+  anything is created, with a list of the ones that do, instead of failing
+  halfway with "Size is not available in this region" (as nyc3, the old
+  DigitalOcean default, did in November 2026). A server stays where it was
+  created when availability changes later.
 
 2.17 (2026-11-22)
 -----------------

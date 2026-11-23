@@ -39,9 +39,15 @@ variable "release" {
 }
 
 variable "region" {
-  description = "DigitalOcean region slug, for example tor1, sfo3, nyc2, ams3 or fra1. Not every size is offered everywhere: in November 2026, nyc1 and nyc3 had no basic sizes."
+  description = "DigitalOcean region slug, for example tor1, sfo3, nyc2, ams3 or fra1. Empty: the first region in preferred_regions that offers the size. A region set here is always used, and if it doesn't offer the size, Terraform stops before creating anything and lists the regions that do."
   type        = string
-  default     = "tor1"
+  default     = ""
+}
+
+variable "preferred_regions" {
+  description = "With region empty, the regions to choose from, best first. Put the ones near your visitors first; where the server is can also matter for data protection rules."
+  type        = list(string)
+  default     = ["tor1", "nyc2", "sfo3", "ams3", "fra1", "lon1"]
 }
 
 variable "size" {
@@ -205,10 +211,24 @@ locals {
   ssh_key = var.ssh_key_fingerprint != "" ? var.ssh_key_fingerprint : digitalocean_ssh_key.deployer[0].fingerprint
 }
 
+# Which regions offer the size right now (not every region offers every size).
+data "digitalocean_sizes" "chosen" {
+  filter {
+    key    = "slug"
+    values = [var.size]
+  }
+}
+
+locals {
+  size_found   = length(data.digitalocean_sizes.chosen.sizes) > 0
+  size_regions = local.size_found && try(data.digitalocean_sizes.chosen.sizes[0].available, false) ? sort(tolist(data.digitalocean_sizes.chosen.sizes[0].regions)) : []
+  region       = var.region != "" ? var.region : try([for r in var.preferred_regions : r if contains(local.size_regions, r)][0], "")
+}
+
 resource "digitalocean_droplet" "plone" {
   name       = "plone-in-a-box"
   image      = "ubuntu-26-04-x64"
-  region     = var.region
+  region     = local.region
   size       = var.size
   ssh_keys   = [local.ssh_key]
   ipv6       = true
@@ -247,6 +267,26 @@ resource "digitalocean_droplet" "plone" {
     "fi",
     "exec bash /root/plone-in-a-box.sh",
   ])
+
+  lifecycle {
+    # The region is chosen when the Droplet is created. Availability changes
+    # over time, and a later run choosing another region must not replace the
+    # Droplet (and delete the site); to move it, destroy and create it again.
+    ignore_changes = [region]
+
+    precondition {
+      condition     = local.size_found
+      error_message = "size: DigitalOcean has no size called ${var.size}. See https://slugs.do-api.dev for the sizes."
+    }
+    precondition {
+      condition     = !local.size_found || local.region != ""
+      error_message = "None of preferred_regions (${join(", ", var.preferred_regions)}) offers ${var.size} right now. Regions that do: ${join(", ", local.size_regions)}. Set region or preferred_regions to one of them."
+    }
+    precondition {
+      condition     = local.region == "" || contains(local.size_regions, local.region)
+      error_message = "${var.size} isn't offered in ${local.region} right now. Regions that offer it: ${join(", ", local.size_regions)}. Set region to one of these, or leave it empty to choose from preferred_regions."
+    }
+  }
 }
 
 resource "digitalocean_firewall" "plone" {
@@ -287,6 +327,10 @@ resource "digitalocean_firewall" "plone" {
     protocol              = "icmp"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
+}
+
+output "region" {
+  value = digitalocean_droplet.plone.region
 }
 
 output "public_ip" {

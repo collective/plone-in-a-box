@@ -38,9 +38,15 @@ variable "release" {
 }
 
 variable "location" {
-  description = "Hetzner location: nbg1 (Nuremberg), fsn1 (Falkenstein), hel1 (Helsinki), ash (Ashburn, VA), hil (Hillsboro, OR) or sin (Singapore). Not every server type is offered everywhere."
+  description = "Hetzner location: nbg1 (Nuremberg), fsn1 (Falkenstein), hel1 (Helsinki), ash (Ashburn, VA), hil (Hillsboro, OR) or sin (Singapore). Empty: the first location in preferred_locations that offers the server type. A location set here is always used, and if it doesn't offer the server type, Terraform stops before creating anything and lists the locations that do."
   type        = string
-  default     = "hel1"
+  default     = ""
+}
+
+variable "preferred_locations" {
+  description = "With location empty, the locations to choose from, best first. Put the ones near your visitors first; where the server is can also matter for data protection rules."
+  type        = list(string)
+  default     = ["hel1", "fsn1", "nbg1"]
 }
 
 variable "server_type" {
@@ -218,11 +224,22 @@ resource "hcloud_firewall" "plone" {
   }
 }
 
+# Which locations offer the server type right now (not every location offers
+# every type, and a type can be out of stock in a location for a while).
+data "hcloud_server_type" "chosen" {
+  name = var.server_type
+}
+
+locals {
+  type_locations = sort([for l in data.hcloud_server_type.chosen.locations : l.name if l.available && !l.is_deprecated])
+  location       = var.location != "" ? var.location : try([for l in var.preferred_locations : l if contains(local.type_locations, l)][0], "")
+}
+
 resource "hcloud_server" "plone" {
   name         = "plone-in-a-box"
   image        = "ubuntu-26.04"
   server_type  = var.server_type
-  location     = var.location
+  location     = local.location
   ssh_keys     = [hcloud_ssh_key.deployer.id]
   firewall_ids = [hcloud_firewall.plone.id]
   backups      = var.backups
@@ -266,6 +283,26 @@ resource "hcloud_server" "plone" {
     "fi",
     "exec bash /root/plone-in-a-box.sh",
   ])
+
+  lifecycle {
+    # The location is chosen when the server is created. Availability changes
+    # over time, and a later run choosing another location must not replace
+    # the server (and delete the site); to move it, destroy and create it again.
+    ignore_changes = [location]
+
+    precondition {
+      condition     = local.location != ""
+      error_message = "None of preferred_locations (${join(", ", var.preferred_locations)}) offers ${var.server_type} right now. Locations that do: ${join(", ", local.type_locations)}. Set location or preferred_locations to one of them."
+    }
+    precondition {
+      condition     = local.location == "" || contains(local.type_locations, local.location)
+      error_message = "${var.server_type} isn't offered in ${local.location} right now. Locations that offer it: ${join(", ", local.type_locations)}. Set location to one of these, or leave it empty to choose from preferred_locations."
+    }
+  }
+}
+
+output "location" {
+  value = hcloud_server.plone.location
 }
 
 output "public_ip" {

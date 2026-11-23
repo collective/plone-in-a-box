@@ -248,11 +248,16 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
    If that SSH key is already in your DigitalOcean account (**Settings → Security**), DigitalOcean won't accept it a
    second time. Pass its fingerprint instead: `-var 'ssh_key_fingerprint=aa:bb:cc:...'`.
 
-   Options go in `src/digitalocean/terraform.tfvars` the same way as for AWS. Variables include `region` (default
-   `tor1`, Toronto; not every region offers every size), `size` (default `s-1vcpu-2gb`), `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions.
+   Options go in `src/digitalocean/terraform.tfvars` the same way as for AWS. Variables include `size` (default
+   `s-1vcpu-2gb`), `region`, `preferred_regions`, `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the
+   versions. Not every region offers every size, and that changes over time. With `region` empty (the default),
+   Terraform picks the first region in `preferred_regions` that offers the size (Toronto, New York, San Francisco, then
+   Amsterdam, Frankfurt, London; put your own part of the world first), and prints the one it chose. A `region` you
+   set is always used; if it doesn't offer the size, `terraform apply` stops before creating anything and lists the
+   regions that do. Once created, the Droplet stays in its region.
    As on AWS, the Droplet downloads its setup script from the Plone in a Box release in `release`, so to try
    changes, push them to a branch and set `release` to it.
-3. Terraform prints `site_url`, `public_ip` and `credentials_command`. The Droplet also gets a DigitalOcean Cloud
+3. Terraform prints `site_url`, `public_ip`, `region` and `credentials_command`. The Droplet also gets a DigitalOcean Cloud
    Firewall that allows only ports 22, 80 and 443.
 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
@@ -314,12 +319,16 @@ The server keeps its IPv4 address (a Primary IP) for as long as it exists, so yo
    terraform init
    terraform apply -var 'ssh_public_key_path=~/.ssh/id_ed25519.pub'
    ```
-   Options go in `src/hetzner/terraform.tfvars` the same way as for AWS. Variables include `location` (default
-   `hel1`), `server_type` (default `cpx02`, 1 GB; `cpx11` in `ash` and `hil`; Arm types such as `cax11` work too),
-   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions. As on AWS, the server downloads its
+   Options go in `src/hetzner/terraform.tfvars` the same way as for AWS. Variables include `server_type` (default
+   `cpx02`, 1 GB; `cpx11` in `ash` and `hil`; Arm types such as `cax11` work too), `location`, `preferred_locations`,
+   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions. Not every location offers every server
+   type. With `location` empty (the default), Terraform picks the first location in `preferred_locations` that
+   offers the server type (Helsinki, Falkenstein, Nuremberg) and prints the one it chose. A `location` you set is
+   always used; if it doesn't offer the server type, `terraform apply` stops before creating anything and lists the
+   locations that do. Once created, the server stays in its location. As on AWS, the server downloads its
    setup script from the Plone in a Box release in `release`, so to try changes, push them to a branch and set
    `release` to it.
-3. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server also gets a Hetzner Firewall that
+3. Terraform prints `site_url`, `public_ip`, `location` and `credentials_command`. The server also gets a Hetzner Firewall that
    allows only ports 22, 80 and 443.
 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
