@@ -10,6 +10,32 @@
   new `release` variable (the current release by default), as the Launch
   Stack template does, instead of carrying it in its user data. The script
   had grown close to EC2's 16 KB user data limit.
+- Hetzner and DigitalOcean Terraform: likewise, the server downloads the
+  setup script of the release in the new `release` variable, so all three
+  Terraform routes work the same way. On Hetzner, the compressed script had
+  reached 29 of the 32 KB of user data allowed.
+- DigitalOcean and Hetzner Terraform choose the region or location
+  automatically: the first one in the new `preferred_regions` or
+  `preferred_locations` list that offers the size, and print it. A region or
+  location you set that doesn't offer the size now stops Terraform before
+  anything is created, with a list of the ones that do, instead of failing
+  halfway with "Size is not available in this region" (as nyc3, the old
+  DigitalOcean default, did in November 2026). A server stays where it was
+  created when availability changes later.
+- Terraform (AWS, DigitalOcean and Hetzner) no longer replaces a server, and
+  so deletes its site, when its user data, SSH key or Ubuntu image would
+  change: for example after pulling a newer Plone in a Box, whose new
+  `release` changes the user data, or when Canonical publishes a newer Ubuntu
+  image on AWS. Those settings are used only when the server is created.
+- Terraform never deletes a server: `terraform destroy` and changes that need
+  a new server stop with an error (`prevent_destroy`), and on AWS and Hetzner
+  the provider refuses too, also in its web console (the new
+  `deletion_protection` variable, on by default). "Removing the box" in the
+  setup guide shows how to remove one on purpose.
+- AWS Launch Stack: the server has termination protection, so deleting the
+  stack by mistake can't delete it, and a stack update that needs a new
+  server keeps the old one; the Elastic IP is kept when the stack is deleted.
+  "Removing the box" in the setup guide shows how to remove it on purpose.
 
 2.17 (2026-11-22)
 -----------------

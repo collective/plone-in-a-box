@@ -10,9 +10,11 @@ release, and the public Linode StackScript is updated by hand.
 2. Test the changed script before merging:
    * **Linode**: paste `src/StackScript` from the branch into the private test StackScript (`plone-in-a-box-test`,
      Target Images Ubuntu 24.04 and 26.04) and deploy a 1 GB Linode (Nanode) from it, the smallest size the docs recommend.
-   * **AWS** (if `src/aws/` or the script changed): `terraform apply` from `src/aws/` on the branch.
-   * **DigitalOcean** (if `src/digitalocean/` or the script changed): `terraform apply` from `src/digitalocean/`.
-   * **Hetzner** (if `src/hetzner/` or the script changed): `terraform apply` from `src/hetzner/`.
+   * **AWS** (if `src/aws/` or the script changed): `terraform apply -var release=<branch>` from `src/aws/` on the
+     branch. The server downloads `src/StackScript` from GitHub, so push the branch first; without `release` it
+     runs the last release's script, not the branch's.
+   * **DigitalOcean** (if `src/digitalocean/` or the script changed): the same, from `src/digitalocean/`.
+   * **Hetzner** (if `src/hetzner/` or the script changed): the same, from `src/hetzner/`.
    * **AWS Launch Stack** (if `src/aws/cloudformation.yaml` changed): in the CloudFormation console, **Create stack →
      With new resources → Upload a template file**, choose the branch's `src/aws/cloudformation.yaml`, and set
      **Plone in a Box release** to the branch name if the script changed too. Delete the stack afterwards. Or let
@@ -27,7 +29,10 @@ release, and the public Linode StackScript is updated by hand.
      * from outside, ports 5432, 8080 and 3000 time out (`nc -zv -w 5 <ip> <port>`)
      * after `docker compose --project-directory /opt/plone up -d --force-recreate backend`, the same password
        still works
-   * Delete the test servers afterwards (`terraform destroy` with the same `-var` options).
+   * Delete the test servers afterwards: Terraform protects them, so follow "Removing the box" in the setup guide
+     (on AWS and Hetzner `terraform apply -var deletion_protection=false`; then `prevent_destroy = false` in
+     `main.tf` and `terraform destroy` with the same `-var` options), and put `prevent_destroy = true` back before
+     committing.
    * Or let `scripts/test-deploy.sh linode --ref <branch>` (or `digitalocean`, `aws` or `hetzner`) do the test: it
      creates a server (1 GB on Linode and DigitalOcean, `t3.small` on AWS, CPX02 (1 GB) on Hetzner) with the launcher or StackScript from the branch,
      runs these checks plus a restart, and deletes the server (about 15 minutes). Add
@@ -97,7 +102,7 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
 1. In `CHANGES.md`, replace `(unreleased)` with today's date, and add a few plain sentences for site owners above
    the list of changes; they become the Discord notice ([below](#one-time-setup-of-the-discord-notice)). If `src/StackScript` changed, set the new version in
    `PIAB_RELEASE` in `src/user-data.sh`, the `Release` parameter's `Default` in `src/aws/cloudformation.yaml`, the
-   `release` variable's `default` in `src/aws/main.tf`, and
+   `release` variable's `default` in `src/aws/main.tf`, `src/hetzner/main.tf` and `src/digitalocean/main.tf`, and
    the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
    URL), so pasted launchers and the Launch Stack button download it, and run `python3 scripts/catalog.py pages` so the
    Try It pages in `docs/try/` name it too. CI checks that they all match. Commit to `main` (or include it in the last PR).

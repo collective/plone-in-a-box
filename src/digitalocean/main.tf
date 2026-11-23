@@ -9,8 +9,9 @@
 # instead (DigitalOcean rejects uploading the same key twice):
 #   terraform apply -var 'ssh_key_fingerprint=aa:bb:cc:...'
 #
-# The Droplet provisions itself on first boot by running ../StackScript as
-# user data; that takes about 10 minutes. Follow it with:
+# The Droplet provisions itself on first boot: its user data downloads
+# src/StackScript from the Plone in a Box release named in var.release and
+# runs it; that takes about 10 minutes. Follow it with:
 #   ssh root@<public_ip> tail -f /var/log/cloud-init-output.log
 # then read the admin password with:
 #   ssh root@<public_ip> cat /root/plone-credentials.txt
@@ -26,10 +27,27 @@ terraform {
   }
 }
 
-variable "region" {
-  description = "DigitalOcean region slug, for example nyc3, sfo3, ams3, fra1 or tor1."
+variable "release" {
+  description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
   type        = string
-  default     = "nyc3"
+  default     = "2.17"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
+    error_message = "release: a release, branch or commit, such as 2.17."
+  }
+}
+
+variable "region" {
+  description = "DigitalOcean region slug, for example tor1, sfo3, nyc2, ams3 or fra1. Empty: the first region in preferred_regions that offers the size. A region set here is always used, and if it doesn't offer the size, Terraform stops before creating anything and lists the regions that do."
+  type        = string
+  default     = ""
+}
+
+variable "preferred_regions" {
+  description = "With region empty, the regions to choose from, best first. Put the ones near your visitors first; where the server is can also matter for data protection rules."
+  type        = list(string)
+  default     = ["tor1", "nyc2", "sfo3", "ams3", "fra1", "lon1"]
 }
 
 variable "size" {
@@ -193,10 +211,24 @@ locals {
   ssh_key = var.ssh_key_fingerprint != "" ? var.ssh_key_fingerprint : digitalocean_ssh_key.deployer[0].fingerprint
 }
 
+# Which regions offer the size right now (not every region offers every size).
+data "digitalocean_sizes" "chosen" {
+  filter {
+    key    = "slug"
+    values = [var.size]
+  }
+}
+
+locals {
+  size_found   = length(data.digitalocean_sizes.chosen.sizes) > 0
+  size_regions = local.size_found && try(data.digitalocean_sizes.chosen.sizes[0].available, false) ? sort(tolist(data.digitalocean_sizes.chosen.sizes[0].regions)) : []
+  region       = var.region != "" ? var.region : try([for r in var.preferred_regions : r if contains(local.size_regions, r)][0], "")
+}
+
 resource "digitalocean_droplet" "plone" {
   name       = "plone-in-a-box"
   image      = "ubuntu-26-04-x64"
-  region     = var.region
+  region     = local.region
   size       = var.size
   ssh_keys   = [local.ssh_key]
   ipv6       = true
@@ -205,8 +237,8 @@ resource "digitalocean_droplet" "plone" {
   tags       = ["plone-in-a-box"]
 
   # Same provisioning script as the Linode StackScript, with its settings
-  # passed as environment variables. The script is compressed, because
-  # DigitalOcean accepts up to 64 KiB of user data, and unpacked on the server.
+  # passed as environment variables. The server downloads the script, as on
+  # AWS and Hetzner, so all three run the release named in var.release.
   user_data = join("\n", [
     "#!/bin/bash",
     "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
@@ -228,9 +260,44 @@ resource "digitalocean_droplet" "plone" {
     "export SMTP_PASSWORD=\"$(echo ${base64encode(var.smtp_password)} | base64 -d)\"",
     "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
     "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
-    "echo '${base64gzip(file("${path.module}/../StackScript"))}' | base64 -d | gunzip > /root/plone-in-a-box.sh || exit 1",
+    "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
+    "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
+    "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",
+    "  exit 1",
+    "fi",
     "exec bash /root/plone-in-a-box.sh",
   ])
+
+  lifecycle {
+    # The region is chosen when the Droplet is created. Availability changes
+    # over time, and a later run choosing another region must not replace the
+    # Droplet (and delete the site).
+    # Terraform never deletes or replaces the server, which would delete the
+    # site: terraform destroy and any change that needs a new server stop with
+    # an error. DigitalOcean has no deletion protection
+    # of its own, so this is the guard. To remove the box on purpose, change
+    # this to false, then run terraform destroy.
+    prevent_destroy = true
+
+    # Settings used only when the server is created: the user data (the
+    # release and settings, read at first boot), the SSH key and the image.
+    # Changing them later, or a newer release or Ubuntu image, must not replace
+    # the server; plone-update keeps it current.
+    ignore_changes = [region, user_data, ssh_keys, image]
+
+    precondition {
+      condition     = local.size_found
+      error_message = "size: DigitalOcean has no size called ${var.size}. See https://slugs.do-api.dev for the sizes."
+    }
+    precondition {
+      condition     = !local.size_found || local.region != ""
+      error_message = "None of preferred_regions (${join(", ", var.preferred_regions)}) offers ${var.size} right now. Regions that do: ${join(", ", local.size_regions)}. Set region or preferred_regions to one of them."
+    }
+    precondition {
+      condition     = local.region == "" || contains(local.size_regions, local.region)
+      error_message = "${var.size} isn't offered in ${local.region} right now. Regions that offer it: ${join(", ", local.size_regions)}. Set region to one of these, or leave it empty to choose from preferred_regions."
+    }
+  }
 }
 
 resource "digitalocean_firewall" "plone" {
@@ -271,6 +338,10 @@ resource "digitalocean_firewall" "plone" {
     protocol              = "icmp"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
+}
+
+output "region" {
+  value = digitalocean_droplet.plone.region
 }
 
 output "public_ip" {

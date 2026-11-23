@@ -8,8 +8,9 @@
 # The token belongs to one Hetzner project (Security > API tokens, Read &
 # Write), and the server is created in that project.
 #
-# The server provisions itself on first boot by running ../StackScript as user
-# data; that takes about 10 minutes. Open the site_url output to watch the
+# The server provisions itself on first boot: its user data downloads
+# src/StackScript from the Plone in a Box release named in var.release and
+# runs it; that takes about 10 minutes. Open the site_url output to watch the
 # setup progress page, and if you left admin_password empty, read the
 # generated one with:
 #   ssh root@<public_ip> cat /root/plone-credentials.txt
@@ -25,16 +26,39 @@ terraform {
   }
 }
 
-variable "location" {
-  description = "Hetzner location: nbg1 (Nuremberg), fsn1 (Falkenstein), hel1 (Helsinki), ash (Ashburn, VA), hil (Hillsboro, OR) or sin (Singapore). Not every server type is offered everywhere."
+variable "release" {
+  description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
   type        = string
-  default     = "hel1"
+  default     = "2.17"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
+    error_message = "release: a release, branch or commit, such as 2.17."
+  }
+}
+
+variable "location" {
+  description = "Hetzner location: nbg1 (Nuremberg), fsn1 (Falkenstein), hel1 (Helsinki), ash (Ashburn, VA), hil (Hillsboro, OR) or sin (Singapore). Empty: the first location in preferred_locations that offers the server type. A location set here is always used, and if it doesn't offer the server type, Terraform stops before creating anything and lists the locations that do."
+  type        = string
+  default     = ""
+}
+
+variable "preferred_locations" {
+  description = "With location empty, the locations to choose from, best first. Put the ones near your visitors first; where the server is can also matter for data protection rules."
+  type        = list(string)
+  default     = ["hel1", "fsn1", "nbg1"]
 }
 
 variable "server_type" {
   description = "Hetzner server type. cpx02 (1 vCPU, 1 GB) is enough for a small site, but isn't offered in ash or hil; use cpx11 (2 GB) there. Arm types such as cax11 work too."
   type        = string
   default     = "cpx02"
+}
+
+variable "deletion_protection" {
+  description = "Delete and rebuild protection: Hetzner refuses to delete or rebuild the server, from Terraform, the Hetzner Console or anything else. To remove the box on purpose, set this to false and run terraform apply, change prevent_destroy to false in this file, then run terraform destroy."
+  type        = bool
+  default     = true
 }
 
 variable "ssh_public_key_path" {
@@ -206,14 +230,29 @@ resource "hcloud_firewall" "plone" {
   }
 }
 
+# Which locations offer the server type right now (not every location offers
+# every type, and a type can be out of stock in a location for a while).
+data "hcloud_server_type" "chosen" {
+  name = var.server_type
+}
+
+locals {
+  type_locations = sort([for l in data.hcloud_server_type.chosen.locations : l.name if l.available && !l.is_deprecated])
+  location       = var.location != "" ? var.location : try([for l in var.preferred_locations : l if contains(local.type_locations, l)][0], "")
+}
+
 resource "hcloud_server" "plone" {
   name         = "plone-in-a-box"
   image        = "ubuntu-26.04"
   server_type  = var.server_type
-  location     = var.location
+  location     = local.location
   ssh_keys     = [hcloud_ssh_key.deployer.id]
   firewall_ids = [hcloud_firewall.plone.id]
   backups      = var.backups
+
+  delete_protection  = var.deletion_protection
+  rebuild_protection = var.deletion_protection
+
   labels = {
     "plone-in-a-box" = "true"
   }
@@ -224,8 +263,8 @@ resource "hcloud_server" "plone" {
   }
 
   # Same provisioning script as the Linode StackScript, with its settings
-  # passed as environment variables. The script is compressed, because Hetzner
-  # accepts up to 32 KiB of user data, and unpacked on the server.
+  # passed as environment variables. The server downloads the script, because
+  # Hetzner accepts only 32 KiB of user data.
   user_data = join("\n", [
     "#!/bin/bash",
     "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
@@ -247,9 +286,42 @@ resource "hcloud_server" "plone" {
     "export SMTP_PASSWORD=\"$(echo ${base64encode(var.smtp_password)} | base64 -d)\"",
     "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
     "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
-    "echo '${base64gzip(file("${path.module}/../StackScript"))}' | base64 -d | gunzip > /root/plone-in-a-box.sh || exit 1",
+    "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
+    "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
+    "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",
+    "  exit 1",
+    "fi",
     "exec bash /root/plone-in-a-box.sh",
   ])
+
+  lifecycle {
+    # The location is chosen when the server is created. Availability changes
+    # over time, and a later run choosing another location must not replace
+    # the server (and delete the site).
+    # Terraform never deletes or replaces the server, which would delete the
+    # site: terraform destroy and any change that needs a new server stop with
+    # an error. To remove the box on purpose, see deletion_protection.
+    prevent_destroy = true
+
+    # Settings used only when the server is created: the user data (the
+    # release and settings, read at first boot), the SSH key and the image.
+    # Changing them later, or a newer release or Ubuntu image, must not replace
+    # the server; plone-update keeps it current.
+    ignore_changes = [location, user_data, ssh_keys, image]
+
+    precondition {
+      condition     = local.location != ""
+      error_message = "None of preferred_locations (${join(", ", var.preferred_locations)}) offers ${var.server_type} right now. Locations that do: ${join(", ", local.type_locations)}. Set location or preferred_locations to one of them."
+    }
+    precondition {
+      condition     = local.location == "" || contains(local.type_locations, local.location)
+      error_message = "${var.server_type} isn't offered in ${local.location} right now. Locations that offer it: ${join(", ", local.type_locations)}. Set location to one of these, or leave it empty to choose from preferred_locations."
+    }
+  }
+}
+
+output "location" {
+  value = hcloud_server.plone.location
 }
 
 output "public_ip" {

@@ -325,9 +325,27 @@ Resources:
           ToPort: 443
           CidrIpv6: ::/0
 
+  # The server is never deleted by accident: termination protection makes AWS
+  # refuse to terminate it (deleting the stack, the EC2 console, anything else),
+  # and a stack update that needs a new server (every update looks up the newest
+  # Ubuntu image again) keeps the old one. To remove it on purpose, turn
+  # termination protection off in the EC2 console first; see the setup guide.
   Instance:
     Type: AWS::EC2::Instance
+    # Allocate the address first: if that fails (too many Elastic IPs in the
+    # region, say), the stack rolls back before there's a protected server
+    # that the rollback couldn't delete.
+    DependsOn: ElasticIP
+    UpdateReplacePolicy: Retain
+    Metadata:
+      cfn-lint:
+        config:
+          # Termination protection, not DeletionPolicy: Retain, stops deletion;
+          # with Retain, deleting the stack on purpose would fail on the
+          # security group the kept server still uses.
+          ignore_checks: [W3011]
     Properties:
+      DisableApiTermination: true
       ImageId: !Ref LatestAmiId
       InstanceType: !Ref InstanceType
       KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
@@ -396,15 +414,28 @@ Resources:
             ReportEmailB64: !Base64 {Ref: ReportEmail}
 
   # A fixed address, so the site keeps the same IP after the server is stopped
-  # and started, and DNS for a domain only needs setting once.
+  # and started, and DNS for a domain only needs setting once. Deleting the stack
+  # keeps it, so the site doesn't lose its address if the stack is deleted by
+  # mistake; release it in EC2 > Elastic IPs when you no longer need it.
   ElasticIP:
     Type: AWS::EC2::EIP
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Domain: vpc
-      InstanceId: !Ref Instance
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
+
+  # Kept too when the stack is deleted, so a stack deleted by mistake (which
+  # stops at the protected server) leaves the address on the server.
+  ElasticIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      AllocationId: !GetAtt ElasticIP.AllocationId
+      InstanceId: !Ref Instance
 
 Outputs:
   SiteURL:
