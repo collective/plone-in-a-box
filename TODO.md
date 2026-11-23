@@ -4,7 +4,8 @@
 
 `scripts/test-deploy.sh` runs the Linode, DigitalOcean, AWS and Hetzner tests (see RELEASING.md). Still open:
 
-- [ ] Renew the tokens when they expire (Linode: 1 month, DigitalOcean: 30 days), and rotate the AWS access key.
+- [ ] Renew the Linode token when it expires (1 month; the DigitalOcean token made on 2026-11-22 doesn't expire),
+  and rotate the AWS access key.
 
 ## Retire the duplicate Linode StackScript
 
@@ -63,13 +64,14 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
   controls the domain's reputation (DMARC reports, Google Postmaster Tools). Cloud providers reuse IP addresses, so
   a new server may inherit a blocklisted one. Idea: check the server's IP and the sending domain against public
   blocklists (Spamhaus and others) at setup and in `plone-update`, and say so in the update report.
-- [ ] **Tell site owners about Plone releases and security fixes.** `plone-update` installs patch releases of the
-  versions a site runs, but owners aren't told about announcements: security hotfixes, new Plone versions they'd move
-  to themselves (such as 6.3), or end of support. Idea: follow the standard Plone announcements (the announcements
-  list, or what replaces it; it may change soon) and pass them on through what the box already has: the
-  notification URL, email through the site's mail settings, and the login message. Decide whether each server
-  checks a feed itself (e.g. weekly with `plone-update`), or this project relays announcements to its own channel,
-  and how to avoid repeats.
+- [x] **Tell site owners about Plone releases and security fixes** (2.18: security posts from the Plone forum,
+  daily; patch releases and new versions were already in the weekly update report). Still open: end-of-support
+  notices, once there's a reliable source for the dates.
+- [ ] **Backups off the server.** `plone-restore` (2.19) restores a backup, but all backups stay on the server
+  unless the owner pays for provider backups or copies them. Ideas: upload each nightly backup to S3-compatible
+  storage (AWS S3, Backblaze B2, DigitalOcean Spaces, Hetzner Object Storage); a `backups` option for AWS (daily EBS
+  snapshots with Data Lifecycle Manager); back up `/opt/plone` and the nginx site file too; warn in the update report
+  when the newest backup is too old.
 - [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where
   the data would go on a single small server.
 - [ ] **Other Plone best practices.** Review the box against current Plone deployment recommendations

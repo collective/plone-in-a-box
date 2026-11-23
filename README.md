@@ -43,6 +43,7 @@ Volto front end and PostgreSQL) behind nginx.
 * A database backup every night (the whole site, files and images included), and a weekly pack so the database
   doesn't grow forever. Your provider's server backups can be turned on too. See
   [Backups](docs/setup-guide.md#day-to-day-administration).
+* `sudo plone-restore` puts a backup back, and moves a site to a new server.
 
 **Customizing**
 * [Backend add-ons](docs/setup-guide.md#add-ons) such as `collective.easyform`, installed when deploying or later.

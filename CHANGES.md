@@ -1,3 +1,11 @@
+2.19 (unreleased)
+-----------------
+
+- `sudo plone-restore` puts a database backup back: the whole site as it was
+  when the backup was taken. It saves a backup of the site as it is first, and
+  puts that back if the restore fails. It also moves a site to a new server:
+  copy a backup there and restore it. See "Backups" in the setup guide.
+
 2.18 (2026-11-23)
 -----------------
 
