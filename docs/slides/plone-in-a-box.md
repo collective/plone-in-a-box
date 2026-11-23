@@ -38,6 +38,8 @@ style: |
 Your own Plone 6 website on a cloud server,
 without needing a command line.
 
+<small>Release 2.18 · November 2026</small>
+
 ---
 
 ## The problem
@@ -85,9 +87,10 @@ Versions are configurable; Plone 6.1 with Volto 18 also works. Add-ons and theme
 
 - The admin password is **the one you choose**, or a generated one.
 - Only the **website** (HTTP, HTTPS) and **SSH** are reachable from the internet. The database and Plone's own ports are closed.
+- **Security headers** on every page, and nginx doesn't reveal its version.
 - **All Ubuntu updates** are installed during setup, and security updates keep coming automatically.
-- **Plone, Volto and PostgreSQL** patch releases install every week, and are undone if the site doesn't come back.
-- **Swap** is added on small servers, so a 1 GB server is enough for a small site.
+- **Plone security announcements** reach you within a day, often a week before the fix.
+- Servers made with **Terraform** or AWS's **Launch Stack** can't be deleted or rebuilt by mistake.
 - Forgot the password? One command in your provider's **browser console** resets it.
 
 ---
@@ -101,8 +104,9 @@ Every Sunday, early in the morning, the server checks for patch releases of the 
 - First a **database backup**, then the update.
 - If the site doesn't come back, it **goes back** to the previous version, and skips that build from then on.
 - A **report** after each run: on your phone (ntfy), in a team chat (Slack, Teams, Discord, Google Chat, Mattermost), or by email.
+- **Security news daily:** each new post in the Plone forum's Security category, sent the same ways, and shown when you log in.
 
-Older servers get this with one command.
+Older servers get all this with one command.
 
 ---
 
@@ -118,7 +122,7 @@ Older servers get this with one command.
 **Already have an account somewhere?** Use that one.
 **Prefer a European provider?** Hetzner.
 
-Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead.
+Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It picks a region that offers the server size, and never deletes an existing server.
 
 ---
 
@@ -129,6 +133,18 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead.
 - **Training and workshops:** every participant gets their own site.
 - **Showing a site to a client,** or letting people try an add-on: a demo login to share.
 - **No lock-in:** the official Plone images and standard Docker Compose, so it can be upgraded, backed up and handed over like any other Plone deployment.
+
+---
+
+<!-- _class: dense -->
+
+## Backups
+
+- **Every night,** a database backup on the server: the whole site, files and images included. The three newest are kept.
+- **Every week,** a pack: the database's old history is cleared, so it doesn't keep growing.
+- Your provider's **server backups** can be turned on too, for the whole disk.
+
+Coming in 2.19: **`sudo plone-restore`** puts a backup back, or moves a site to a new server, and **encrypted copies** of each night's backup go to Cloudflare R2, AWS S3, Backblaze B2 or other storage.
 
 ---
 
@@ -206,9 +222,10 @@ Example: **collective.github.io/plone-in-a-box/try/juizi-dashboard/**
 
 ## What's next
 
-- **Nightly backups** and a weekly clean-up of the database's history, so it doesn't keep growing.
+- **Restoring backups,** and encrypted copies off the server, in Cloudflare R2, AWS S3 and other storage (2.19).
+- A **backend image setting,** for projects made with cookieplone, and Try It pages for add-ons that come as ready-made images.
+- **Aurora,** Plone's new frontend, in the catalog to try.
 - **HTTPS without your own domain,** so every site, including Try It demos, is encrypted.
-- A **backend image setting,** for projects made with cookieplone.
 - **More add-ons** in the catalog, each with its own Try It page.
 
 ---
