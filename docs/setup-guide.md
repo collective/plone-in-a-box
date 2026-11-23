@@ -314,7 +314,9 @@ The server keeps its IPv4 address (a Primary IP) for as long as it exists, so yo
    ```
    Options go in `src/hetzner/terraform.tfvars` the same way as for AWS. Variables include `location` (default
    `hel1`), `server_type` (default `cpx02`, 1 GB; `cpx11` in `ash` and `hil`; Arm types such as `cax11` work too),
-   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions.
+   `backups`, `domain`, `letsencrypt_email`, `site_timezone` and the versions. As on AWS, the server downloads its
+   setup script from the Plone in a Box release in `release`, so to try changes, push them to a branch and set
+   `release` to it.
 3. Terraform prints `site_url`, `public_ip` and `credentials_command`. The server also gets a Hetzner Firewall that
    allows only ports 22, 80 and 443.
 

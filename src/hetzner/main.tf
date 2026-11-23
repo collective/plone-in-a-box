@@ -8,8 +8,9 @@
 # The token belongs to one Hetzner project (Security > API tokens, Read &
 # Write), and the server is created in that project.
 #
-# The server provisions itself on first boot by running ../StackScript as user
-# data; that takes about 10 minutes. Open the site_url output to watch the
+# The server provisions itself on first boot: its user data downloads
+# src/StackScript from the Plone in a Box release named in var.release and
+# runs it; that takes about 10 minutes. Open the site_url output to watch the
 # setup progress page, and if you left admin_password empty, read the
 # generated one with:
 #   ssh root@<public_ip> cat /root/plone-credentials.txt
@@ -22,6 +23,17 @@ terraform {
       source  = "hetznercloud/hcloud"
       version = "~> 1.0"
     }
+  }
+}
+
+variable "release" {
+  description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
+  type        = string
+  default     = "2.17"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
+    error_message = "release: a release, branch or commit, such as 2.17."
   }
 }
 
@@ -224,8 +236,8 @@ resource "hcloud_server" "plone" {
   }
 
   # Same provisioning script as the Linode StackScript, with its settings
-  # passed as environment variables. The script is compressed, because Hetzner
-  # accepts up to 32 KiB of user data, and unpacked on the server.
+  # passed as environment variables. The server downloads the script, because
+  # Hetzner accepts only 32 KiB of user data.
   user_data = join("\n", [
     "#!/bin/bash",
     "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
@@ -247,7 +259,11 @@ resource "hcloud_server" "plone" {
     "export SMTP_PASSWORD=\"$(echo ${base64encode(var.smtp_password)} | base64 -d)\"",
     "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
     "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
-    "echo '${base64gzip(file("${path.module}/../StackScript"))}' | base64 -d | gunzip > /root/plone-in-a-box.sh || exit 1",
+    "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
+    "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
+    "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",
+    "  exit 1",
+    "fi",
     "exec bash /root/plone-in-a-box.sh",
   ])
 }
