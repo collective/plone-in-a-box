@@ -32,6 +32,10 @@
   the provider refuses too, also in its web console (the new
   `deletion_protection` variable, on by default). "Removing the box" in the
   setup guide shows how to remove one on purpose.
+- AWS Launch Stack: the server has termination protection, so deleting the
+  stack by mistake can't delete it, and a stack update that needs a new
+  server keeps the old one; the Elastic IP is kept when the stack is deleted.
+  "Removing the box" in the setup guide shows how to remove it on purpose.
 
 2.17 (2026-11-22)
 -----------------

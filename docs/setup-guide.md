@@ -110,7 +110,11 @@ IP), so the address stays the same if you stop and start the server. **PublicIP*
 point a domain at. Forgot the password? Open **InstanceConnect** on the Outputs tab, click **Connect**, and run
 `sudo cat /root/plone-credentials.txt` or `sudo plone-reset-admin-password`.
 
-To remove everything, select the stack in CloudFormation and click **Delete**.
+The server is protected from being deleted by mistake: AWS refuses to terminate it, also when the stack is deleted,
+and deleting the stack keeps the Elastic IP. Don't use **Update** on the stack: every update looks up the newest
+Ubuntu image, so it builds a new, empty server and moves the address to it (the old server is kept, and you can
+move the Elastic IP back to it). Change settings on the server instead; it keeps itself current with `plone-update`.
+To remove everything, see [Removing the box](#removing-the-box).
 
 #### Or launch the server yourself
 
@@ -743,8 +747,13 @@ sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
   2. In `main.tf`, change `prevent_destroy = true` to `prevent_destroy = false`.
   3. `terraform destroy` (on AWS and Hetzner: `terraform destroy -var deletion_protection=false`).
 * **DigitalOcean** without Terraform: destroy the Droplet in the control panel.
-* **AWS** with the Launch Stack button: in CloudFormation, select the stack and click **Delete**. That removes the
-  server, its disk, the firewall and the fixed IP address.
+* **AWS** with the Launch Stack button: the server is protected from being deleted, so:
+  1. In **EC2 → Instances**, select the server, choose **Actions → Instance settings → Change termination
+     protection**, untick **Enable** and save.
+  2. In CloudFormation, select the stack and click **Delete**. That removes the server, its disk and the firewall.
+  3. In **EC2 → Elastic IPs**, select the stack's address (named after the stack), then **Actions → Release Elastic
+     IP addresses**. It's kept when the stack is deleted, so a mistake can't lose the site's address, and AWS
+     charges for it until it's released.
 * **AWS** launched yourself in EC2: terminate the instance, and release its Elastic IP if you allocated one.
 * **Hetzner** without Terraform: delete the server in the Hetzner Console (**Delete** on the server's page).
 
