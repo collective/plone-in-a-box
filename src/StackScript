@@ -1170,6 +1170,9 @@ cat > /usr/local/bin/plone-security-notices <<'PLONE_NOTICES_EOF'
 #!/bin/bash
 # Pass on new posts in the Plone forum's Security category, each once. The
 # first run only notes the newest. Also run daily by plone-security-notices.timer.
+# When a fix is released and automatic updates are on, install it the same day
+# with plone-update, and if its images aren't out yet, try again every day for
+# a week.
 set -uo pipefail
 [[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-security-notices" >&2; exit 1; }
 FEED=${PLONE_SECURITY_FEED:-https://community.plone.org/c/announcements/security/37.json}
@@ -1184,6 +1187,30 @@ LOG_TEE_PID=$!
 trap 'exec >/dev/null 2>&1; wait "$LOG_TEE_PID" 2>/dev/null || true' EXIT
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 SITE_URL=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+UNTIL="$STATE_DIR/security-update-until"
+auto_updates() { systemctl is-enabled --quiet plone-update.timer 2>/dev/null; }
+# Run plone-update (it reports by itself when it installs something), and
+# print the summary it left for the login message.
+UPDATE_RESULT=""
+run_update() {
+  if [[ -z "$UPDATE_RESULT" ]]; then
+    say "Running plone-update for the security fix"
+    /usr/local/bin/plone-update >/dev/null 2>&1 </dev/null
+    UPDATE_RESULT=$(sed -E 's/^[0-9-]+ [0-9:]+  //' "$STATE_DIR/update-status" 2>/dev/null)
+    say "plone-update: ${UPDATE_RESULT:-no result}"
+  fi
+  printf '%s' "$UPDATE_RESULT"
+}
+
+# A fix announced in the last week whose images weren't out yet: try again.
+if [[ -s "$UNTIL" ]]; then
+  if (( $(date +%s) > $(cat "$UNTIL") )) || ! auto_updates; then
+    rm -f "$UNTIL"
+  elif [[ "$(run_update)" == Updated:* ]]; then
+    say "The security fix is installed"
+    rm -f "$UNTIL"
+  fi
+fi
 
 if ! json=$(curl -fsS -m 30 --retry 3 -H 'Accept: application/json' "$FEED"); then
   say "Could not read $FEED; the next check is tomorrow"
@@ -1221,13 +1248,40 @@ fi
 
 count=$(grep -c . <<<"$posts")
 (( count > 3 )) && say "$count new security posts; sending the newest 3"
+posts=$(tail -n 3 <<<"$posts")
+# A released fix (not a pre-announcement) among them: install it now.
+fix_outcome=""
+if cut -f3 <<<"$posts" | grep -qviE 'pre-?announce'; then
+  if ! auto_updates; then
+    fix_outcome="Automatic updates are off on this server, so install the fix yourself: sudo plone-update"
+  else
+    result=$(run_update)
+    case "$result" in
+      Updated:*)
+        rm -f "$UNTIL"
+        fix_outcome="This server installed it right away. ${result}." ;;
+      "Update failed"*)
+        fix_outcome="This server tried to install it right away, but the update failed and was undone (${result}). The log is in /var/log/plone-update.log." ;;
+      *)
+        echo $(( $(date +%s) + 7 * 86400 )) > "$UNTIL"
+        fix_outcome="This server found no new Plone images with the fix yet (${result:-no result}). It checks again every day for a week and installs them as soon as they appear; the update report tells you when." ;;
+    esac
+  fi
+fi
 notice=""
 while IFS=$'\t' read -r id date title; do
   link="$FORUM/t/$id"
-  advice="Read the post for what to do."
-  [[ "${title,,}" == *pre-announce* ]] && advice="A fix is coming; the post says when."
+  if [[ "${title,,}" =~ pre-?announce ]]; then
+    if auto_updates; then
+      advice="A fix is coming; the post says when. This server installs it within a day of its release."
+    else
+      advice="A fix is coming; the post says when. Automatic updates are off on this server, so run sudo plone-update on that day."
+    fi
+  else
+    advice="$fix_outcome If the post asks for more than installing the fix (a hotfix package, or a change to make), do that too."
+  fi
   subject="Plone security notice: ${title} (${SITE_URL})"
-  body=$(printf '%s\n\n%s (%s)\n%s\n\n%s Plone releases with fixes are installed by the weekly update, if on, or by: sudo plone-update\n\nFrom the Plone forum. Turn these off: sudo systemctl disable --now plone-security-notices.timer' \
+  body=$(printf '%s\n\n%s (%s)\n%s\n\n%s\n\nFrom the Plone forum. Turn these notices off: sudo systemctl disable --now plone-security-notices.timer' \
     "$SITE_URL" "$title" "$date" "$link" "$advice")
   say "New: $title ($link)"
   /usr/local/lib/plone-in-a-box/notify "$subject" "$body" </dev/null
@@ -1247,7 +1301,7 @@ while IFS=$'\t' read -r id date title; do
     esac
   fi
   notice+=$(printf 'Plone security notice, %s: %s\n  %s' "$date" "$title" "$link")$'\n'
-done < <(tail -n 3 <<<"$posts")
+done <<<"$posts"
 printf '%s' "$notice" > "$STATE_DIR/security-notice"
 tail -n 1 <<<"$posts" | cut -f1 > "$SEEN"
 PLONE_NOTICES_EOF
@@ -1261,7 +1315,8 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/plone-security-notices
-TimeoutStartSec=30min
+# Long enough for plone-update, which it may run.
+TimeoutStartSec=2h30min
 EOF
 cat > /etc/systemd/system/plone-security-notices.timer <<'EOF'
 [Unit]
