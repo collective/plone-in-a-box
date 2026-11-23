@@ -58,6 +58,7 @@ section.dense code { font-size: 0.85em; }
 <h1 id="plone-in-a-box%E2%84%A2">Plone in a Box™</h1>
 <p>Your own Plone 6 website on a cloud server,<br />
 without needing a command line.</p>
+<p><small>Release 2.18 · November 2026</small></p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="2" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -105,7 +106,7 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
 <h2 id="the-problem">The problem</h2>
 <p>Plone is a mature, secure content management system. But running it yourself means:</p>
 <ul>
@@ -162,7 +163,7 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
 <h2 id="the-idea">The idea</h2>
 <div class="steps">
 <div><b>1. Fill in a form</b>On your cloud provider's website: Linode, DigitalOcean, AWS or Hetzner.</div>
@@ -218,7 +219,7 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
 <h2 id="whats-in-the-box">What's in the box</h2>
 <p>One Ubuntu 26.04 LTS server, running the <strong>official Plone Docker images</strong>:</p>
 <ul>
@@ -274,14 +275,15 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
 <h2 id="safe-by-default">Safe by default</h2>
 <ul>
 <li>The admin password is <strong>the one you choose</strong>, or a generated one.</li>
 <li>Only the <strong>website</strong> (HTTP, HTTPS) and <strong>SSH</strong> are reachable from the internet. The database and Plone's own ports are closed.</li>
+<li><strong>Security headers</strong> on every page, and nginx doesn't reveal its version.</li>
 <li><strong>All Ubuntu updates</strong> are installed during setup, and security updates keep coming automatically.</li>
-<li><strong>Plone, Volto and PostgreSQL</strong> patch releases install every week, and are undone if the site doesn't come back.</li>
-<li><strong>Swap</strong> is added on small servers, so a 1 GB server is enough for a small site.</li>
+<li><strong>Plone security announcements</strong> reach you within a day, often a week before the fix.</li>
+<li>Servers made with <strong>Terraform</strong> or AWS's <strong>Launch Stack</strong> can't be deleted or rebuilt by mistake.</li>
 <li>Forgot the password? One command in your provider's <strong>browser console</strong> resets it.</li>
 </ul>
 </section>
@@ -331,15 +333,16 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
 <h2 id="updates-that-look-after-themselves">Updates that look after themselves</h2>
 <p>Every Sunday, early in the morning, the server checks for patch releases of the <strong>same</strong> versions: Plone 6.2.2 to 6.2.3. Moving to 6.3 is up to you.</p>
 <ul>
 <li>First a <strong>database backup</strong>, then the update.</li>
 <li>If the site doesn't come back, it <strong>goes back</strong> to the previous version, and skips that build from then on.</li>
 <li>A <strong>report</strong> after each run: on your phone (ntfy), in a team chat (Slack, Teams, Discord, Google Chat, Mattermost), or by email.</li>
+<li><strong>Security news daily:</strong> each new post in the Plone forum's Security category, sent the same ways, and shown when you log in.</li>
 </ul>
-<p>Older servers get this with one command.</p>
+<p>Older servers get all this with one command.</p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="7" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -387,7 +390,7 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
 <h2 id="pick-a-provider">Pick a provider</h2>
 <table>
 <thead>
@@ -426,7 +429,7 @@ section.dense code { font-size: 0.85em; }
 <p><strong>New to all of them?</strong> Choose Linode.<br />
 <strong>Already have an account somewhere?</strong> Use that one.<br />
 <strong>Prefer a European provider?</strong> Hetzner.</p>
-<p>Developers can use <strong>Terraform</strong> for AWS, DigitalOcean and Hetzner instead.</p>
+<p>Developers can use <strong>Terraform</strong> for AWS, DigitalOcean and Hetzner instead. It picks a region that offers the server size, and never deletes an existing server.</p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="8" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -474,7 +477,7 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
 <h2 id="why-its-useful">Why it's useful</h2>
 <ul>
 <li><strong>Small organizations, teams, projects</strong> get a real Plone site, or an intranet, without hiring an administrator.</li>
@@ -484,7 +487,7 @@ section.dense code { font-size: 0.85em; }
 <li><strong>No lock-in:</strong> the official Plone images and standard Docker Compose, so it can be upgraded, backed up and handed over like any other Plone deployment.</li>
 </ul>
 </section>
-</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="9" data-paginate="true" data-theme="default" data-style=":root {
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="9" data-paginate="true" data-class="dense" data-theme="default" data-style=":root {
   --blue: #0083be;
   --ink: #1f2933;
   --muted: #52606d;
@@ -507,7 +510,7 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-" lang="en-US" data-marpit-pagination="9" style="--paginate:true;--theme:default;--style::root {
+" lang="en-US" class="dense" data-marpit-pagination="9" style="--paginate:true;--class:dense;--theme:default;--style::root {
   --blue: #0083be;
   --ink: #1f2933;
   --muted: #52606d;
@@ -530,7 +533,62 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
+<h2 id="backups">Backups</h2>
+<ul>
+<li><strong>Every night,</strong> a database backup on the server: the whole site, files and images included. The three newest are kept.</li>
+<li><strong>Every week,</strong> a pack: the database's old history is cleared, so it doesn't keep growing.</li>
+<li>Your provider's <strong>server backups</strong> can be turned on too, for the whole disk.</li>
+</ul>
+<p>Coming in 2.19: <strong><code>sudo plone-restore</code></strong> puts a backup back, or moves a site to a new server, and <strong>encrypted copies</strong> of each night's backup go to Cloudflare R2, AWS S3, Backblaze B2 or other storage.</p>
+</section>
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="10" data-paginate="true" data-theme="default" data-style=":root {
+  --blue: #0083be;
+  --ink: #1f2933;
+  --muted: #52606d;
+}
+section {
+  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
+  color: var(--ink);
+  padding: 64px 80px;
+}
+h1, h2 { color: var(--blue); }
+h2 { font-size: 1.6em; margin-bottom: 0.4em; }
+strong { color: var(--ink); }
+section.lead { justify-content: center; }
+section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
+section.lead p { font-size: 1.15em; color: var(--muted); }
+table { font-size: 0.7em; }
+.steps { display: flex; gap: 24px; margin-top: 1em; }
+.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
+.steps b { display: block; font-size: 1.3em; color: var(--blue); }
+footer { color: var(--muted); }
+section.dense { font-size: 25px; }
+section.dense code { font-size: 0.85em; }
+" lang="en-US" data-marpit-pagination="10" style="--paginate:true;--theme:default;--style::root {
+  --blue: #0083be;
+  --ink: #1f2933;
+  --muted: #52606d;
+}
+section {
+  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
+  color: var(--ink);
+  padding: 64px 80px;
+}
+h1, h2 { color: var(--blue); }
+h2 { font-size: 1.6em; margin-bottom: 0.4em; }
+strong { color: var(--ink); }
+section.lead { justify-content: center; }
+section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
+section.lead p { font-size: 1.15em; color: var(--muted); }
+table { font-size: 0.7em; }
+.steps { display: flex; gap: 24px; margin-top: 1em; }
+.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
+.steps b { display: block; font-size: 1.3em; color: var(--blue); }
+footer { color: var(--muted); }
+section.dense { font-size: 25px; }
+section.dense code { font-size: 0.85em; }
+;" data-marpit-pagination-total="17">
 <h2 id="add-ons">Add-ons</h2>
 <p>List Python packages such as <code>collective.easyform</code> when you create the server. Then activate them in <strong>Site Setup → Add-ons</strong>.</p>
 <ul>
@@ -538,61 +596,6 @@ section.dense code { font-size: 0.85em; }
 <li>Held to the versions each Plone release was tested with.</li>
 <li>A misspelled name doesn't break anything: setup continues without the add-ons and says why.</li>
 </ul>
-</section>
-</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="10" data-paginate="true" data-class="dense" data-theme="default" data-style=":root {
-  --blue: #0083be;
-  --ink: #1f2933;
-  --muted: #52606d;
-}
-section {
-  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
-  color: var(--ink);
-  padding: 64px 80px;
-}
-h1, h2 { color: var(--blue); }
-h2 { font-size: 1.6em; margin-bottom: 0.4em; }
-strong { color: var(--ink); }
-section.lead { justify-content: center; }
-section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
-section.lead p { font-size: 1.15em; color: var(--muted); }
-table { font-size: 0.7em; }
-.steps { display: flex; gap: 24px; margin-top: 1em; }
-.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
-.steps b { display: block; font-size: 1.3em; color: var(--blue); }
-footer { color: var(--muted); }
-section.dense { font-size: 25px; }
-section.dense code { font-size: 0.85em; }
-" lang="en-US" class="dense" data-marpit-pagination="10" style="--paginate:true;--class:dense;--theme:default;--style::root {
-  --blue: #0083be;
-  --ink: #1f2933;
-  --muted: #52606d;
-}
-section {
-  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
-  color: var(--ink);
-  padding: 64px 80px;
-}
-h1, h2 { color: var(--blue); }
-h2 { font-size: 1.6em; margin-bottom: 0.4em; }
-strong { color: var(--ink); }
-section.lead { justify-content: center; }
-section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
-section.lead p { font-size: 1.15em; color: var(--muted); }
-table { font-size: 0.7em; }
-.steps { display: flex; gap: 24px; margin-top: 1em; }
-.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
-.steps b { display: block; font-size: 1.3em; color: var(--blue); }
-footer { color: var(--muted); }
-section.dense { font-size: 25px; }
-section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
-<h2 id="themes-and-ready-made-images">Themes and ready-made images</h2>
-<p>Volto add-ons are built into the front end, so Plone in a Box publishes <strong>ready-made frontend images</strong>. Set one as the <strong>Frontend image</strong> when you create the server:</p>
-<ul>
-<li><code>ghcr.io/collective/plone-in-a-box-frontend:19-vlt</code>: <strong>Volto Light Theme</strong>, its logo, colours, header and footer edited with the site's own settings.</li>
-<li><code>ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard</code>: <strong>Juizi Dashboard</strong>, a record of what happened on the site.</li>
-</ul>
-<p>Setup installs and activates the backend half too. Images are rebuilt every week; if one can't be used, the site starts with the standard Volto look, and says why.</p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="11" data-paginate="true" data-class="dense" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -640,15 +643,14 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
-<h2 id="email">Email</h2>
-<p>Plone sends email for password resets, forms and update reports. Cloud servers can't deliver it themselves, so the site sends it through an <strong>email relay service</strong>: SMTP2GO, Brevo, Mailgun, Amazon SES and others, many with a free plan.</p>
+;" data-marpit-pagination-total="17">
+<h2 id="themes-and-ready-made-images">Themes and ready-made images</h2>
+<p>Volto add-ons are built into the front end, so Plone in a Box publishes <strong>ready-made frontend images</strong>. Set one as the <strong>Frontend image</strong> when you create the server:</p>
 <ul>
-<li>Fill in the service's settings <strong>when you create the server</strong>.</li>
-<li>Setup puts them into <strong>Site Setup → Mail</strong>, and sends you a <strong>test email</strong>.</li>
-<li>The weekly update reports go to your inbox too.</li>
+<li><code>ghcr.io/collective/plone-in-a-box-frontend:19-vlt</code>: <strong>Volto Light Theme</strong>, its logo, colours, header and footer edited with the site's own settings.</li>
+<li><code>ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard</code>: <strong>Juizi Dashboard</strong>, a record of what happened on the site.</li>
 </ul>
-<p>The setup guide compares the services, and explains the DNS records your domain needs.</p>
+<p>Setup installs and activates the backend half too. Images are rebuilt every week; if one can't be used, the site starts with the standard Volto look, and says why.</p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="12" data-paginate="true" data-class="dense" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -696,15 +698,15 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
-<h2 id="let-people-try-your-site">Let people try your site</h2>
-<p>A <strong>demo login</strong>: a second login, such as <code>demo</code>, for a client looking at a draft site, or people trying an add-on.</p>
+;" data-marpit-pagination-total="17">
+<h2 id="email">Email</h2>
+<p>Plone sends email for password resets, forms and update reports. Cloud servers can't deliver it themselves, so the site sends it through an <strong>email relay service</strong>: SMTP2GO, Brevo, Mailgun, Amazon SES and others, many with a free plan.</p>
 <ul>
-<li><strong>You choose its roles:</strong> Editor, Contributor, Reviewer, Site Administrator, or a role an add-on defines (Manager isn't offered).</li>
-<li><strong>You choose its password,</strong> or setup generates one.</li>
-<li>A ready-made image can suggest the roles: Juizi Dashboard's demo login is an <strong>Editor</strong> who can also see the dashboard.</li>
+<li>Fill in the service's settings <strong>when you create the server</strong>.</li>
+<li>Setup puts them into <strong>Site Setup → Mail</strong>, and sends you a <strong>test email</strong>.</li>
+<li>The weekly update reports go to your inbox too.</li>
 </ul>
-<p>Change it or remove it any time in <strong>Site Setup → Users</strong>.</p>
+<p>The setup guide compares the services, and explains the DNS records your domain needs.</p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="13" data-paginate="true" data-class="dense" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -752,7 +754,63 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
+<h2 id="let-people-try-your-site">Let people try your site</h2>
+<p>A <strong>demo login</strong>: a second login, such as <code>demo</code>, for a client looking at a draft site, or people trying an add-on.</p>
+<ul>
+<li><strong>You choose its roles:</strong> Editor, Contributor, Reviewer, Site Administrator, or a role an add-on defines (Manager isn't offered).</li>
+<li><strong>You choose its password,</strong> or setup generates one.</li>
+<li>A ready-made image can suggest the roles: Juizi Dashboard's demo login is an <strong>Editor</strong> who can also see the dashboard.</li>
+</ul>
+<p>Change it or remove it any time in <strong>Site Setup → Users</strong>.</p>
+</section>
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="14" data-paginate="true" data-class="dense" data-theme="default" data-style=":root {
+  --blue: #0083be;
+  --ink: #1f2933;
+  --muted: #52606d;
+}
+section {
+  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
+  color: var(--ink);
+  padding: 64px 80px;
+}
+h1, h2 { color: var(--blue); }
+h2 { font-size: 1.6em; margin-bottom: 0.4em; }
+strong { color: var(--ink); }
+section.lead { justify-content: center; }
+section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
+section.lead p { font-size: 1.15em; color: var(--muted); }
+table { font-size: 0.7em; }
+.steps { display: flex; gap: 24px; margin-top: 1em; }
+.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
+.steps b { display: block; font-size: 1.3em; color: var(--blue); }
+footer { color: var(--muted); }
+section.dense { font-size: 25px; }
+section.dense code { font-size: 0.85em; }
+" lang="en-US" class="dense" data-marpit-pagination="14" style="--paginate:true;--class:dense;--theme:default;--style::root {
+  --blue: #0083be;
+  --ink: #1f2933;
+  --muted: #52606d;
+}
+section {
+  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
+  color: var(--ink);
+  padding: 64px 80px;
+}
+h1, h2 { color: var(--blue); }
+h2 { font-size: 1.6em; margin-bottom: 0.4em; }
+strong { color: var(--ink); }
+section.lead { justify-content: center; }
+section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
+section.lead p { font-size: 1.15em; color: var(--muted); }
+table { font-size: 0.7em; }
+.steps { display: flex; gap: 24px; margin-top: 1em; }
+.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
+.steps b { display: block; font-size: 1.3em; color: var(--blue); }
+footer { color: var(--muted); }
+section.dense { font-size: 25px; }
+section.dense code { font-size: 0.85em; }
+;" data-marpit-pagination-total="17">
 <h2 id="try-it-pages-for-add-on-authors">Try It pages for add-on authors</h2>
 <p>Let people try your Plone add-on on a real site of their own, in about ten minutes, without installing anything.</p>
 <ol>
@@ -761,59 +819,6 @@ section.dense code { font-size: 0.85em; }
 <li><strong>One button</strong> in your README links to it.</li>
 </ol>
 <p>Example: <strong>collective.github.io/plone-in-a-box/try/juizi-dashboard/</strong></p>
-</section>
-</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="14" data-paginate="true" data-theme="default" data-style=":root {
-  --blue: #0083be;
-  --ink: #1f2933;
-  --muted: #52606d;
-}
-section {
-  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
-  color: var(--ink);
-  padding: 64px 80px;
-}
-h1, h2 { color: var(--blue); }
-h2 { font-size: 1.6em; margin-bottom: 0.4em; }
-strong { color: var(--ink); }
-section.lead { justify-content: center; }
-section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
-section.lead p { font-size: 1.15em; color: var(--muted); }
-table { font-size: 0.7em; }
-.steps { display: flex; gap: 24px; margin-top: 1em; }
-.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
-.steps b { display: block; font-size: 1.3em; color: var(--blue); }
-footer { color: var(--muted); }
-section.dense { font-size: 25px; }
-section.dense code { font-size: 0.85em; }
-" lang="en-US" data-marpit-pagination="14" style="--paginate:true;--theme:default;--style::root {
-  --blue: #0083be;
-  --ink: #1f2933;
-  --muted: #52606d;
-}
-section {
-  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
-  color: var(--ink);
-  padding: 64px 80px;
-}
-h1, h2 { color: var(--blue); }
-h2 { font-size: 1.6em; margin-bottom: 0.4em; }
-strong { color: var(--ink); }
-section.lead { justify-content: center; }
-section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
-section.lead p { font-size: 1.15em; color: var(--muted); }
-table { font-size: 0.7em; }
-.steps { display: flex; gap: 24px; margin-top: 1em; }
-.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
-.steps b { display: block; font-size: 1.3em; color: var(--blue); }
-footer { color: var(--muted); }
-section.dense { font-size: 25px; }
-section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
-<h2 id="your-own-add-ons-and-themes">Your own add-ons and themes</h2>
-<ul>
-<li><strong>Volto add-ons:</strong> fork the repository, add an entry to <code>addons.yml</code>, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.</li>
-<li><strong>Packages that aren't on PyPI,</strong> or your own code: build a backend image on the official one, and switch a running server to it.</li>
-</ul>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="15" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -861,16 +866,70 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
+<h2 id="your-own-add-ons-and-themes">Your own add-ons and themes</h2>
+<ul>
+<li><strong>Volto add-ons:</strong> fork the repository, add an entry to <code>addons.yml</code>, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.</li>
+<li><strong>Packages that aren't on PyPI,</strong> or your own code: build a backend image on the official one, and switch a running server to it.</li>
+</ul>
+</section>
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="16" data-paginate="true" data-theme="default" data-style=":root {
+  --blue: #0083be;
+  --ink: #1f2933;
+  --muted: #52606d;
+}
+section {
+  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
+  color: var(--ink);
+  padding: 64px 80px;
+}
+h1, h2 { color: var(--blue); }
+h2 { font-size: 1.6em; margin-bottom: 0.4em; }
+strong { color: var(--ink); }
+section.lead { justify-content: center; }
+section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
+section.lead p { font-size: 1.15em; color: var(--muted); }
+table { font-size: 0.7em; }
+.steps { display: flex; gap: 24px; margin-top: 1em; }
+.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
+.steps b { display: block; font-size: 1.3em; color: var(--blue); }
+footer { color: var(--muted); }
+section.dense { font-size: 25px; }
+section.dense code { font-size: 0.85em; }
+" lang="en-US" data-marpit-pagination="16" style="--paginate:true;--theme:default;--style::root {
+  --blue: #0083be;
+  --ink: #1f2933;
+  --muted: #52606d;
+}
+section {
+  font-family: &quot;Helvetica Neue&quot;, Arial, sans-serif;
+  color: var(--ink);
+  padding: 64px 80px;
+}
+h1, h2 { color: var(--blue); }
+h2 { font-size: 1.6em; margin-bottom: 0.4em; }
+strong { color: var(--ink); }
+section.lead { justify-content: center; }
+section.lead h1 { font-size: 2.4em; margin-bottom: 0.2em; }
+section.lead p { font-size: 1.15em; color: var(--muted); }
+table { font-size: 0.7em; }
+.steps { display: flex; gap: 24px; margin-top: 1em; }
+.steps div { flex: 1; border-top: 6px solid var(--blue); padding-top: 12px; font-size: 0.85em; }
+.steps b { display: block; font-size: 1.3em; color: var(--blue); }
+footer { color: var(--muted); }
+section.dense { font-size: 25px; }
+section.dense code { font-size: 0.85em; }
+;" data-marpit-pagination-total="17">
 <h2 id="whats-next">What's next</h2>
 <ul>
-<li><strong>Nightly backups</strong> and a weekly clean-up of the database's history, so it doesn't keep growing.</li>
+<li><strong>Restoring backups,</strong> and encrypted copies off the server, in Cloudflare R2, AWS S3 and other storage (2.19).</li>
+<li>A <strong>backend image setting,</strong> for projects made with cookieplone, and Try It pages for add-ons that come as ready-made images.</li>
+<li><strong>Aurora,</strong> Plone's new frontend, in the catalog to try.</li>
 <li><strong>HTTPS without your own domain,</strong> so every site, including Try It demos, is encrypted.</li>
-<li>A <strong>backend image setting,</strong> for projects made with cookieplone.</li>
 <li><strong>More add-ons</strong> in the catalog, each with its own Try It page.</li>
 </ul>
 </section>
-</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="16" data-paginate="true" data-class="lead" data-theme="default" data-style=":root {
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="17" data-paginate="true" data-class="lead" data-theme="default" data-style=":root {
   --blue: #0083be;
   --ink: #1f2933;
   --muted: #52606d;
@@ -893,7 +952,7 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-" lang="en-US" class="lead" data-marpit-pagination="16" style="--paginate:true;--class:lead;--theme:default;--style::root {
+" lang="en-US" class="lead" data-marpit-pagination="17" style="--paginate:true;--class:lead;--theme:default;--style::root {
   --blue: #0083be;
   --ink: #1f2933;
   --muted: #52606d;
@@ -916,7 +975,7 @@ table { font-size: 0.7em; }
 footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
-;" data-marpit-pagination-total="16">
+;" data-marpit-pagination-total="17">
 <h2 id="get-started">Get started</h2>
 <p><strong>github.com/collective/plone-in-a-box</strong></p>
 <p>The official repository, in the Plone community's <strong>collective</strong> organization. Step-by-step instructions for each provider are in the setup guide.</p>

@@ -550,13 +550,35 @@ sudo systemctl enable --now plone-update.timer
 
 The log is in `/var/log/plone-update.log`.
 
-**Security notices.** Once a day the server checks the
-[Security category](https://community.plone.org/c/announcements/security) of the Plone forum, where the Plone
-Security Team announces security fixes, often a week or so ahead. Each new post goes to the same places as update
-reports: the notification URL, email, and the login message (for 30 days). Each post is sent once, and a new server
-starts with the newest post, so it doesn't get the old ones. The notice links to the post, which says what to do;
-usually it's installing the Plone release with the fix, which the weekly update does, or `sudo plone-update` right
-away. To check now: `sudo plone-security-notices`. To turn the notices off:
+### Security fixes and new Plone releases
+
+Once a day the server checks the [Security category](https://community.plone.org/c/announcements/security) of the
+Plone forum, where the Plone Security Team announces security fixes, often a week or so ahead. Each new post goes to
+the same places as update reports: the notification URL, email, and the login message (for 30 days). Each post is
+sent once, and a new server starts with the newest post, so it doesn't get the old ones.
+
+When a post announces a **released** fix and automatic updates are on, the server doesn't wait for Sunday: it runs
+`plone-update` the same day, so the fix is in within a day. If the Plone images with the fix aren't out yet (they
+sometimes follow the announcement by a few hours), it tries again every day for a week. The notice says what
+happened: installed, not out yet, or failed and undone. The site is down for a minute or two while an update
+installs, during the day if that's when the post arrives.
+
+Whether you need to do anything:
+
+| What's announced | What the server does | What you do |
+|---|---|---|
+| A **pre-announcement** ("a fix comes out on Tuesday") | Sends the notice | Nothing. The server installs the fix within a day of its release. With automatic updates off, run `sudo plone-update` on that day. |
+| A **fix in new Plone patch releases** (the usual case, such as 6.2.3 → 6.2.4) | Installs it the same day, or as soon as its images are out | Nothing. With automatic updates off, run `sudo plone-update`. |
+| A **hotfix package** for Plone versions that don't get new releases | Sends the notice | Install it as a [backend add-on](#add-ons), as the post says, or upgrade Plone. Rare now: fixes usually come as new releases. |
+| A **change to make** until a fix is out (turning a feature off, say) | Sends the notice | What the post says. |
+| A **new Plone version** to move to (such as 6.3) | Says so in the weekly update report | When you're ready: [Upgrading to a new Plone version](#upgrading-to-a-new-plone-version). |
+| **Patch releases** without a security announcement | Installs them on Sunday | Nothing. With automatic updates off, run `sudo plone-update` now and then. |
+
+When the Plone version your site runs stops getting security fixes, you need to move to a newer one; the
+notices don't tell you that yet, so keep an eye on Plone's release schedule.
+
+To check for new posts now: `sudo plone-security-notices`. To turn the notices off (and with them the same-day
+updates):
 
 ```
 sudo systemctl disable --now plone-security-notices.timer
@@ -587,6 +609,8 @@ curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.18/src/
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,
 for example after a new Plone in a Box release, brings these tools up to date; the weekly updates stay on or off as
 they were.
+
+### Upgrading to a new Plone version
 
 **A new Plone or Volto release** (6.2 to 6.3, Volto 19 to 20) can need content and add-on changes, so it isn't
 automatic. Read the Plone upgrade notes, take a backup, change `PLONE_VERSION` and `VOLTO_VERSION` in

@@ -26,7 +26,8 @@ Volto front end and PostgreSQL) behind nginx.
 * HTTPS from Let's Encrypt when you give it a domain name, now or [later](docs/setup-guide.md#adding-https-later).
 * Standard security headers on every page, and nginx doesn't reveal its version.
 * Ubuntu installs its security updates by itself.
-* [Plone security announcements](docs/setup-guide.md#updates) reach you within a day, often a week before the fix is out.
+* [Plone security announcements](docs/setup-guide.md#security-fixes-and-new-plone-releases) reach you within a day,
+  often a week before the fix is out, and a released fix installs the same day.
 * Servers made with Terraform or AWS's Launch Stack button are protected from being deleted or rebuilt by mistake.
 
 **Updates**
@@ -37,7 +38,14 @@ Volto front end and PostgreSQL) behind nginx.
 
 **Notices**
 * Update reports, security announcements and backup problems go to your phone ([ntfy](https://ntfy.sh)), a team
-  chat (Slack, Discord, Google Chat, Mattermost or Microsoft Teams), by email, and to the server's login message.
+  chat (Slack, Discord, Google Chat, Mattermost or Microsoft Teams), by email (once
+  [email](docs/setup-guide.md#sending-email) is set up), and to the server's login message.
+
+**Email**
+* Password resets, new-user emails, form submissions and update reports, sent through an email relay service
+  (SMTP2GO, Brevo, Amazon SES and others) with your own domain. Fill in its settings when creating the server (setup
+  sends a test email), or later in Site Setup → Mail; without them, the site can't send email. See
+  [Sending email](docs/setup-guide.md#sending-email), which compares the services.
 
 **Backups**
 * A database backup every night (the whole site, files and images included), and a weekly pack so the database
@@ -53,8 +61,6 @@ Volto front end and PostgreSQL) behind nginx.
   (`ghcr.io/collective/plone-in-a-box-frontend:19-vlt`), or your own, and your own
   [backend image](docs/setup-guide.md#custom-backend-image).
 * A [demo login](docs/setup-guide.md#demo-login), with the roles and password you choose, for letting others try the site.
-* [Email](docs/setup-guide.md#sending-email) for password resets, forms and reports, through a relay service such as SMTP2GO, Brevo
-  or Amazon SES, with your own domain; setup sends a test email.
 
 **For add-on authors**
 * A [Try It page and button](#for-add-on-authors-a-try-it-button) that sets up a box with your add-on and a demo
