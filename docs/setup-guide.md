@@ -438,6 +438,22 @@ sudo systemctl enable --now plone-update.timer
 
 The log is in `/var/log/plone-update.log`.
 
+**Security notices.** Once a day the server checks the
+[Security category](https://community.plone.org/c/announcements/security) of the Plone forum, where the Plone
+Security Team announces security fixes, often a week or so ahead. Each new post goes to the same places as update
+reports: the notification URL, email, and the login message (for 30 days). Each post is sent once, and a new server
+starts with the newest post, so it doesn't get the old ones. The notice links to the post, which says what to do;
+usually it's installing the Plone release with the fix, which the weekly update does, or `sudo plone-update` right
+away. To check now: `sudo plone-security-notices`. To turn the notices off:
+
+```
+sudo systemctl disable --now plone-security-notices.timer
+```
+
+The log is in `/var/log/plone-security-notices.log`. To hear about every Plone release and announcement, not only
+security, also subscribe to the forum's [Announcements](https://community.plone.org/c/announcements) category
+(its bell icon, after logging in).
+
 ### Servers set up before 2.12
 
 A server set up with an older Plone in a Box (2.0 or later) can get automatic updates too. Open its console
