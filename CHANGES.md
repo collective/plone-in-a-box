@@ -1,5 +1,14 @@
-2.18 (unreleased)
+2.18 (2026-11-23)
 -----------------
+
+Servers now tell you about Plone security fixes: once a day they check the
+Plone forum's Security category and pass each new announcement on to your
+notification URL, your email and the login message, so you hear about a fix,
+often a week ahead. If you set up your server with Terraform, it's now
+protected from being deleted or rebuilt by mistake, including after pulling
+a newer Plone in a Box, and on DigitalOcean and Hetzner Terraform picks a
+region that offers the server size you chose. Servers from the AWS Launch
+Stack button have termination protection too.
 
 - Security notices: every day the server checks the Security category of the
   Plone forum, and sends each new post (security fixes and their
