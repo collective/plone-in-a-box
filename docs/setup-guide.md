@@ -413,8 +413,33 @@ backup somewhere else now and then:
 scp root@<server>:/var/backups/plone/plone-<date>.sql.gz .
 ```
 
+(On AWS, log in as `ubuntu` instead of `root`, and copy the file to your home directory with `sudo cp` first.)
+
+**Restoring a backup** puts the whole site back as it was when the backup was taken: pages, files, users,
+passwords and settings. `sudo plone-restore` lists the backups on the server, and
+
+```
+sudo plone-restore /var/backups/plone/plone-<date>.sql.gz
+```
+
+restores one after you type `yes`. It first saves a backup of the site as it is now
+(`/var/backups/plone/before-restore-<date>.sql.gz`, kept until you delete it), and if the restore fails, it puts
+that back. The site is down for a minute or two. Afterwards, log in with the passwords from the time of the
+backup. The log is in `/var/log/plone-restore.log`.
+
+**Moving a site to a new server** works the same way: set up the new server with Plone in a Box, with the same
+Plone version as the old one (or newer, then run any upgrade steps in Site Setup), copy a backup to it, and restore
+it there:
+
+```
+scp root@<old-server>:/var/backups/plone/plone-<date>.sql.gz root@<new-server>:/root/
+ssh root@<new-server> plone-restore /root/plone-<date>.sql.gz
+```
+
+Then point your domain at the new server, and delete the old one when you're sure.
+
 A server set up before 2.16 gets the nightly backups with the [same command](#servers-set-up-before-212) as automatic
-updates.
+updates, and one set up before 2.19 gets `plone-restore` with it too.
 
 **Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
 the site's address every few minutes and alert you. DigitalOcean has this built in (**Monitoring → Uptime**, then

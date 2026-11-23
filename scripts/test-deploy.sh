@@ -875,6 +875,36 @@ check "container logs are limited in size" rssh \
 check "plone-backup backs up and packs the database" rssh \
   'rm -f /var/lib/plone-in-a-box/last-pack && plone-backup pack && test -s /var/lib/plone-in-a-box/last-pack && find /var/backups/plone -name "plone-*.sql.gz" -mmin -10 | grep -q . && grep -q "^\[.*\] Packed$" /var/log/plone-backup.log'
 rssh 'tail -n 4 /var/log/plone-backup.log' 2>/dev/null | sed 's/^/      /'
+# plone-restore: a page deleted after a backup comes back when that backup is
+# restored, and a damaged backup file is refused without touching the site.
+restore_page() {  # restore_page create|delete|exists
+  local token; token=$(login "$NEW_PASSWORD") || return 1
+  case $1 in
+    create) curl -s -m 30 -X POST "http://$IP/++api++/" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+              -H "Authorization: Bearer $token" --data '{"@type": "Document", "id": "restore-test", "title": "Restore test"}' \
+              | jq -e '.id == "restore-test"' >/dev/null ;;
+    delete) curl -s -m 30 -o /dev/null -w '%{http_code}' -X DELETE "http://$IP/++api++/restore-test" \
+              -H 'Accept: application/json' -H "Authorization: Bearer $token" | grep -qx 204 ;;
+    exists) curl -s -m 30 "http://$IP/++api++/restore-test" -H 'Accept: application/json' -H "Authorization: Bearer $token" \
+              | jq -e '.title == "Restore test"' >/dev/null ;;
+  esac
+}
+restore_page_gone() { ! restore_page exists; }
+if check "a test page can be created" restore_page create \
+   && check "plone-backup takes a backup with it" rssh 'plone-backup' \
+   && check "the test page can be deleted" restore_page delete \
+   && check "the test page is gone" restore_page_gone; then
+  # shellcheck disable=SC2016  # expanded on the server
+  check "plone-restore refuses a damaged backup" rssh \
+    'head -c 2000 "$(ls -1t /var/backups/plone/plone-*.sql.gz | head -n 1)" > /tmp/damaged.sql.gz; ! plone-restore /tmp/damaged.sql.gz --yes'
+  # shellcheck disable=SC2016  # expanded on the server
+  check "plone-restore restores the newest backup" rssh \
+    'plone-restore "$(ls -1t /var/backups/plone/plone-*.sql.gz | head -n 1)" --yes'
+  rssh 'tail -n 3 /var/log/plone-restore.log' 2>/dev/null | sed 's/^/      /' || true
+  check "the test page is back after the restore" restore_page exists
+  check "the admin password still works after the restore" login "$NEW_PASSWORD"
+  check "plone-restore kept a backup of the site as it was" rssh 'ls /var/backups/plone/before-restore-*.sql.gz'
+fi
 check "automatic updates are on (plone-update.timer)" rssh \
   'systemctl is-enabled --quiet plone-update.timer && systemctl is-active --quiet plone-update.timer'
 check "credentials file mentions updates" rssh "grep -q '^Updates: .*automatically' /root/plone-credentials.txt"

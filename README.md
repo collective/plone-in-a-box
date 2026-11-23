@@ -37,12 +37,20 @@ Volto front end and PostgreSQL) behind nginx.
 
 **Notices**
 * Update reports, security announcements and backup problems go to your phone ([ntfy](https://ntfy.sh)), a team
-  chat (Slack, Discord, Google Chat, Mattermost or Microsoft Teams), by email, and to the server's login message.
+  chat (Slack, Discord, Google Chat, Mattermost or Microsoft Teams), by email (once
+  [email](docs/setup-guide.md#sending-email) is set up), and to the server's login message.
+
+**Email**
+* Password resets, new-user emails, form submissions and update reports, sent through an email relay service
+  (SMTP2GO, Brevo, Amazon SES and others) with your own domain. Fill in its settings when creating the server (setup
+  sends a test email), or later in Site Setup → Mail; without them, the site can't send email. See
+  [Sending email](docs/setup-guide.md#sending-email), which compares the services.
 
 **Backups**
 * A database backup every night (the whole site, files and images included), and a weekly pack so the database
   doesn't grow forever. Your provider's server backups can be turned on too. See
   [Backups](docs/setup-guide.md#day-to-day-administration).
+* `sudo plone-restore` puts a backup back, and moves a site to a new server.
 
 **Customizing**
 * [Backend add-ons](docs/setup-guide.md#add-ons) such as `collective.easyform`, installed when deploying or later.
@@ -50,8 +58,6 @@ Volto front end and PostgreSQL) behind nginx.
   (`ghcr.io/collective/plone-in-a-box-frontend:19-vlt`), or your own, and your own
   [backend image](docs/setup-guide.md#custom-backend-image).
 * A [demo login](docs/setup-guide.md#demo-login), with the roles and password you choose, for letting others try the site.
-* [Email](docs/setup-guide.md#sending-email) for password resets, forms and reports, through a relay service such as SMTP2GO, Brevo
-  or Amazon SES, with your own domain; setup sends a test email.
 
 **For add-on authors**
 * A [Try It page and button](#for-add-on-authors-a-try-it-button) that sets up a box with your add-on and a demo
