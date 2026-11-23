@@ -405,15 +405,41 @@ also packs the database: it removes the history of changes older than a week, wh
 database grow forever. `sudo plone-backup` runs both now (`sudo plone-backup pack` packs as well), and the log is in
 `/var/log/plone-backup.log`. If a backup fails, a notice goes to the notification URL.
 
-These backups are on the same server, so they don't help if the server itself is lost. For that, turn on your
-provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or Hetzner Backups), or copy a
-backup somewhere else now and then:
+These backups are on the same server, so they don't help if the server itself is lost. For that, send a copy of
+each night's backup to storage elsewhere (below), turn on your provider's server backups (Linode Backups,
+DigitalOcean Backups, EBS snapshots on AWS, or Hetzner Backups), or copy a backup somewhere else now and then:
 
 ```
 scp root@<server>:/var/backups/plone/plone-<date>.sql.gz .
 ```
 
 (On AWS, log in as `ubuntu` instead of `root`, and copy the file to your home directory with `sudo cp` first.)
+
+**Copies off the server**: every night's backup can also go to S3-compatible storage, such as AWS S3, Backblaze B2,
+DigitalOcean Spaces or Hetzner Object Storage, encrypted on the server first, so a leaked bucket or key doesn't
+expose your site. A small site's copies cost cents a month. At your storage service, create a **private** bucket and
+an access key that can read, write and delete in it, then run:
+
+```
+sudo plone-offsite setup
+```
+
+It asks for the endpoint (it shows examples), region, bucket, the key, how many copies to keep (14 by default), and
+a folder in the bucket (one per server, so several servers can share a bucket). It uploads and deletes a test file
+to check them, then shows a **passphrase**: keep it in your password manager. The copies can't be read without it,
+and if the server is lost, so is its copy of the passphrase. From then on, `plone-backup` encrypts each night's
+backup, uploads it, and removes the oldest copies; if that fails, a notice goes to the notification URL.
+
+To restore from a copy, on this server or a new one (run `sudo plone-offsite setup` there first, with the same
+bucket and key, and paste the passphrase when it asks):
+
+```
+sudo plone-offsite list
+sudo plone-offsite fetch <folder>/<name>
+sudo plone-restore /var/backups/plone/offsite-<name>.sql.gz
+```
+
+`sudo plone-offsite off` stops making copies and leaves the bucket as it is.
 
 **Restoring a backup** puts the whole site back as it was when the backup was taken: pages, files, users,
 passwords and settings. `sudo plone-restore` lists the backups on the server, and

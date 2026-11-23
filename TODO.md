@@ -67,9 +67,8 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
 - [x] **Tell site owners about Plone releases and security fixes** (2.18: security posts from the Plone forum,
   daily; patch releases and new versions were already in the weekly update report). Still open: end-of-support
   notices, once there's a reliable source for the dates.
-- [ ] **Backups off the server.** `plone-restore` (2.19) restores a backup, but all backups stay on the server
-  unless the owner pays for provider backups or copies them. Ideas: upload each nightly backup to S3-compatible
-  storage (AWS S3, Backblaze B2, DigitalOcean Spaces, Hetzner Object Storage); a `backups` option for AWS (daily EBS
+- [x] **Backups off the server** (2.19): `plone-offsite` sends encrypted copies of the nightly backups to
+  S3-compatible storage. Still open: a `backups` option for AWS (daily EBS
   snapshots with Data Lifecycle Manager); back up `/opt/plone` and the nginx site file too; warn in the update report
   when the newest backup is too old.
 - [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where

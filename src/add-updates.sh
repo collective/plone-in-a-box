@@ -6,7 +6,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.18/src/add-updates.sh | sudo bash
 #
 # It installs plone-update, the weekly plone-update.timer, plone-backup with
-# the nightly plone-backup.timer, plone-restore, plone-security-notices with
+# the nightly plone-backup.timer, plone-restore, plone-offsite, plone-security-notices with
 # its daily timer, and the login message, exactly as setup does on new servers, and then runs
 # plone-update once. Running it again brings these tools up to date with the release.
 #
