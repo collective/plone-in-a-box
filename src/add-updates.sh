@@ -6,9 +6,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.17/src/add-updates.sh | sudo bash
 #
 # It installs plone-update, the weekly plone-update.timer, plone-backup with
-# the nightly plone-backup.timer, and the login message, exactly as setup does
-# on new servers, and then runs plone-update
-# once. Running it again brings these tools up to date with the release.
+# the nightly plone-backup.timer, plone-security-notices with its daily timer,
+# and the login message, exactly as setup does on new servers, and then runs
+# plone-update once. Running it again brings these tools up to date with the release.
 #
 # Settings go between "sudo" and "bash", for example
 #   ... | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
@@ -65,6 +65,9 @@ main() {
   say "Installed plone-update and plone-backup"
   systemctl enable --now plone-backup.timer
   say "The database is backed up every night, and packed once a week (sudo plone-backup to run it now)"
+  [[ -s "$STATE_DIR/security-seen" ]] || /usr/local/bin/plone-security-notices >/dev/null 2>&1 || true
+  systemctl enable --now plone-security-notices.timer
+  say "Plone security announcements are passed on every day (sudo plone-security-notices to check now)"
 
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then

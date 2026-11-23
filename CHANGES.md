@@ -1,6 +1,11 @@
 2.18 (unreleased)
 -----------------
 
+- Security notices: every day the server checks the Security category of the
+  Plone forum, and sends each new post (security fixes and their
+  pre-announcements) to the notification URL, by email and to the login
+  message. `sudo plone-security-notices` checks now; servers set up before
+  2.18 get it by running `add-updates.sh` again.
 - AWS Terraform: the server downloads the setup script of the release in the
   new `release` variable (the current release by default), as the Launch
   Stack template does, instead of carrying it in its user data. The script
