@@ -9,8 +9,9 @@
 # instead (DigitalOcean rejects uploading the same key twice):
 #   terraform apply -var 'ssh_key_fingerprint=aa:bb:cc:...'
 #
-# The Droplet provisions itself on first boot by running ../StackScript as
-# user data; that takes about 10 minutes. Follow it with:
+# The Droplet provisions itself on first boot: its user data downloads
+# src/StackScript from the Plone in a Box release named in var.release and
+# runs it; that takes about 10 minutes. Follow it with:
 #   ssh root@<public_ip> tail -f /var/log/cloud-init-output.log
 # then read the admin password with:
 #   ssh root@<public_ip> cat /root/plone-credentials.txt
@@ -23,6 +24,17 @@ terraform {
       source  = "digitalocean/digitalocean"
       version = "~> 2.0"
     }
+  }
+}
+
+variable "release" {
+  description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
+  type        = string
+  default     = "2.17"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
+    error_message = "release: a release, branch or commit, such as 2.17."
   }
 }
 
@@ -205,8 +217,8 @@ resource "digitalocean_droplet" "plone" {
   tags       = ["plone-in-a-box"]
 
   # Same provisioning script as the Linode StackScript, with its settings
-  # passed as environment variables. The script is compressed, because
-  # DigitalOcean accepts up to 64 KiB of user data, and unpacked on the server.
+  # passed as environment variables. The server downloads the script, as on
+  # AWS and Hetzner, so all three run the release named in var.release.
   user_data = join("\n", [
     "#!/bin/bash",
     "export ADMIN_PASSWORD=\"$(echo ${base64encode(var.admin_password)} | base64 -d)\"",
@@ -228,7 +240,11 @@ resource "digitalocean_droplet" "plone" {
     "export SMTP_PASSWORD=\"$(echo ${base64encode(var.smtp_password)} | base64 -d)\"",
     "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
     "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
-    "echo '${base64gzip(file("${path.module}/../StackScript"))}' | base64 -d | gunzip > /root/plone-in-a-box.sh || exit 1",
+    "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
+    "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
+    "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",
+    "  exit 1",
+    "fi",
     "exec bash /root/plone-in-a-box.sh",
   ])
 }

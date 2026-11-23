@@ -10,9 +10,10 @@
   new `release` variable (the current release by default), as the Launch
   Stack template does, instead of carrying it in its user data. The script
   had grown close to EC2's 16 KB user data limit.
-- Hetzner Terraform: likewise, the server downloads the setup script of the
-  release in the new `release` variable. The compressed script had reached
-  29 of the 32 KB of user data Hetzner allows.
+- Hetzner and DigitalOcean Terraform: likewise, the server downloads the
+  setup script of the release in the new `release` variable, so all three
+  Terraform routes work the same way. On Hetzner, the compressed script had
+  reached 29 of the 32 KB of user data allowed.
 
 2.17 (2026-11-22)
 -----------------

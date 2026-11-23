@@ -32,23 +32,15 @@ jobs:
           add_updates=$(sed -n "s/^  local PIAB_RELEASE='\(.*\)'$/\1/p" src/add-updates.sh)
           terraform_aws=$(grep -A3 '^variable "release"' src/aws/main.tf | sed -n 's/.*default *= *"\(.*\)"/\1/p')
           terraform_hetzner=$(grep -A3 '^variable "release"' src/hetzner/main.tf | sed -n 's/.*default *= *"\(.*\)"/\1/p')
-          echo "src/user-data.sh: $release, src/aws/cloudformation.yaml: $template, src/add-updates.sh: $add_updates, src/aws/main.tf: $terraform_aws, src/hetzner/main.tf: $terraform_hetzner"
-          test -n "$release" && test "$template" = "$release" && test "$add_updates" = "$release" && test "$terraform_aws" = "$release" && test "$terraform_hetzner" = "$release"
+          terraform_do=$(grep -A3 '^variable "release"' src/digitalocean/main.tf | sed -n 's/.*default *= *"\(.*\)"/\1/p')
+          echo "src/user-data.sh: $release, src/aws/cloudformation.yaml: $template, src/add-updates.sh: $add_updates, src/aws/main.tf: $terraform_aws, src/hetzner/main.tf: $terraform_hetzner, src/digitalocean/main.tf: $terraform_do"
+          test -n "$release" && test "$template" = "$release" && test "$add_updates" = "$release" && test "$terraform_aws" = "$release" && test "$terraform_hetzner" = "$release" && test "$terraform_do" = "$release"
           bad=$(grep -HnoE 'plone-in-a-box/[A-Za-z0-9._-]*/src/(StackScript|add-updates\.sh)' README.md docs/setup-guide.md docs/try-it-buttons.md src/add-updates.sh \
             | grep -vE "plone-in-a-box/$release/src/(StackScript|add-updates\.sh)" || true)
           if [ -n "$bad" ]; then echo "Launchers in the docs download another release:"; echo "$bad"; exit 1; fi
 
       - name: The add-on catalog, and the Try It pages made from it
         run: python3 scripts/catalog.py check
-
-      - name: The script fits in the Terraform user data
-        run: |
-          # src/digitalocean/main.tf embeds src/StackScript compressed, as base64, and
-          # DigitalOcean allows 64 KiB; leave room for the settings. (AWS and Hetzner
-          # download it instead.)
-          size=$(gzip -9 < src/StackScript | base64 -w0 | wc -c)
-          echo "DigitalOcean: $size of 60000 bytes"
-          test "$size" -lt 60000
 
   terraform:
     runs-on: ubuntu-latest
