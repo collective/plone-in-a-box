@@ -6,8 +6,8 @@
   puts that back if the restore fails. It also moves a site to a new server:
   copy a backup there and restore it. See "Backups" in the setup guide.
 - `sudo plone-offsite setup` sends a copy of each night's backup to
-  S3-compatible storage (AWS S3, Backblaze B2, DigitalOcean Spaces, Hetzner
-  Object Storage and others), encrypted with a passphrase on the server
+  S3-compatible storage (Cloudflare R2, AWS S3, Backblaze B2, DigitalOcean
+  Spaces, Hetzner Object Storage and others), encrypted with a passphrase on the server
   first, and keeps the newest 14. `plone-offsite list` and `fetch` get one
   back, also on a new server, for `plone-restore`.
 

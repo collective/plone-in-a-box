@@ -1120,8 +1120,8 @@ exit 1
 PLONE_RESTORE_EOF
 chmod 755 /usr/local/bin/plone-restore
 
-# Encrypted copies of the nightly backups in S3-compatible storage (AWS S3,
-# Backblaze B2, DigitalOcean Spaces, Hetzner Object Storage and others), once
+# Encrypted copies of the nightly backups in S3-compatible storage (Cloudflare
+# R2, AWS S3, Backblaze B2, DigitalOcean Spaces, Hetzner and others), once
 # the owner runs sudo plone-offsite setup.
 cat > /usr/local/bin/plone-offsite <<'PLONE_OFFSITE_EOF'
 #!/bin/bash
@@ -1172,10 +1172,15 @@ setup)
   }
   echo "Copies of the nightly backups go to S3-compatible storage, encrypted. Make a private bucket and an"
   echo "access key that can read and write it at your storage service first. Endpoints, for example:"
-  echo "  AWS S3: https://s3.us-east-1.amazonaws.com   Backblaze B2: https://s3.us-west-004.backblazeb2.com"
-  echo "  DigitalOcean Spaces: https://nyc3.digitaloceanspaces.com   Hetzner: https://fsn1.your-objectstorage.com"
+  echo "  Cloudflare R2: https://<account-id>.r2.cloudflarestorage.com (region: auto)"
+  echo "  AWS S3: https://s3.us-east-1.amazonaws.com (region: us-east-1)"
+  echo "  Backblaze B2: https://s3.us-west-004.backblazeb2.com   DigitalOcean Spaces: https://nyc3.digitaloceanspaces.com"
+  echo "  Hetzner: https://fsn1.your-objectstorage.com"
   ask ENDPOINT "Endpoint"
-  ask REGION "Region (Enter if the service doesn't use one)" ""
+  default_region=""
+  [[ "$ENDPOINT" == *.r2.cloudflarestorage.com* ]] && default_region=auto
+  [[ "$ENDPOINT" =~ s3[.-]([a-z0-9-]+)\.amazonaws\.com ]] && default_region=${BASH_REMATCH[1]}
+  ask REGION "Region (Enter if the service doesn't use one)" "$default_region"
   ask BUCKET "Bucket"
   ask ACCESS_KEY "Access key ID"
   ask SECRET_KEY "Secret access key" "" secret
@@ -1194,11 +1199,15 @@ setup)
   ask PASSPHRASE "Passphrase" "" secret
   new_passphrase=0
   [[ -n "$PASSPHRASE" ]] || { PASSPHRASE=$(openssl rand -base64 30 | tr -d '/+=' | cut -c1-32); new_passphrase=1; }
+  # rclone's provider: AWS and R2 have their own, the rest are "Other".
+  provider=Other
+  [[ "$ENDPOINT" == *.amazonaws.com* ]] && provider=AWS
+  [[ "$ENDPOINT" == *.r2.cloudflarestorage.com* ]] && provider=Cloudflare
   umask 077
   cat > "$RCLONE_CONF" <<CONF
 [offsite]
 type = s3
-provider = Other
+provider = $provider
 access_key_id = $ACCESS_KEY
 secret_access_key = $SECRET_KEY
 endpoint = ${ENDPOINT%/}

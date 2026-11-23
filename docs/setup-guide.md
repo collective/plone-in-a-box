@@ -415,10 +415,31 @@ scp root@<server>:/var/backups/plone/plone-<date>.sql.gz .
 
 (On AWS, log in as `ubuntu` instead of `root`, and copy the file to your home directory with `sudo cp` first.)
 
-**Copies off the server**: every night's backup can also go to S3-compatible storage, such as AWS S3, Backblaze B2,
-DigitalOcean Spaces or Hetzner Object Storage, encrypted on the server first, so a leaked bucket or key doesn't
-expose your site. A small site's copies cost cents a month. At your storage service, create a **private** bucket and
-an access key that can read, write and delete in it, then run:
+**Copies off the server**: every night's backup can also go to S3-compatible storage, such as Cloudflare R2, AWS S3,
+Backblaze B2, DigitalOcean Spaces or Hetzner Object Storage, encrypted on the server first, so a leaked bucket or key
+doesn't expose your site. A small site's copies cost cents a month, or nothing within R2's and B2's free allowances;
+R2 also charges nothing for downloading them again. At your storage service, create a **private** bucket and an
+access key that can list, read, write and delete in that bucket only:
+
+* **Cloudflare R2**: **R2 → Create bucket**, then **Manage API tokens → Create API token** with **Object Read &
+  Write**, limited to that bucket. The endpoint is `https://<account-id>.r2.cloudflarestorage.com` (the account ID
+  is on the R2 page), and the region is `auto`.
+* **AWS S3**: **S3 → Create bucket** (keep **Block all public access** on), then an IAM user with an access key and
+  this policy, with your bucket's name:
+
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {"Effect": "Allow", "Action": ["s3:ListBucket"], "Resource": "arn:aws:s3:::<bucket>"},
+      {"Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": "arn:aws:s3:::<bucket>/*"}
+    ]
+  }
+  ```
+
+  The endpoint is `https://s3.<region>.amazonaws.com`, for example `https://s3.us-east-1.amazonaws.com`.
+
+Then run:
 
 ```
 sudo plone-offsite setup
