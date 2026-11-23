@@ -58,7 +58,7 @@ section.dense code { font-size: 0.85em; }
 <h1 id="plone-in-a-box%E2%84%A2">Plone in a Box™</h1>
 <p>Your own Plone 6 website on a cloud server,<br />
 without needing a command line.</p>
-<p><small>Release 2.18 · November 2026</small></p>
+<p><small>Release 2.19 · November 2026</small></p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="2" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -282,7 +282,7 @@ section.dense code { font-size: 0.85em; }
 <li>Only the <strong>website</strong> (HTTP, HTTPS) and <strong>SSH</strong> are reachable from the internet. The database and Plone's own ports are closed.</li>
 <li><strong>Security headers</strong> on every page, and nginx doesn't reveal its version.</li>
 <li><strong>All Ubuntu updates</strong> are installed during setup, and security updates keep coming automatically.</li>
-<li><strong>Plone security announcements</strong> reach you within a day, often a week before the fix.</li>
+<li><strong>Plone security fixes</strong> install the same day they come out, and you hear about them, often a week ahead.</li>
 <li>Servers made with <strong>Terraform</strong> or AWS's <strong>Launch Stack</strong> can't be deleted or rebuilt by mistake.</li>
 <li>Forgot the password? One command in your provider's <strong>browser console</strong> resets it.</li>
 </ul>
@@ -340,7 +340,7 @@ section.dense code { font-size: 0.85em; }
 <li>First a <strong>database backup</strong>, then the update.</li>
 <li>If the site doesn't come back, it <strong>goes back</strong> to the previous version, and skips that build from then on.</li>
 <li>A <strong>report</strong> after each run: on your phone (ntfy), in a team chat (Slack, Teams, Discord, Google Chat, Mattermost), or by email.</li>
-<li><strong>Security news daily:</strong> each new post in the Plone forum's Security category, sent the same ways, and shown when you log in.</li>
+<li><strong>Security fixes the same day:</strong> when the Plone forum announces a released fix, the server installs it that day, not on Sunday, and says so. Each security post is sent the same ways, and shown when you log in.</li>
 </ul>
 <p>Older servers get all this with one command.</p>
 </section>
@@ -538,9 +538,10 @@ section.dense code { font-size: 0.85em; }
 <ul>
 <li><strong>Every night,</strong> a database backup on the server: the whole site, files and images included. The three newest are kept.</li>
 <li><strong>Every week,</strong> a pack: the database's old history is cleared, so it doesn't keep growing.</li>
+<li><strong><code>sudo plone-restore</code></strong> puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also <strong>moves a site</strong> to a new server.</li>
 <li>Your provider's <strong>server backups</strong> can be turned on too, for the whole disk.</li>
 </ul>
-<p>Coming in 2.19: <strong><code>sudo plone-restore</code></strong> puts a backup back, or moves a site to a new server, and <strong>encrypted copies</strong> of each night's backup go to Cloudflare R2, AWS S3, Backblaze B2 or other storage.</p>
+<p>Coming in 2.20: <strong>encrypted copies</strong> of each night's backup in Cloudflare R2, AWS S3, Backblaze B2 or other storage.</p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="10" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -922,7 +923,7 @@ section.dense code { font-size: 0.85em; }
 ;" data-marpit-pagination-total="17">
 <h2 id="whats-next">What's next</h2>
 <ul>
-<li><strong>Restoring backups,</strong> and encrypted copies off the server, in Cloudflare R2, AWS S3 and other storage (2.19).</li>
+<li><strong>Encrypted copies of the backups</strong> off the server, in Cloudflare R2, AWS S3 and other storage (2.20).</li>
 <li>A <strong>backend image setting,</strong> for projects made with cookieplone, and Try It pages for add-ons that come as ready-made images.</li>
 <li><strong>Aurora,</strong> Plone's new frontend, in the catalog to try.</li>
 <li><strong>HTTPS without your own domain,</strong> so every site, including Try It demos, is encrypted.</li>

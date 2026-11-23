@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 without needing a command line.
 
-<small>Release 2.18 · November 2026</small>
+<small>Release 2.19 · November 2026</small>
 
 ---
 
@@ -89,7 +89,7 @@ Versions are configurable; Plone 6.1 with Volto 18 also works. Add-ons and theme
 - Only the **website** (HTTP, HTTPS) and **SSH** are reachable from the internet. The database and Plone's own ports are closed.
 - **Security headers** on every page, and nginx doesn't reveal its version.
 - **All Ubuntu updates** are installed during setup, and security updates keep coming automatically.
-- **Plone security announcements** reach you within a day, often a week before the fix.
+- **Plone security fixes** install the same day they come out, and you hear about them, often a week ahead.
 - Servers made with **Terraform** or AWS's **Launch Stack** can't be deleted or rebuilt by mistake.
 - Forgot the password? One command in your provider's **browser console** resets it.
 
@@ -104,7 +104,7 @@ Every Sunday, early in the morning, the server checks for patch releases of the 
 - First a **database backup**, then the update.
 - If the site doesn't come back, it **goes back** to the previous version, and skips that build from then on.
 - A **report** after each run: on your phone (ntfy), in a team chat (Slack, Teams, Discord, Google Chat, Mattermost), or by email.
-- **Security news daily:** each new post in the Plone forum's Security category, sent the same ways, and shown when you log in.
+- **Security fixes the same day:** when the Plone forum announces a released fix, the server installs it that day, not on Sunday, and says so. Each security post is sent the same ways, and shown when you log in.
 
 Older servers get all this with one command.
 
@@ -142,9 +142,10 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It p
 
 - **Every night,** a database backup on the server: the whole site, files and images included. The three newest are kept.
 - **Every week,** a pack: the database's old history is cleared, so it doesn't keep growing.
+- **`sudo plone-restore`** puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also **moves a site** to a new server.
 - Your provider's **server backups** can be turned on too, for the whole disk.
 
-Coming in 2.19: **`sudo plone-restore`** puts a backup back, or moves a site to a new server, and **encrypted copies** of each night's backup go to Cloudflare R2, AWS S3, Backblaze B2 or other storage.
+Coming in 2.20: **encrypted copies** of each night's backup in Cloudflare R2, AWS S3, Backblaze B2 or other storage.
 
 ---
 
@@ -222,7 +223,7 @@ Example: **collective.github.io/plone-in-a-box/try/juizi-dashboard/**
 
 ## What's next
 
-- **Restoring backups,** and encrypted copies off the server, in Cloudflare R2, AWS S3 and other storage (2.19).
+- **Encrypted copies of the backups** off the server, in Cloudflare R2, AWS S3 and other storage (2.20).
 - A **backend image setting,** for projects made with cookieplone, and Try It pages for add-ons that come as ready-made images.
 - **Aurora,** Plone's new frontend, in the catalog to try.
 - **HTTPS without your own domain,** so every site, including Try It demos, is encrypted.
