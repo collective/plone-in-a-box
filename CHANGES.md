@@ -8,6 +8,12 @@
   `backend_image`, for add-ons and distributions whose makers publish their
   own images: nothing is built for them, and their Try It page fills in both
   images. "Try It" buttons explains them.
+- **Fixed: Plone distributions failed to set up.** Since 2.21, setup sent
+  `SITE_SETUP_CONTENT`, which kitconcept's images can't read: creating the
+  site stopped with an error, for the intranet and anything built on
+  kitconcept.core. Setup now gives a distribution's image a copy of its own
+  answers file (`/app/scripts/default.json`) with the starter content
+  setting and no Solr, so Starter content `no` works for them too.
 
 2.21 (2026-11-24)
 -----------------
