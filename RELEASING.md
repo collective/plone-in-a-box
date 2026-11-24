@@ -279,7 +279,20 @@ git push collective <version>
 
 Pushing the tag announces the release on Discord (see [the Discord notice](#one-time-setup-of-the-discord-notice)).
 
-GitHub releases (with notes) are published only on `tkimnguyen/plone-in-a-box`.
+Then copy the GitHub release, with its notes, so `collective` shows it too (its Releases list, and **Watch →
+Releases** for people who follow it there):
+
+```
+v=<version>
+{ printf 'Mirrored from [tkimnguyen/plone-in-a-box %s](https://github.com/tkimnguyen/plone-in-a-box/releases/tag/%s), where the downloads and the Launch Stack template come from.\n\n' "$v" "$v"
+  gh release view "$v" --json body -q .body; } > /tmp/notes.md
+gh release create "$v" --repo collective/plone-in-a-box --verify-tag --title "Plone in a Box $v" --notes-file /tmp/notes.md
+```
+
+Edit release notes on `tkimnguyen/plone-in-a-box` only, then copy them again (`gh release edit "$v" --repo
+collective/plone-in-a-box --notes-file /tmp/notes.md`). The copy doesn't publish the template a second time:
+`publish-template.yml` runs only in `tkimnguyen/plone-in-a-box`, and the Discord notice comes from the tag, not
+the release.
 
 Avoid committing directly to `collective`, so these pull requests stay simple fast-forwards. If someone does
 contribute there, bring it into this repo first with `git pull collective main`.
