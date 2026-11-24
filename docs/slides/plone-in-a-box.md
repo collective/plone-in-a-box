@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 without needing a command line.
 
-<small>Release 2.20 · November 2026</small>
+<small>Release 2.21 · November 2026</small>
 
 ---
 
@@ -74,10 +74,10 @@ Nothing to install on your computer. While you wait, the address shows a page wi
 One Ubuntu 26.04 LTS server, running the **official Plone Docker images**:
 
 - **Plone 6.2** backend, **Volto 19** front end, **PostgreSQL** for storage
-- **nginx** in front, with optional HTTPS from **Let's Encrypt**
+- **nginx** in front, with HTTPS from **Let's Encrypt**
 - managed with plain **Docker Compose** in `/opt/plone`, so a Plone developer finds nothing unusual
 
-Versions are configurable; Plone 6.1 with Volto 18 also works. Add-ons and themes are optional settings.
+The site's **language**, versions, add-ons, themes and sample pages are settings. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
 
 ---
 
@@ -86,6 +86,7 @@ Versions are configurable; Plone 6.1 with Volto 18 also works. Add-ons and theme
 ## Safe by default
 
 - The admin password is **the one you choose**, or a generated one.
+- **HTTPS for every site,** also without a domain name: a certificate for the server's IP address, renewed by itself.
 - Only the **website** (HTTP, HTTPS) and **SSH** are reachable from the internet. The database and Plone's own ports are closed.
 - **Security headers** on every page, and nginx doesn't reveal its version.
 - **All Ubuntu updates** are installed during setup, and security updates keep coming automatically.
@@ -216,15 +217,14 @@ Example: **collective.github.io/plone-in-a-box/try/juizi-dashboard/**
 ## Your own add-ons and themes
 
 - **Volto add-ons:** fork the repository, add an entry to `addons.yml`, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.
-- **Packages that aren't on PyPI,** or your own code: build a backend image on the official one, and switch a running server to it.
+- **Backend image:** a Plone distribution, a cookieplone project, or the official image with packages that aren't on PyPI. Setup checks it runs Plone, and otherwise uses the official one.
 
 ---
 
 ## What's next
 
-- A **backend image setting,** for projects made with cookieplone, and Try It pages for add-ons that come as ready-made images.
+- **Try It pages for ready-made images:** Plone distributions such as kitconcept's intranet and website, and PortalBrasil.
 - **Aurora,** Plone's new frontend, in the catalog to try.
-- **HTTPS without your own domain,** so every site, including Try It demos, is encrypted.
 - **More add-ons** in the catalog, each with its own Try It page.
 
 ---

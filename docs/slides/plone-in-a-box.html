@@ -58,7 +58,7 @@ section.dense code { font-size: 0.85em; }
 <h1 id="plone-in-a-box%E2%84%A2">Plone in a Box™</h1>
 <p>Your own Plone 6 website on a cloud server,<br />
 without needing a command line.</p>
-<p><small>Release 2.20 · November 2026</small></p>
+<p><small>Release 2.21 · November 2026</small></p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="2" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -224,10 +224,10 @@ section.dense code { font-size: 0.85em; }
 <p>One Ubuntu 26.04 LTS server, running the <strong>official Plone Docker images</strong>:</p>
 <ul>
 <li><strong>Plone 6.2</strong> backend, <strong>Volto 19</strong> front end, <strong>PostgreSQL</strong> for storage</li>
-<li><strong>nginx</strong> in front, with optional HTTPS from <strong>Let's Encrypt</strong></li>
+<li><strong>nginx</strong> in front, with HTTPS from <strong>Let's Encrypt</strong></li>
 <li>managed with plain <strong>Docker Compose</strong> in <code>/opt/plone</code>, so a Plone developer finds nothing unusual</li>
 </ul>
-<p>Versions are configurable; Plone 6.1 with Volto 18 also works. Add-ons and themes are optional settings.</p>
+<p>The site's <strong>language</strong>, versions, add-ons, themes and sample pages are settings. A <strong>Plone distribution</strong>, such as kitconcept's intranet, can replace the standard site.</p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="5" data-paginate="true" data-class="dense" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -279,6 +279,7 @@ section.dense code { font-size: 0.85em; }
 <h2 id="safe-by-default">Safe by default</h2>
 <ul>
 <li>The admin password is <strong>the one you choose</strong>, or a generated one.</li>
+<li><strong>HTTPS for every site,</strong> also without a domain name: a certificate for the server's IP address, renewed by itself.</li>
 <li>Only the <strong>website</strong> (HTTP, HTTPS) and <strong>SSH</strong> are reachable from the internet. The database and Plone's own ports are closed.</li>
 <li><strong>Security headers</strong> on every page, and nginx doesn't reveal its version.</li>
 <li><strong>All Ubuntu updates</strong> are installed during setup, and security updates keep coming automatically.</li>
@@ -871,7 +872,7 @@ section.dense code { font-size: 0.85em; }
 <h2 id="your-own-add-ons-and-themes">Your own add-ons and themes</h2>
 <ul>
 <li><strong>Volto add-ons:</strong> fork the repository, add an entry to <code>addons.yml</code>, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.</li>
-<li><strong>Packages that aren't on PyPI,</strong> or your own code: build a backend image on the official one, and switch a running server to it.</li>
+<li><strong>Backend image:</strong> a Plone distribution, a cookieplone project, or the official image with packages that aren't on PyPI. Setup checks it runs Plone, and otherwise uses the official one.</li>
 </ul>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="16" data-paginate="true" data-theme="default" data-style=":root {
@@ -923,9 +924,8 @@ section.dense code { font-size: 0.85em; }
 ;" data-marpit-pagination-total="17">
 <h2 id="whats-next">What's next</h2>
 <ul>
-<li>A <strong>backend image setting,</strong> for projects made with cookieplone, and Try It pages for add-ons that come as ready-made images.</li>
+<li><strong>Try It pages for ready-made images:</strong> Plone distributions such as kitconcept's intranet and website, and PortalBrasil.</li>
 <li><strong>Aurora,</strong> Plone's new frontend, in the catalog to try.</li>
-<li><strong>HTTPS without your own domain,</strong> so every site, including Try It demos, is encrypted.</li>
 <li><strong>More add-ons</strong> in the catalog, each with its own Try It page.</li>
 </ul>
 </section>
