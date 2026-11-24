@@ -40,7 +40,7 @@ This page is for add-on authors.
      backend_image: ghcr.io/kitconcept/kitconcept-intranet-backend:3.12
      demo_roles: Editor
      try_it: yes
-     try_hint: look around the sample intranet and edit a page or add a news item
+     try_hint: look around the sample intranet (its sample pages are in German) and edit a page or add a news item
    ```
 
    The images must be public and built for `linux/amd64`, and the backend image must start like the official
