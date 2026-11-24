@@ -7,6 +7,8 @@ form on your cloud provider's website (Linode, DigitalOcean, Amazon AWS or Hetzn
 Create. About 10 minutes later, the server's address shows your new Plone site, ready to log in and edit. There's
 nothing to install on your computer.
 
+For a short overview, see the [slides](https://collective.github.io/plone-in-a-box/slides/).
+
 ## What you get
 
 Each box is a single Ubuntu 26.04 LTS server running the official Plone Docker images (the Plone backend, the
@@ -230,4 +232,4 @@ setup steps still apply, but the port 8080 and `admin`/`admin` instructions no l
 
 See the accompanying [2020 Plone Conference](https://2020.ploneconf.org) presentation, Your Plone [Intranet] in a Box™:
 * [presentation description](https://2020.ploneconf.org/talks/your-plone-intranet-in-a-boxtm/view)
-* [slides](https://www2.slideshare.net/tkimnguyen/your-plone-intranet-in-a-box)
+* [slides](https://www2.slideshare.net/tkimnguyen/your-plone-intranet-in-a-box) (2020; the [current slides](https://collective.github.io/plone-in-a-box/slides/) describe Plone in a Box today)
