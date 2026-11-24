@@ -37,15 +37,12 @@ still deploy with no build step. Add optional settings for people who need more:
   fallback to the official backend, covered by `plone-update`. Tested with kitconcept's intranet distribution
   (`ghcr.io/kitconcept/kitconcept-intranet-backend` and `-frontend`). Public images only so far; still to decide:
   how private registries authenticate (registry URL, username and token as optional fields?).
-  - Then Try It for add-ons that are ready-made images: catalog keys such as `frontend_image:` and `backend_image:`
-    instead of `packages` (CI pulls them, checks they're public, match the Volto/Plone version and have the right
-    labels), and a section in docs/try-it-buttons.md on the three shapes of add-on (backend package, npm packages,
-    ready-made images) and the labels a ready-made frontend image needs. Today an author's own frontend image works
-    only through "Doing it yourself", and a backend image not at all.
-  - **Plone distributions in the catalog** (2026-11-23), once the catalog takes ready-made images, each as its own
-    entry, ideally added by its makers: kitconcept.intranet (`ghcr.io/kitconcept/kitconcept-intranet-backend` and
-    `-frontend`, 3.11; tested in a box: works, sample content in German, no Solr; check what needs Solr and whether
-    1 GB is enough), kitconcept-website (`ghcr.io/kitconcept/kitconcept-website-backend`, 2.2; a public website), and
+  - [x] Try It for ready-made images (2.22): catalog keys `frontend_image:` and `backend_image:` instead of
+    `packages`, documented in docs/try-it-buttons.md. Still to do: CI pulling them to check they're public and
+    amd64, and match the Volto/Plone version.
+  - **Plone distributions in the catalog** (2026-11-23), each as its own entry, ideally added by its makers:
+    kitconcept.intranet is in (2.22, `3.12` tags; tell kitconcept, who may want to own the entry), then
+    kitconcept-website (`ghcr.io/kitconcept/kitconcept-website-backend`, 2.2; a public website), and
     PortalBrasil Intranet (`ghcr.io/portal-br/intranet-backend` and `-frontend`, 1.0.0; Portuguese; invite the
     portal-br community). Ask kitconcept first: they may want to own the entries (tag, demo roles, hint).
   - **Showcase Aurora in the catalog** (requested 2026-11-23): Aurora

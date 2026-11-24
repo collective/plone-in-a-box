@@ -1,3 +1,14 @@
+2.22 (unreleased)
+-----------------
+
+- **Try kitconcept Intranet**: a Try It page for kitconcept's intranet, a
+  Plone distribution, at
+  https://collective.github.io/plone-in-a-box/try/kitconcept-intranet/. The
+  catalog (`addons.yml`) takes ready-made images now, `frontend_image` and
+  `backend_image`, for add-ons and distributions whose makers publish their
+  own images: nothing is built for them, and their Try It page fills in both
+  images. "Try It" buttons explains them.
+
 2.21 (2026-11-24)
 -----------------
 

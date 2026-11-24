@@ -177,14 +177,15 @@ demo login to share. [Juizi Dashboard](https://github.com/tkimnguyen/juizi.dashb
 What it takes:
 
 1. **One pull request** that adds your add-on to Plone in a Box's catalog, [`addons.yml`](addons.yml): about ten
-   lines naming your npm and Python packages, the roles a demo login needs to try it (for example `Editor`), and
-   what to do once logged in.
+   lines naming your npm and Python packages, or the images you publish yourself (for a Plone distribution, for
+   example), the roles a demo login needs to try it (for example `Editor`), and what to do once logged in.
 2. **One button in your README**, linking to the Try It page Plone in a Box then publishes for your add-on, at
    `https://collective.github.io/plone-in-a-box/try/<your add-on>/`. The page has the AWS, Linode, DigitalOcean and
    Hetzner steps, and follows Plone in a Box's releases by itself.
 
 The ["Try It" guide](docs/try-it-buttons.md) has the details, and how to make the buttons yourself instead. See
-[the Try It pages](https://collective.github.io/plone-in-a-box/try/).
+[the Try It pages](https://collective.github.io/plone-in-a-box/try/), such as
+[kitconcept Intranet's](https://collective.github.io/plone-in-a-box/try/kitconcept-intranet/).
 
 ## For developers and system administrators
 

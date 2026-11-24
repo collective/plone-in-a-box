@@ -28,6 +28,12 @@
 #   demo_roles      the demo login's roles, separated by commas: the narrowest
 #                   that show the add-on off. Empty: Site Administrator
 #
+#   Ready-made images, published by someone else (a Plone distribution, or a
+#   project with its own build), instead of packages: nothing is built here.
+#   Use tags that move with patch releases, such as 3.12:
+#   frontend_image  the frontend image, registry/owner/name:tag
+#   backend_image   the backend image, registry/owner/name:tag
+#
 #   For a Try It page:
 #   try_it          yes
 #   try_hint        what to do after logging in as demo ("open Activity in the
@@ -68,3 +74,16 @@
   try_it: yes
   try_hint: open Activity in the user menu, make a change to a page, and watch it appear
   linode_stackscript: 2318969
+
+# A Plone distribution: kitconcept publishes both images, so nothing is built
+# here. The 3.12 tags move with its patch releases.
+- id: kitconcept-intranet
+  name: kitconcept Intranet
+  description: a complete intranet, ready to use
+  url: https://github.com/kitconcept/kitconcept.intranet
+  frontend_image: ghcr.io/kitconcept/kitconcept-intranet-frontend:3.12
+  backend_image: ghcr.io/kitconcept/kitconcept-intranet-backend:3.12
+  # Editors can add and change pages and news, without the site's settings.
+  demo_roles: Editor
+  try_it: yes
+  try_hint: look around the sample intranet and edit a page or add a news item
