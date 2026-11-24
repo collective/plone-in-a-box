@@ -347,8 +347,9 @@ for the <code>demo</code> login you'll share.</li>
 
 <p>The <code>demo</code> login has the {role_word} <strong>{html.escape(role_text)}</strong>: it can do what {"that role allows" if role_word == "role" else "those roles allow"}
 on the site, and nothing more. Share it with whoever you want to try {name}.</p>
-<p class="note">The site has no domain, so it uses plain HTTP and passwords cross the network unencrypted. Choose
-passwords you don't use anywhere else.</p>
+<p class="note">The site has no domain name, so it gets an HTTPS certificate for the server's IP address and is at
+<code>https://</code> followed by that address; if it opens on <code>http://</code> during setup, it moves to
+<code>https://</code> when it's ready.</p>
 
 <h2 id="aws">Amazon AWS</h2>
 <ol>

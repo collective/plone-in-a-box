@@ -35,7 +35,7 @@ locations are in Germany and Finland. All four offer automatic server backups fo
   images worked normally, but the first page after an idle spell can be a little slower while it's read back from
   swap. Choose 2 GB or more for a busier site.
 * **A domain name (optional).** For HTTPS, create a DNS `A` record pointing at the server's IP address *before*
-  provisioning, or add HTTPS later (see [Adding HTTPS later](#adding-https-later)).
+  provisioning, or add HTTPS later (see [Adding a domain later](#adding-a-domain-later)).
 
 ## Option A: Linode
 
@@ -48,6 +48,9 @@ locations are in Germany and Finland. All four offer automatic server backups fo
      empty (or it's too short), a password is generated and saved on the server.
    * **Domain name** and **Email for Lets Encrypt**: both are needed for HTTPS.
    * **Site time zone**, for example `America/Chicago` (default `UTC`).
+   * **Site language**, a language code such as `en` (the default), `de`, `fr`, `es` or `pt-br`, and **Starter
+     content**: `yes` (the default) creates the sample pages a new site, or a [Plone distribution](#custom-backend-image),
+     comes with; `no` starts with an empty site.
    * **Plone backend image tag** and **Volto frontend image tag** (defaults `6.2` and `19`).
    * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
    * **Frontend image**, for example `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` for Volto Light Theme
@@ -90,7 +93,7 @@ No command line is needed.
    (us-east-1); to use another region, switch it at the top right of that page before continuing.
 3. Fill in the form:
    * **Plone admin password** (required, at least 12 characters).
-   * **Site time zone**, **Server size** (default `t3.small`, the smallest that runs Plone well) and **Disk size**.
+   * **Site time zone**, **Site language** and **Starter content** (as for Linode above), **Server size** (default `t3.small`, the smallest that runs Plone well) and **Disk size**.
    * **Domain name** and **Email for Let's Encrypt**, if you want HTTPS and your domain's DNS already points to the
      server. You can also add HTTPS later.
    * **SSH key pair** and **Allow SSH from**: optional, only if you want to log in from your own computer.
@@ -134,7 +137,7 @@ If you'd rather not use CloudFormation, you can launch the server in the EC2 con
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh). **Set the admin password on
    the first setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone, versions and
    add-ons. Keep each value inside its single quotes.
-8. **Launch instance**. Open the instance's **Public IPv4 address** (use `http://`) to watch the setup progress
+8. **Launch instance**. Open the instance's **Public IPv4 address** (`http://` at first; the site moves to `https://` when it's ready) to watch the setup progress
    page, which turns into your Plone site when it's ready.
 9. Forgot to set the password? You still don't need SSH: select the instance, choose **Connect → EC2 Instance
    Connect** (user `ubuntu`), and run `sudo cat /root/plone-credentials.txt` to read the generated one, or
@@ -179,6 +182,8 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # domain            = "plone.example.org"
 # letsencrypt_email = "you@example.org"
 # site_timezone     = "America/Chicago"
+# site_language     = "de"
+# starter_content   = false
 # addons            = "collective.easyform"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
 # demo_user         = "demo"   # demo_roles = "Editor"; by default the image's suggestion, or Site Administrator
@@ -403,7 +408,12 @@ For updates, see [Updates](#updates).
 counting those taken before updates, and each one is the whole site, files and images included. Once a week it
 also packs the database: it removes the history of changes older than a week, which would otherwise make the
 database grow forever. `sudo plone-backup` runs both now (`sudo plone-backup pack` packs as well), and the log is in
-`/var/log/plone-backup.log`. If a backup fails, a notice goes to the notification URL.
+`/var/log/plone-backup.log`. If a backup fails, a notice goes to the notification URL, and if backups stop without
+failing (a stopped timer, say), the weekly update report says the newest backup is more than two days old.
+
+Next to each database backup, `plone-<date>.config.tar.gz` holds the server's own settings: `/opt/plone/.env`
+(versions, images, add-ons), `/opt/plone/docker-compose.yml` and the nginx site. The site doesn't need them to
+be restored, but they save redoing settings by hand on a new server: `tar -tzvf` lists what's inside.
 
 These backups are on the same server, so they don't help if the server itself is lost. For that, send a copy of
 each night's backup to storage elsewhere (below), turn on your provider's server backups (Linode Backups,
@@ -673,8 +683,9 @@ colours, header and footer settings sit with the site's own fields.
 The ready-made images are built for x86 servers; on Hetzner's Arm servers (`cax…`) setup uses the standard Volto
 image.
 
-If the image can't be pulled (a typo, a private image, or no build for the server's processor), or its backend
-add-on can't be installed, the site is set up with the standard Volto image instead, and `/root/plone-credentials.txt` and `/var/log/plone-in-a-box.log` say
+If the image can't be pulled (a typo, a private image, or no build for the server's processor), its backend
+add-on can't be installed, or it doesn't start (built for another Volto version, say), the site is set up with the
+standard Volto image instead, and `/root/plone-credentials.txt` and `/var/log/plone-in-a-box.log` say
 why.
 
 You can also give the name of an image you built yourself, with other Volto add-ons: fork this repository, add
@@ -729,8 +740,8 @@ and delete all content, change most site settings and manage the other users exc
 ordinary Plone user: change its password, its roles, or remove it in **Site Setup → Users**. Setup creates it only
 once, when the server is created; to add one later, add a user there.
 
-Without a [domain](#adding-https-later), the site uses plain HTTP, so passwords cross the network unencrypted.
-That's fine for a short trial, but choose demo and admin passwords you don't use anywhere else.
+Without a domain, the site is on HTTPS at its IP address (see [HTTPS](#https)), so the demo login's password
+travels encrypted too.
 
 Add-on authors can give their README a button that sets up a server with their add-on and a demo login; see
 ["Try It" buttons](try-it-buttons.md).
@@ -755,9 +766,9 @@ example, kitconcept's intranet:
 Setup pulls the image and checks that it runs Plone with the server's settings. If it can't be pulled (a typo,
 or a private image), or doesn't run, the site starts with the official Plone backend instead, and the credentials
 file says why. The site is created the image's way: a distribution sets up its own content and settings. Setup
-asks for English, the server's time zone, and no Solr search server (a box doesn't have one), using the settings
-names the official image and Plone distributions read. kitconcept's intranet, for example, comes with sample pages
-in German.
+asks for the **Site language**, the server's time zone, **Starter content** and no Solr search server (a box doesn't
+have one), using the settings names the official image and Plone distributions read. kitconcept's intranet, for
+example, comes with sample pages in German; set **Starter content** to `no` for an empty intranet.
 
 The weekly update installs newer builds of the image's tag, so pick a tag that moves with patch releases (such as
 `3.11`, not `3.11.0`), and goes back if the site doesn't come back, as for the official images. Moving to a new
@@ -863,14 +874,36 @@ go to the Site 'From' address, unless `/var/lib/plone-in-a-box/report-email` on 
 
 Either way, password resets and forms then send email. To change the settings later, use **Site Setup → Mail**.
 
-## Adding HTTPS later
+## HTTPS
+
+Every site is on HTTPS, so passwords and everything else travel encrypted:
+
+* **With a domain name** (and the Let's Encrypt email), setup gets a certificate for the domain, and the site is
+  at `https://<domain>`.
+* **Without one**, setup gets a certificate for the server's IP address, and the site is at `https://<ip>`. These
+  certificates last about six days, so the server renews them by itself twice a day (`plone-https-ip.timer`), and
+  a notice goes to the notification URL if renewing keeps failing. Visitors who type `http://` are sent to
+  `https://`. The log is in `/var/log/plone-https-ip.log`; `sudo plone-https-ip` renews now, and
+  `sudo plone-https-ip off` goes back to plain HTTP. (IPv4 only, for now: the IPv6 address stays on HTTP.)
+
+If getting the certificate fails during setup (Let's Encrypt can't be reached, say), the site starts on HTTP and
+the server tries again twice a day.
+
+### Adding a domain later
 
 Point your domain's DNS at the server, wait until `dig +short <domain>` shows the server's IP, then:
 
 ```
+sudo plone-https-ip off
+sudo sed -i 's/server_name _;/server_name <domain>;/' /etc/nginx/sites-available/plone
+sudo systemctl reload nginx
 sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
+echo 'https://<domain>' | sudo tee /var/lib/plone-in-a-box/site-url
 ```
+
+The first line turns the IP address certificate off (on a server set up before 2.21, which doesn't have one, skip
+it); the last makes update reports name the new address.
 
 ## Removing the box
 
@@ -914,7 +947,7 @@ need it.
 | Hetzner: `SSH key with the same fingerprint already exists` (Terraform) | The key is already in the project. Delete it under **Security → SSH keys**, or use a different key. |
 | Terraform: `no file exists at .../id_ed25519.pub` | Pass your key's path with `-var 'ssh_public_key_path=...'`, for `destroy` too. |
 | Terraform on a Mac: `lookup sts.<region>.amazonaws.com: no such host` | Turn off iCloud Private Relay and retry. |
-| The site has the standard look although a frontend image was set | Read `/root/plone-credentials.txt` and `grep -i frontend /var/log/plone-in-a-box.log`: setup uses the standard Volto image if the frontend image can't be pulled or its backend add-on can't be installed. See [Themes and frontend images](#themes-and-frontend-images). |
+| The site has the standard look although a frontend image was set | Read `/root/plone-credentials.txt` and `grep -i frontend /var/log/plone-in-a-box.log`: setup uses the standard Volto image if the frontend image can't be pulled, its backend add-on can't be installed, or it doesn't start. See [Themes and frontend images](#themes-and-frontend-images). |
 | An add-on isn't listed in **Site Setup → Add-ons** | Read `/root/plone-credentials.txt` and `grep add-ons /var/log/plone-in-a-box.log`: setup leaves the add-ons out if pip can't install them. Packages without an install profile don't appear there, since there's nothing to activate. See [Add-ons](#add-ons). |
 | Linode: "A UDF is missing the required 'name' attribute" | The script was modified with a `<UDF>` tag that has no `name`. Use the current `src/StackScript`. |
 

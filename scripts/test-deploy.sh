@@ -28,6 +28,18 @@
 #   --frontend-image IMAGE use this frontend image, then check the frontend runs
 #                          it, and that the backend add-ons and site behaviors
 #                          its labels name are active, also after the restarts
+#   --real-cert            get the HTTPS certificate for the server's IP address
+#                          from Let's Encrypt itself (default: its test service,
+#                          whose certificates these tests trust, so test servers
+#                          that get the same address again don't use up
+#                          Let's Encrypt's limit of 5 a week for one address).
+#                          Linode and the AWS Launch Stack (--cloudformation)
+#                          always use the real one: the switch isn't a field in
+#                          their forms
+#   --site-language CODE   create the site in this language (en, de, pt-br),
+#                          then check the site's language is CODE
+#   --no-starter-content   create the site without starter content, then
+#                          check the site has no pages
 #   --backend-image IMAGE  use this backend image (a Plone distribution, say),
 #                          then check the backend runs it, also after the
 #                          restarts
@@ -122,7 +134,7 @@ esac
 LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
-PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
+PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 SITE_LANGUAGE="" NO_STARTER=0 REAL_CERT=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
@@ -153,6 +165,9 @@ while (( $# )); do
     --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
     --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
     --backend-image) BACKEND_IMAGE=${2:?--backend-image needs a value}; shift ;;
+    --site-language) SITE_LANGUAGE=${2:?--site-language needs a value}; shift ;;
+    --no-starter-content) NO_STARTER=1 ;;
+    --real-cert) REAL_CERT=1 ;;
     --expect-backend-fallback) BACKEND_FALLBACK=1 ;;
     --updates) UPDATES=1 ;;
     --cloudformation) CLOUDFORMATION=1 ;;
@@ -332,6 +347,16 @@ git branch -r --contains "$SHA" 2>/dev/null | grep -q 'origin/' \
   || die "$REF ($SHA) isn't pushed to origin; the server downloads it from GitHub"
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/piab-test.XXXXXX")
+# The site's HTTPS certificate comes from Let's Encrypt's test service unless
+# --real-cert: trust its roots too, so the checks still verify the certificate.
+if (( ! REAL_CERT )); then
+  cat /etc/ssl/cert.pem > "$WORK/ca.pem" 2>/dev/null || cat /etc/ssl/certs/ca-certificates.crt > "$WORK/ca.pem"
+  for root in x1 x2; do
+    curl -fsS -m 30 "https://letsencrypt.org/certs/staging/letsencrypt-stg-root-$root.pem" >> "$WORK/ca.pem" \
+      || die "couldn't download Let's Encrypt's test service roots"
+  done
+  export CURL_CA_BUNDLE="$WORK/ca.pem"
+fi
 chmod 700 "$WORK"
 # The random suffix keeps names unique when several runs start at once.
 NAME="$TAG-$PROVIDER-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
@@ -353,6 +378,11 @@ say "Notes, passwords and logs: $WORK"
 [[ "$FRONTEND_IMAGE" != *[\'\|\&]* ]] || die "--frontend-image can't contain ', | or &"
 (( ! FRONTEND_FALLBACK )) || [[ -n "$FRONTEND_IMAGE" ]] || die "--expect-frontend-fallback needs --frontend-image"
 [[ "$BACKEND_IMAGE" != *[\'\|\&]* ]] || die "--backend-image can't contain ', | or &"
+[[ "$SITE_LANGUAGE" =~ ^[a-z-]*$ ]] || die "--site-language: a language code such as de or pt-br"
+STAGING=""
+(( REAL_CERT )) || STAGING=yes
+STARTER_CONTENT=""
+(( ! NO_STARTER )) || STARTER_CONTENT=no
 (( ! BACKEND_FALLBACK )) || [[ -n "$BACKEND_IMAGE" ]] || die "--expect-backend-fallback needs --backend-image"
 
 cleanup_on_exit() {
@@ -380,6 +410,9 @@ launcher() {
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
       ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
       ${BACKEND_IMAGE:+"export BACKEND_IMAGE='$BACKEND_IMAGE'"} \
+      ${SITE_LANGUAGE:+"export SITE_LANGUAGE='$SITE_LANGUAGE'"} \
+      ${STARTER_CONTENT:+"export STARTER_CONTENT='$STARTER_CONTENT'"} \
+      ${STAGING:+"export LETSENCRYPT_STAGING='yes'"} \
       ${DEMO_USER:+"export DEMO_USER='$DEMO_USER'"} \
       ${DEMO_PASSWORD_SET:+"export DEMO_PASSWORD='$DEMO_PASSWORD_SET'"} \
       ${DEMO_ROLES:+"export DEMO_ROLES='$DEMO_ROLES'"} \
@@ -393,11 +426,17 @@ launcher() {
           -e "s|^export ADDONS=''$|export ADDONS='${ADDONS//&/\\&}'|" \
           -e "s|^export FRONTEND_IMAGE=''$|export FRONTEND_IMAGE='$FRONTEND_IMAGE'|" \
           -e "s|^export BACKEND_IMAGE=''$|export BACKEND_IMAGE='$BACKEND_IMAGE'|" \
+          -e "s|^export SITE_LANGUAGE='en'$|export SITE_LANGUAGE='${SITE_LANGUAGE:-en}'|" \
+          -e "s|^export STARTER_CONTENT='yes'$|export STARTER_CONTENT='${STARTER_CONTENT:-yes}'|" \
           -e "s|^export DEMO_USER=''$|export DEMO_USER='$DEMO_USER'|" \
           -e "s|^export DEMO_PASSWORD=''$|export DEMO_PASSWORD='$DEMO_PASSWORD_SET'|" \
           -e "s|^export DEMO_ROLES=''$|export DEMO_ROLES='$DEMO_ROLES'|" \
           -e "s|^export NOTIFY_URL=''$|export NOTIFY_URL='${NOTIFY_URL//&/\\&}'|" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")
+  if [[ -n "$STAGING" ]]; then
+    text=$(awk -v line="export LETSENCRYPT_STAGING='yes'" '/^export SITE_TIMEZONE=/ { print line } 1' <<<"$text")
+    grep -q "^export LETSENCRYPT_STAGING='yes'$" <<<"$text" || die "couldn't set LETSENCRYPT_STAGING in src/user-data.sh"
+  fi
   grep -q "^PIAB_RELEASE='$SHA'$" <<<"$text" || die "couldn't set PIAB_RELEASE in src/user-data.sh"
   [[ -z "$ADDONS" ]] || grep -qF "export ADDONS='$ADDONS'" <<<"$text" || die "couldn't set ADDONS in src/user-data.sh"
   [[ -z "$FRONTEND_IMAGE" ]] || grep -qF "export FRONTEND_IMAGE='$FRONTEND_IMAGE'" <<<"$text" \
@@ -445,13 +484,13 @@ if [[ "$PROVIDER" == linode ]]; then
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
-      --arg frontend "$FRONTEND_IMAGE" --arg backend "$BACKEND_IMAGE" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
+      --arg frontend "$FRONTEND_IMAGE" --arg backend "$BACKEND_IMAGE" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
       --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
       --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
-        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, BACKEND_IMAGE: $backend, DEMO_USER: $demo,
+        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, BACKEND_IMAGE: $backend, SITE_LANGUAGE: $lang, STARTER_CONTENT: $content, DEMO_USER: $demo,
             DEMO_PASSWORD: $demopw, DEMO_ROLES: $roles, NOTIFY_URL: $notify,
             SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
             EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email}
@@ -476,8 +515,10 @@ elif [[ "$PROVIDER" == hetzner ]]; then
       || key_id=$(api GET "/ssh_keys?fingerprint=$fingerprint" | jq -r '.ssh_keys[0].id // empty')
     [[ -n "$key_id" ]] || die "couldn't add the SSH key to the Hetzner project"
   fi
+  # (On a line of its own, so a failure stops the test before a server is created.)
+  user_data=$(launcher)
   body=$(jq -nc --arg location "$REGION" --arg name "$NAME" --arg tag "$TAG" --argjson key "$key_id" \
-      --arg type "${PIAB_HETZNER_SERVER_TYPE:-cpx02}" --arg ubuntu "$UBUNTU" --arg ud "$(launcher)" \
+      --arg type "${PIAB_HETZNER_SERVER_TYPE:-cpx02}" --arg ubuntu "$UBUNTU" --arg ud "$user_data" \
       '{name: $name, server_type: $type, image: ("ubuntu-" + $ubuntu), location: $location,
         ssh_keys: [$key], user_data: $ud, labels: {($tag): "true"},
         public_net: {enable_ipv4: true, enable_ipv6: true}}')
@@ -528,11 +569,11 @@ else
     git show "$SHA:src/aws/cloudformation.yaml" > "$WORK/cloudformation.yaml"
     jq -n --arg pw "$ADMIN_PASSWORD" --arg key "$key_name" --arg release "$SHA" \
         --arg type "${PIAB_AWS_INSTANCE_TYPE:-t3.small}" --arg addons "$ADDONS" --arg frontend "$FRONTEND_IMAGE" \
-        --arg backend "$BACKEND_IMAGE" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
+        --arg backend "$BACKEND_IMAGE" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
         --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
         --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{AdminPassword: $pw, KeyName: $key, Release: $release, InstanceType: $type, Addons: $addons,
-        FrontendImage: $frontend, BackendImage: $backend, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
+        FrontendImage: $frontend, BackendImage: $backend, SiteLanguage: $lang, StarterContent: $content, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
         SmtpHost: $smtp_host, SmtpPort: $smtp_port, SmtpUser: $smtp_user, SmtpPassword: $smtp_password,
         EmailFrom: $email_from, ReportEmail: $report_email}
        | to_entries | map(select(.value != "") | {ParameterKey: .key, ParameterValue: .value})' \
@@ -615,7 +656,7 @@ wait_until() {
   pass "$what ($(elapsed))"
 }
 
-page() { curl -s -m 10 "http://$IP/"; }
+page() { curl -s -m 10 "$SITE/"; }
 progress_page_up() { page | grep -q 'Plone in a Box'; }
 setup_done() { rssh "grep -q '^\[plone-in-a-box\] Finished' /var/log/plone-in-a-box.log"; }
 setup_failed() {
@@ -624,14 +665,14 @@ setup_failed() {
 }
 setup_done_or_failed() { setup_done || setup_failed; }
 login() {
-  curl -s -m 20 -X POST "http://$IP/++api++/@login" -H 'Accept: application/json' \
+  curl -s -m 20 -X POST "$SITE/++api++/@login" -H 'Accept: application/json' \
       -H 'Content-Type: application/json' --data "$(jq -nc --arg p "$1" '{login: "admin", password: $p}')" \
     | jq -er '.token'
 }
 old_password_rejected() { ! login "$ADMIN_PASSWORD"; }
 # The demo login: its password from the credentials file, and its roles.
 demo_login() {
-  curl -s -m 20 -X POST "http://$IP/++api++/@login" -H 'Accept: application/json' \
+  curl -s -m 20 -X POST "$SITE/++api++/@login" -H 'Accept: application/json' \
       -H 'Content-Type: application/json' --data "$(jq -nc --arg u "$DEMO_USER" --arg p "$DEMO_PASSWORD" '{login: $u, password: $p}')" \
     | jq -er '.token'
 }
@@ -640,7 +681,7 @@ demo_password_not_logged() { [[ -n "$DEMO_PASSWORD" ]] && ! grep -qF -- "$DEMO_P
 demo_has_roles() {
   local token
   token=$(demo_login) || return 1
-  curl -s -m 20 "http://$IP/++api++/@users/$DEMO_USER" -H 'Accept: application/json' \
+  curl -s -m 20 "$SITE/++api++/@users/$DEMO_USER" -H 'Accept: application/json' \
       -H "Authorization: Bearer $token" \
     | jq -e --arg r "$EXPECT_DEMO_ROLES" \
         '.roles as $have | [$r | split(",")[] | gsub("^ +| +$"; "") | select(. != "")] | all(. as $x | $have | index($x))' \
@@ -651,13 +692,13 @@ demo_has_roles() {
 demo_not_site_admin() {
   local token
   token=$(demo_login) || return 1
-  curl -s -m 20 "http://$IP/++api++/@users/$DEMO_USER" -H 'Accept: application/json' \
+  curl -s -m 20 "$SITE/++api++/@users/$DEMO_USER" -H 'Accept: application/json' \
       -H "Authorization: Bearer $token" | jq -e '.roles | index("Site Administrator") == null' >/dev/null
 }
 demo_cant_read_mail_settings() {
   local token out code
   token=$(demo_login) || return 1
-  out=$(curl -s -m 20 -w '\n%{http_code}' "http://$IP/++api++/@controlpanels/mail" -H 'Accept: application/json' \
+  out=$(curl -s -m 20 -w '\n%{http_code}' "$SITE/++api++/@controlpanels/mail" -H 'Accept: application/json' \
       -H "Authorization: Bearer $token")
   code=${out##*$'\n'}
   [[ "$code" == 401 || "$code" == 403 ]] && [[ "$out" != *"$SMTP_PASSWORD"* ]]
@@ -668,7 +709,7 @@ addon_names() { for a in ${1-$ADDONS}; do a=${a%%[[~=!<>]*}; echo "$a"; done; }
 addons_listed() {
   local token ids name
   token=$(login "$1") || return 1
-  ids=$(curl -s -m 30 "http://$IP/++api++/@addons" -H 'Accept: application/json' \
+  ids=$(curl -s -m 30 "$SITE/++api++/@addons" -H 'Accept: application/json' \
     -H "Authorization: Bearer $token" | jq -r '.items[].id') || return 1
   for name in $(addon_names); do grep -qx "$name" <<<"$ids" || return 1; done
 }
@@ -676,14 +717,14 @@ addons_activate() {
   local token name
   token=$(login "$1") || return 1
   for name in $(addon_names); do
-    curl -sf -m 120 -X POST "http://$IP/++api++/@addons/$name/install" -H 'Accept: application/json' \
+    curl -sf -m 120 -X POST "$SITE/++api++/@addons/$name/install" -H 'Accept: application/json' \
       -H "Authorization: Bearer $token" >/dev/null || return 1
   done
 }
 addons_active() {
   local token installed name list=${2-$ADDONS}
   token=$(login "$1") || return 1
-  installed=$(curl -s -m 30 "http://$IP/++api++/@addons" -H 'Accept: application/json' \
+  installed=$(curl -s -m 30 "$SITE/++api++/@addons" -H 'Accept: application/json' \
     -H "Authorization: Bearer $token" | jq -r '.items[] | select(.is_installed) | .id') || return 1
   for name in $(addon_names "$list"); do grep -qx "$name" <<<"$installed" || return 1; done
 }
@@ -694,17 +735,27 @@ image_label() {
 frontend_runs() {
   [[ "$(rssh "docker compose --project-directory /opt/plone ps --format '{{.Image}}' frontend")" == "$1" ]]
 }
+# The site's language (the registry's default language) and its number of items.
+site_language() {
+  local token; token=$(login "$1") || return 1
+  curl -s -m 20 "$SITE/++api++/@registry/plone.default_language" -H 'Accept: application/json' \
+    -H "Authorization: Bearer $token" | jq -r .
+}
+site_items() {
+  local token; token=$(login "$1") || return 1
+  curl -s -m 20 "$SITE/++api++/" -H 'Accept: application/json' -H "Authorization: Bearer $token" | jq -r '.items | length'
+}
 backend_runs() {
   [[ "$(rssh "docker compose --project-directory /opt/plone ps --format '{{.Image}}' backend")" == "$1" ]]
 }
 behaviors_enabled() {
   local token data name
   token=$(login "$1") || return 1
-  data=$(curl -s -m 30 "http://$IP/++api++/@controlpanels/dexterity-types/Plone%20Site" \
+  data=$(curl -s -m 30 "$SITE/++api++/@controlpanels/dexterity-types/Plone%20Site" \
     -H 'Accept: application/json' -H "Authorization: Bearer $token" | jq -c .data) || return 1
   for name in $2; do jq -e --arg n "$name" '.[$n] == true' <<<"$data" >/dev/null || return 1; done
 }
-site_is_plone() { ! page | grep -q 'Plone in a Box</title>' && curl -sf -m 10 "http://$IP/++api++/" | jq -e '."@id"' >/dev/null; }
+site_is_plone() { ! page | grep -q 'Plone in a Box</title>' && curl -sf -m 10 "$SITE/++api++/" | jq -e '."@id"' >/dev/null; }
 port_closed() {
   local timeout=(-w 5)
   # macOS nc needs -G for the connection timeout.
@@ -715,6 +766,7 @@ count_in_log() { rssh "grep -c '^\[plone-in-a-box\] $1' /var/log/plone-in-a-box.
 
 # --- Setup -------------------------------------------------------------------------
 
+SITE="http://$IP"
 wait_until "progress page is up" 600 progress_page_up || true
 if ! wait_until "setup finished or failed" 2400 setup_done_or_failed; then
   rssh 'cat /var/log/plone-in-a-box.log' > "$WORK/setup.log" 2>/dev/null \
@@ -728,6 +780,18 @@ if setup_failed; then
   exit 1
 fi
 pass "setup finished: $(grep '^\[plone-in-a-box\] Finished' "$WORK/setup.log")"
+# The address setup gives: https://<IP> once the IP address certificate is in.
+SITE=$(rssh 'cat /var/lib/plone-in-a-box/site-url' 2>/dev/null || echo "http://$IP")
+say "      site address: $SITE"
+# Test servers have no domain name, so setup gets a certificate for the IP address.
+if true; then
+  check "the site is on HTTPS at its IP address" test "$SITE" = "https://$IP"
+  check "the HTTPS certificate is for $IP and trusted" bash -c "curl -fsS -m 20 -o /dev/null 'https://$IP/'"
+  check "HTTP redirects to HTTPS" bash -c "[[ \"\$(curl -s -m 20 -o /dev/null -w '%{http_code} %{redirect_url}' 'http://$IP/foo?x=1')\" == '301 https://$IP/foo?x=1' ]]"
+  check "Let's Encrypt's checks still reach port 80" bash -c "[[ \"\$(curl -s -m 20 -o /dev/null -w '%{http_code}' 'http://$IP/.well-known/acme-challenge/test')\" == 404 ]]"
+  check "the certificate renews by itself (plone-https-ip.timer)" rssh 'systemctl is-enabled --quiet plone-https-ip.timer'
+  rssh "openssl x509 -in /etc/letsencrypt/live/plone-ip/fullchain.pem -noout -issuer -enddate" 2>/dev/null | sed 's/^/      /' || true
+fi
 grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'swap\|restart\|continuing' | sed 's/^/      /' || true
 
 wait_until "the site is Plone, not the progress page" 300 site_is_plone || true
@@ -745,7 +809,7 @@ fi
 check "admin can log in" login "$ADMIN_PASSWORD"
 
 if token=$(login "$ADMIN_PASSWORD"); then
-  curl -s -m 20 "http://$IP/++api++/@system" -H 'Accept: application/json' -H "Authorization: Bearer $token" \
+  curl -s -m 20 "$SITE/++api++/@system" -H 'Accept: application/json' -H "Authorization: Bearer $token" \
     | jq -r '"      Plone \(.plone_version), plone.restapi \(.plone_restapi_version), Zope \(.zope_version), Python \(.python_version | split(" ")[0]), Pillow \(.pil_version)"' \
     2>/dev/null || true
 fi
@@ -779,6 +843,14 @@ fi
 # --- Frontend image ------------------------------------------------------------------
 
 IMAGE_ADDONS="" IMAGE_BEHAVIORS=""
+if [[ -n "$SITE_LANGUAGE" ]]; then
+  check "the site's language is $SITE_LANGUAGE" test "$(site_language "$NEW_PASSWORD")" = "$SITE_LANGUAGE"
+  check "credentials file names the language" rssh "grep -q '^Language:  $SITE_LANGUAGE' /root/plone-credentials.txt"
+fi
+if (( NO_STARTER )); then
+  say "      items at the site root: $(site_items "$NEW_PASSWORD")"
+  check "the site was created without starter content" test "$(site_items "$NEW_PASSWORD")" = 0
+fi
 if (( BACKEND_FALLBACK )); then
   grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'backend image' | sed 's/^/      /' || true
   check "the backend runs the official Plone image" rssh \
@@ -846,11 +918,11 @@ has_security_headers() {
   h=$(headers "$@")
   grep -qix 'x-frame-options: SAMEORIGIN' <<<"$h" && grep -qix 'x-content-type-options: nosniff' <<<"$h"
 }
-js=$(curl -s -m 20 "http://$IP/" | grep -o '/static/js/[^"]*\.js' | head -n 1)
-check "security headers on pages" has_security_headers "http://$IP/"
-check "security headers on the REST API" has_security_headers -H 'Accept: application/json' "http://$IP/++api++/"
+js=$(curl -s -m 20 "$SITE/" | grep -o '/static/js/[^"]*\.js' | head -n 1)
+check "security headers on pages" has_security_headers "$SITE/"
+check "security headers on the REST API" has_security_headers -H 'Accept: application/json' "$SITE/++api++/"
 check "security headers and compression on JavaScript ($js)" \
-  bash -c "h=\$(curl -s -m 20 -o /dev/null -D - -H 'Accept-Encoding: gzip' 'http://$IP$js' | tr -d '\r'); grep -qix 'x-content-type-options: nosniff' <<<\"\$h\" && grep -qix 'content-encoding: gzip' <<<\"\$h\""
+  bash -c "h=\$(curl -s -m 20 -o /dev/null -D - -H 'Accept-Encoding: gzip' '$SITE$js' | tr -d '\r'); grep -qix 'x-content-type-options: nosniff' <<<\"\$h\" && grep -qix 'content-encoding: gzip' <<<\"\$h\""
 check "nginx doesn't show its version" bash -c "! curl -s -m 20 -o /dev/null -D - 'http://$IP/' | grep -i '^server:' | grep -q '[0-9]'"
 
 # --- Server state ---------------------------------------------------------------------
@@ -911,12 +983,12 @@ rssh 'tail -n 4 /var/log/plone-backup.log' 2>/dev/null | sed 's/^/      /'
 restore_page() {  # restore_page create|delete|exists
   local token; token=$(login "$NEW_PASSWORD") || return 1
   case $1 in
-    create) curl -s -m 30 -X POST "http://$IP/++api++/" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+    create) curl -s -m 30 -X POST "$SITE/++api++/" -H 'Accept: application/json' -H 'Content-Type: application/json' \
               -H "Authorization: Bearer $token" --data '{"@type": "Document", "id": "restore-test", "title": "Restore test"}' \
               | jq -e '.id == "restore-test"' >/dev/null ;;
-    delete) curl -s -m 30 -o /dev/null -w '%{http_code}' -X DELETE "http://$IP/++api++/restore-test" \
+    delete) curl -s -m 30 -o /dev/null -w '%{http_code}' -X DELETE "$SITE/++api++/restore-test" \
               -H 'Accept: application/json' -H "Authorization: Bearer $token" | grep -qx 204 ;;
-    exists) curl -s -m 30 "http://$IP/++api++/restore-test" -H 'Accept: application/json' -H "Authorization: Bearer $token" \
+    exists) curl -s -m 30 "$SITE/++api++/restore-test" -H 'Accept: application/json' -H "Authorization: Bearer $token" \
               | jq -e '.title == "Restore test"' >/dev/null ;;
   esac
 }
