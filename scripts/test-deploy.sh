@@ -28,6 +28,14 @@
 #   --frontend-image IMAGE use this frontend image, then check the frontend runs
 #                          it, and that the backend add-ons and site behaviors
 #                          its labels name are active, also after the restarts
+#   --backend-image IMAGE  use this backend image (a Plone distribution, say),
+#                          then check the backend runs it, also after the
+#                          restarts
+#   --expect-backend-fallback
+#                          with --backend-image: expect setup to use the
+#                          official Plone backend instead (an image that can't
+#                          be pulled or doesn't run Plone), and check the
+#                          credentials file says why
 #   --expect-frontend-fallback
 #                          with --frontend-image: expect setup to use the
 #                          standard Volto image instead (a bad image name), and
@@ -114,7 +122,7 @@ esac
 LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
-PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
+PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
@@ -144,6 +152,8 @@ while (( $# )); do
     --expect-addons-skipped) ADDONS_SKIPPED=1 ;;
     --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
     --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
+    --backend-image) BACKEND_IMAGE=${2:?--backend-image needs a value}; shift ;;
+    --expect-backend-fallback) BACKEND_FALLBACK=1 ;;
     --updates) UPDATES=1 ;;
     --cloudformation) CLOUDFORMATION=1 ;;
     --demo-user) DEMO_USER=${2:?--demo-user needs a value}; shift ;;
@@ -335,12 +345,15 @@ say "Notes, passwords and logs: $WORK"
   (( GENERATED )) && echo "admin password: generated on the server" || echo "admin password: $ADMIN_PASSWORD"
   [[ -z "$ADDONS" ]] || echo "add-ons: $ADDONS"
   [[ -z "$FRONTEND_IMAGE" ]] || echo "frontend image: $FRONTEND_IMAGE"
+  [[ -z "$BACKEND_IMAGE" ]] || echo "backend image: $BACKEND_IMAGE"
   [[ -z "$NOTIFY_URL" ]] || echo "notification URL: $NOTIFY_URL"
 } > "$WORK/notes.txt"
 [[ "$ADDONS" != *"'"* ]] || die "--addons can't contain a single quote"
 (( ! ADDONS_SKIPPED )) || [[ -n "$ADDONS" ]] || die "--expect-addons-skipped needs --addons"
 [[ "$FRONTEND_IMAGE" != *[\'\|\&]* ]] || die "--frontend-image can't contain ', | or &"
 (( ! FRONTEND_FALLBACK )) || [[ -n "$FRONTEND_IMAGE" ]] || die "--expect-frontend-fallback needs --frontend-image"
+[[ "$BACKEND_IMAGE" != *[\'\|\&]* ]] || die "--backend-image can't contain ', | or &"
+(( ! BACKEND_FALLBACK )) || [[ -n "$BACKEND_IMAGE" ]] || die "--expect-backend-fallback needs --backend-image"
 
 cleanup_on_exit() {
   local status=$?
@@ -366,6 +379,7 @@ launcher() {
       "export ADMIN_PASSWORD='${ADMIN_PASSWORD:-CHANGE-ME}'" \
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
       ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
+      ${BACKEND_IMAGE:+"export BACKEND_IMAGE='$BACKEND_IMAGE'"} \
       ${DEMO_USER:+"export DEMO_USER='$DEMO_USER'"} \
       ${DEMO_PASSWORD_SET:+"export DEMO_PASSWORD='$DEMO_PASSWORD_SET'"} \
       ${DEMO_ROLES:+"export DEMO_ROLES='$DEMO_ROLES'"} \
@@ -378,6 +392,7 @@ launcher() {
     | sed -e "s/^export ADMIN_PASSWORD=''$/export ADMIN_PASSWORD='$ADMIN_PASSWORD'/" \
           -e "s|^export ADDONS=''$|export ADDONS='${ADDONS//&/\\&}'|" \
           -e "s|^export FRONTEND_IMAGE=''$|export FRONTEND_IMAGE='$FRONTEND_IMAGE'|" \
+          -e "s|^export BACKEND_IMAGE=''$|export BACKEND_IMAGE='$BACKEND_IMAGE'|" \
           -e "s|^export DEMO_USER=''$|export DEMO_USER='$DEMO_USER'|" \
           -e "s|^export DEMO_PASSWORD=''$|export DEMO_PASSWORD='$DEMO_PASSWORD_SET'|" \
           -e "s|^export DEMO_ROLES=''$|export DEMO_ROLES='$DEMO_ROLES'|" \
@@ -387,6 +402,8 @@ launcher() {
   [[ -z "$ADDONS" ]] || grep -qF "export ADDONS='$ADDONS'" <<<"$text" || die "couldn't set ADDONS in src/user-data.sh"
   [[ -z "$FRONTEND_IMAGE" ]] || grep -qF "export FRONTEND_IMAGE='$FRONTEND_IMAGE'" <<<"$text" \
     || die "couldn't set FRONTEND_IMAGE in src/user-data.sh"
+  [[ -z "$BACKEND_IMAGE" ]] || grep -qF "export BACKEND_IMAGE='$BACKEND_IMAGE'" <<<"$text" \
+    || die "couldn't set BACKEND_IMAGE in src/user-data.sh"
   [[ -z "$NOTIFY_URL" ]] || grep -qF "export NOTIFY_URL='$NOTIFY_URL'" <<<"$text" \
     || die "couldn't set NOTIFY_URL in src/user-data.sh"
   [[ -z "$DEMO_USER" ]] || grep -qF "export DEMO_USER='$DEMO_USER'" <<<"$text" \
@@ -428,13 +445,13 @@ if [[ "$PROVIDER" == linode ]]; then
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
-      --arg frontend "$FRONTEND_IMAGE" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
+      --arg frontend "$FRONTEND_IMAGE" --arg backend "$BACKEND_IMAGE" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
       --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
       --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
-        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, DEMO_USER: $demo,
+        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, BACKEND_IMAGE: $backend, DEMO_USER: $demo,
             DEMO_PASSWORD: $demopw, DEMO_ROLES: $roles, NOTIFY_URL: $notify,
             SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
             EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email}
@@ -511,11 +528,11 @@ else
     git show "$SHA:src/aws/cloudformation.yaml" > "$WORK/cloudformation.yaml"
     jq -n --arg pw "$ADMIN_PASSWORD" --arg key "$key_name" --arg release "$SHA" \
         --arg type "${PIAB_AWS_INSTANCE_TYPE:-t3.small}" --arg addons "$ADDONS" --arg frontend "$FRONTEND_IMAGE" \
-        --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
+        --arg backend "$BACKEND_IMAGE" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
         --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
         --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{AdminPassword: $pw, KeyName: $key, Release: $release, InstanceType: $type, Addons: $addons,
-        FrontendImage: $frontend, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
+        FrontendImage: $frontend, BackendImage: $backend, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
         SmtpHost: $smtp_host, SmtpPort: $smtp_port, SmtpUser: $smtp_user, SmtpPassword: $smtp_password,
         EmailFrom: $email_from, ReportEmail: $report_email}
        | to_entries | map(select(.value != "") | {ParameterKey: .key, ParameterValue: .value})' \
@@ -677,6 +694,9 @@ image_label() {
 frontend_runs() {
   [[ "$(rssh "docker compose --project-directory /opt/plone ps --format '{{.Image}}' frontend")" == "$1" ]]
 }
+backend_runs() {
+  [[ "$(rssh "docker compose --project-directory /opt/plone ps --format '{{.Image}}' backend")" == "$1" ]]
+}
 behaviors_enabled() {
   local token data name
   token=$(login "$1") || return 1
@@ -759,6 +779,17 @@ fi
 # --- Frontend image ------------------------------------------------------------------
 
 IMAGE_ADDONS="" IMAGE_BEHAVIORS=""
+if (( BACKEND_FALLBACK )); then
+  grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'backend image' | sed 's/^/      /' || true
+  check "the backend runs the official Plone image" rssh \
+    "docker compose --project-directory /opt/plone ps --format '{{.Image}}' backend | grep -q '^plone/plone-backend:'"
+  check "credentials file says why" rssh "grep -qi 'backend image .* official Plone backend' /root/plone-credentials.txt"
+  check "no backend image is configured in /opt/plone/.env" rssh "grep -qx \"BACKEND_IMAGE=''\" /opt/plone/.env"
+elif [[ -n "$BACKEND_IMAGE" ]]; then
+  grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'backend image' | sed 's/^/      /' || true
+  check "the backend runs $BACKEND_IMAGE" backend_runs "$BACKEND_IMAGE"
+  check "credentials file names the backend image" rssh "grep -qF 'Backend image: $BACKEND_IMAGE' /root/plone-credentials.txt"
+fi
 if (( FRONTEND_FALLBACK )); then
   grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'frontend' | sed 's/^/      /' || true
   check "the frontend runs the standard Volto image" rssh \
@@ -970,6 +1001,9 @@ check "setup didn't run again after the restart" test "$(count_in_log 'Continuin
 check "setup finished exactly once" test "$(count_in_log 'Finished')" = 1
 if [[ -n "$ADDONS" ]] && (( ! ADDONS_SKIPPED )); then
   check "add-ons are still active after the restarts" addons_active "$NEW_PASSWORD"
+fi
+if [[ -n "$BACKEND_IMAGE" ]] && (( ! BACKEND_FALLBACK )); then
+  check "the backend still runs $BACKEND_IMAGE after the restarts" backend_runs "$BACKEND_IMAGE"
 fi
 if [[ -n "$FRONTEND_IMAGE" ]] && (( ! FRONTEND_FALLBACK )); then
   check "the frontend still runs $FRONTEND_IMAGE after the restarts" frontend_runs "$FRONTEND_IMAGE"

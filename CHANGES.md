@@ -1,3 +1,17 @@
+2.21 (unreleased)
+-----------------
+
+- **Backend image**, a new optional setting on every route (the Linode form,
+  Launch Stack, Terraform's `backend_image`, the launcher): it replaces the
+  official Plone backend, for example with a Plone distribution such as
+  kitconcept's intranet (with its frontend image), or your own project made
+  with cookieplone. Setup checks that the image runs Plone with the server's
+  settings, and otherwise starts with the official backend and says why. Sites
+  are created with English, the server's time zone and no Solr, whatever the
+  image. The weekly update covers the image too. `test-deploy.sh` has
+  `--backend-image` and `--expect-backend-fallback`, and
+  `linode-addon-stackscript.sh` has `--backend-image`.
+
 2.20 (2026-11-23)
 -----------------
 
