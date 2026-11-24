@@ -1387,6 +1387,13 @@ if [[ "${1:-}" == off ]]; then
   printf 'include snippets/plone-site.conf;\n' > "$HTTP_SNIPPET"
   rm -f /etc/nginx/sites-enabled/plone-https
   reload
+  # The certificate too, so a domain's certificate (Ubuntu's certbot, which
+  # renews every certificate it finds and can't do IP addresses) starts clean.
+  if [[ -d "$LIVE" ]]; then
+    docker run --rm -v /etc/letsencrypt:/etc/letsencrypt -v /var/lib/letsencrypt:/var/lib/letsencrypt \
+      "$IMAGE" delete --cert-name "$NAME" --non-interactive </dev/null >/dev/null 2>&1 \
+      && say "Deleted the certificate for the IP address"
+  fi
   echo "http://$IP" > "$STATE_DIR/site-url"
   say "HTTPS is off; the site is at http://$IP. Turn it back on with: sudo plone-https-ip"
   exit 0

@@ -35,7 +35,7 @@ locations are in Germany and Finland. All four offer automatic server backups fo
   images worked normally, but the first page after an idle spell can be a little slower while it's read back from
   swap. Choose 2 GB or more for a busier site.
 * **A domain name (optional).** For HTTPS, create a DNS `A` record pointing at the server's IP address *before*
-  provisioning, or add HTTPS later (see [Adding HTTPS later](#adding-https-later)).
+  provisioning, or add HTTPS later (see [Adding a domain later](#adding-a-domain-later)).
 
 ## Option A: Linode
 
@@ -137,7 +137,7 @@ If you'd rather not use CloudFormation, you can launch the server in the EC2 con
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh). **Set the admin password on
    the first setting line**, then the optional domain and Let's Encrypt email (for HTTPS), time zone, versions and
    add-ons. Keep each value inside its single quotes.
-8. **Launch instance**. Open the instance's **Public IPv4 address** (use `http://`) to watch the setup progress
+8. **Launch instance**. Open the instance's **Public IPv4 address** (`http://` at first; the site moves to `https://` when it's ready) to watch the setup progress
    page, which turns into your Plone site when it's ready.
 9. Forgot to set the password? You still don't need SSH: select the instance, choose **Connect → EC2 Instance
    Connect** (user `ubuntu`), and run `sudo cat /root/plone-credentials.txt` to read the generated one, or
@@ -740,8 +740,8 @@ and delete all content, change most site settings and manage the other users exc
 ordinary Plone user: change its password, its roles, or remove it in **Site Setup → Users**. Setup creates it only
 once, when the server is created; to add one later, add a user there.
 
-Without a [domain](#adding-https-later), the site uses plain HTTP, so passwords cross the network unencrypted.
-That's fine for a short trial, but choose demo and admin passwords you don't use anywhere else.
+Without a domain, the site is on HTTPS at its IP address (see [HTTPS](#https)), so the demo login's password
+travels encrypted too.
 
 Add-on authors can give their README a button that sets up a server with their add-on and a demo login; see
 ["Try It" buttons](try-it-buttons.md).
@@ -874,14 +874,36 @@ go to the Site 'From' address, unless `/var/lib/plone-in-a-box/report-email` on 
 
 Either way, password resets and forms then send email. To change the settings later, use **Site Setup → Mail**.
 
-## Adding HTTPS later
+## HTTPS
+
+Every site is on HTTPS, so passwords and everything else travel encrypted:
+
+* **With a domain name** (and the Let's Encrypt email), setup gets a certificate for the domain, and the site is
+  at `https://<domain>`.
+* **Without one**, setup gets a certificate for the server's IP address, and the site is at `https://<ip>`. These
+  certificates last about six days, so the server renews them by itself twice a day (`plone-https-ip.timer`), and
+  a notice goes to the notification URL if renewing keeps failing. Visitors who type `http://` are sent to
+  `https://`. The log is in `/var/log/plone-https-ip.log`; `sudo plone-https-ip` renews now, and
+  `sudo plone-https-ip off` goes back to plain HTTP. (IPv4 only, for now: the IPv6 address stays on HTTP.)
+
+If getting the certificate fails during setup (Let's Encrypt can't be reached, say), the site starts on HTTP and
+the server tries again twice a day.
+
+### Adding a domain later
 
 Point your domain's DNS at the server, wait until `dig +short <domain>` shows the server's IP, then:
 
 ```
+sudo plone-https-ip off
+sudo sed -i 's/server_name _;/server_name <domain>;/' /etc/nginx/sites-available/plone
+sudo systemctl reload nginx
 sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
+echo 'https://<domain>' | sudo tee /var/lib/plone-in-a-box/site-url
 ```
+
+The first line turns the IP address certificate off (on a server set up before 2.21, which doesn't have one, skip
+it); the last makes update reports name the new address.
 
 ## Removing the box
 

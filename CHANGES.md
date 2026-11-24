@@ -1,6 +1,15 @@
 2.21 (unreleased)
 -----------------
 
+- **HTTPS without a domain name**: a site without one now gets a Let's
+  Encrypt certificate for the server's IP address and is at `https://<ip>`,
+  with HTTP redirecting to it. These certificates last about six days; the
+  server renews them twice a day (`plone-https-ip.timer`) and sends a notice
+  if renewing keeps failing. `sudo plone-https-ip off` goes back to HTTP.
+  Certbot runs from its official image (Ubuntu 26.04's is too old for IP
+  addresses). nginx's site settings moved into a snippet shared by HTTP and
+  HTTPS. "Adding a domain later" in the setup guide has the steps for a server
+  with an IP address certificate.
 - **Backend image**, a new optional setting on every route (the Linode form,
   Launch Stack, Terraform's `backend_image`, the launcher): it replaces the
   official Plone backend, for example with a Plone distribution such as

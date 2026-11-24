@@ -24,7 +24,8 @@ Volto front end and PostgreSQL) behind nginx.
 
 **Security**
 * Only the website (HTTP and HTTPS) and SSH are reachable from the internet.
-* HTTPS from Let's Encrypt when you give it a domain name, now or [later](docs/setup-guide.md#adding-https-later).
+* HTTPS from Let's Encrypt for every site: for your domain name, now or [later](docs/setup-guide.md#adding-a-domain-later),
+  or without one, for the server's IP address (`https://<ip>`), renewed automatically.
 * Standard security headers on every page, and nginx doesn't reveal its version.
 * Ubuntu installs its security updates by itself.
 * [Plone security announcements](docs/setup-guide.md#security-fixes-and-new-plone-releases) reach you within a day,
@@ -155,7 +156,7 @@ Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2
   `sudo plone-reset-admin-password` sets a new one.
 * **Using your own domain name:** point the domain at the server's address before creating it, and fill in the
   domain and email settings to get HTTPS automatically. Adding a domain to an existing server takes a few commands;
-  see [Adding HTTPS later](docs/setup-guide.md#adding-https-later).
+  see [Adding HTTPS later](docs/setup-guide.md#adding-a-domain-later).
 * **Removing the site:** delete the server in your provider's control panel. This deletes the site's content too.
   Servers made with Terraform or the Launch Stack button are protected, so turn that off first; see
   [Removing the box](docs/setup-guide.md#removing-the-box).
