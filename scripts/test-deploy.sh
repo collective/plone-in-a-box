@@ -433,7 +433,7 @@ launcher() {
           -e "s|^export NOTIFY_URL=''$|export NOTIFY_URL='${NOTIFY_URL//&/\\&}'|" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")
   if [[ -n "$STAGING" ]]; then
-    text=${text/export SITE_TIMEZONE=/export LETSENCRYPT_STAGING='yes'$'\n'export SITE_TIMEZONE=}
+    text=$(awk -v line="export LETSENCRYPT_STAGING='yes'" '/^export SITE_TIMEZONE=/ { print line } 1' <<<"$text")
     grep -q "^export LETSENCRYPT_STAGING='yes'$" <<<"$text" || die "couldn't set LETSENCRYPT_STAGING in src/user-data.sh"
   fi
   grep -q "^PIAB_RELEASE='$SHA'$" <<<"$text" || die "couldn't set PIAB_RELEASE in src/user-data.sh"
@@ -514,8 +514,10 @@ elif [[ "$PROVIDER" == hetzner ]]; then
       || key_id=$(api GET "/ssh_keys?fingerprint=$fingerprint" | jq -r '.ssh_keys[0].id // empty')
     [[ -n "$key_id" ]] || die "couldn't add the SSH key to the Hetzner project"
   fi
+  # (On a line of its own, so a failure stops the test before a server is created.)
+  user_data=$(launcher)
   body=$(jq -nc --arg location "$REGION" --arg name "$NAME" --arg tag "$TAG" --argjson key "$key_id" \
-      --arg type "${PIAB_HETZNER_SERVER_TYPE:-cpx02}" --arg ubuntu "$UBUNTU" --arg ud "$(launcher)" \
+      --arg type "${PIAB_HETZNER_SERVER_TYPE:-cpx02}" --arg ubuntu "$UBUNTU" --arg ud "$user_data" \
       '{name: $name, server_type: $type, image: ("ubuntu-" + $ubuntu), location: $location,
         ssh_keys: [$key], user_data: $ud, labels: {($tag): "true"},
         public_net: {enable_ipv4: true, enable_ipv6: true}}')
