@@ -42,6 +42,12 @@ still deploy with no build step. Add optional settings for people who need more:
     labels), and a section in docs/try-it-buttons.md on the three shapes of add-on (backend package, npm packages,
     ready-made images) and the labels a ready-made frontend image needs. Today an author's own frontend image works
     only through "Doing it yourself", and a backend image not at all.
+  - **Plone distributions in the catalog** (2026-11-23), once the catalog takes ready-made images, each as its own
+    entry, ideally added by its makers: kitconcept.intranet (`ghcr.io/kitconcept/kitconcept-intranet-backend` and
+    `-frontend`, 3.11; tested in a box: works, sample content in German, no Solr; check what needs Solr and whether
+    1 GB is enough), kitconcept-website (`ghcr.io/kitconcept/kitconcept-website-backend`, 2.2; a public website), and
+    PortalBrasil Intranet (`ghcr.io/portal-br/intranet-backend` and `-frontend`, 1.0.0; Portuguese; invite the
+    portal-br community). Ask kitconcept first: they may want to own the entries (tag, demo roles, hint).
   - **Showcase Aurora in the catalog** (requested 2026-11-23): Aurora
     ([github.com/plone/aurora](https://github.com/plone/aurora), demo at aurora.demo.plone.org) is the new React
     frontend for Plone, the successor to Volto, developed for Plone 7. It replaces Volto rather than adding to it, so
