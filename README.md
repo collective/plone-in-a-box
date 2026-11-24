@@ -51,6 +51,8 @@ Volto front end and PostgreSQL) behind nginx.
 * A database backup every night (the whole site, files and images included), and a weekly pack so the database
   doesn't grow forever. Your provider's server backups can be turned on too. See
   [Backups](docs/setup-guide.md#day-to-day-administration).
+* Optional encrypted copies of each night's backup in S3-compatible storage (Cloudflare R2, AWS S3, Backblaze B2,
+  DigitalOcean Spaces, Hetzner Object Storage), with `sudo plone-offsite setup`.
 * `sudo plone-restore` puts a backup back, and moves a site to a new server.
 
 **Customizing**

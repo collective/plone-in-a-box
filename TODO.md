@@ -34,7 +34,25 @@ still deploy with no build step. Add optional settings for people who need more:
 - [x] **Custom backend image, documented** for a running server: build on `plone/plone-backend`, and change the
   backend's `image:` line (setup guide, "Custom backend image").
 - [ ] **Custom backend image setting** (for example a cookieplone project's backend), like `FRONTEND_IMAGE`.
-  - Decide how private registries authenticate (registry URL, username and token as optional fields?).
+  **Next after the off-server backups** (decided 2026-11-23).
+  - In every route (Linode form, Launch Stack, Terraform, launcher), and in `plone-update` (weekly update and
+    rollback, like the other images).
+  - Start with public images only (a Try It image has to be public anyway); decide later how private registries
+    authenticate (registry URL, username and token as optional fields?).
+  - Then Try It for add-ons that are ready-made images: catalog keys such as `frontend_image:` and `backend_image:`
+    instead of `packages` (CI pulls them, checks they're public, match the Volto/Plone version and have the right
+    labels), and a section in docs/try-it-buttons.md on the three shapes of add-on (backend package, npm packages,
+    ready-made images) and the labels a ready-made frontend image needs. Today an author's own frontend image works
+    only through "Doing it yourself", and a backend image not at all.
+  - **Showcase Aurora in the catalog** (requested 2026-11-23): Aurora
+    ([github.com/plone/aurora](https://github.com/plone/aurora), demo at aurora.demo.plone.org) is the new React
+    frontend for Plone, the successor to Volto, developed for Plone 7. It replaces Volto rather than adding to it, so
+    it fits the ready-made image path, not the Volto build. Its images are published as
+    [plone/aurora](https://hub.docker.com/r/plone/aurora) on Docker Hub (amd64 and arm64; as of 2026-11-23, alpha
+    releases such as `1.0.0-alpha.26`, every few days, plus `latest` and `sha-...` builds), so a Try It page can pin a
+    release tag. Still to find out: which Plone backend version and packages it needs (does it run against Plone 6.2, or
+    only a Plone 7 pre-release?), what port and settings the image expects compared with `plone-frontend`, and how
+    stable it is today. A Try It page would say clearly that Aurora is in development.
   - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
     its backend package hides it from Site Setup → Add-ons unless the frontend includes `volto-juizi-dashboard`,
     and (as of 2026-11-19) it isn't on PyPI, so the backend add-ons setting can't install it either.
@@ -67,9 +85,8 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
 - [x] **Tell site owners about Plone releases and security fixes** (2.18: security posts from the Plone forum,
   daily; patch releases and new versions were already in the weekly update report). Still open: end-of-support
   notices, once there's a reliable source for the dates.
-- [ ] **Backups off the server.** `plone-restore` (2.19) restores a backup, but all backups stay on the server
-  unless the owner pays for provider backups or copies them. Ideas: upload each nightly backup to S3-compatible
-  storage (AWS S3, Backblaze B2, DigitalOcean Spaces, Hetzner Object Storage); a `backups` option for AWS (daily EBS
+- [x] **Backups off the server** (2.20): `plone-offsite` sends encrypted copies of the nightly backups to
+  S3-compatible storage. Still open: a `backups` option for AWS (daily EBS
   snapshots with Data Lifecycle Manager); back up `/opt/plone` and the nginx site file too; warn in the update report
   when the newest backup is too old.
 - [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where
