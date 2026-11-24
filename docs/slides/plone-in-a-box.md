@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 without needing a command line.
 
-<small>Release 2.19 · November 2026</small>
+<small>Release 2.20 · November 2026</small>
 
 ---
 
@@ -143,9 +143,8 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It p
 - **Every night,** a database backup on the server: the whole site, files and images included. The three newest are kept.
 - **Every week,** a pack: the database's old history is cleared, so it doesn't keep growing.
 - **`sudo plone-restore`** puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also **moves a site** to a new server.
+- **Encrypted copies off the server:** each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted on the server first.
 - Your provider's **server backups** can be turned on too, for the whole disk.
-
-Coming in 2.20: **encrypted copies** of each night's backup in Cloudflare R2, AWS S3, Backblaze B2 or other storage.
 
 ---
 
@@ -223,7 +222,6 @@ Example: **collective.github.io/plone-in-a-box/try/juizi-dashboard/**
 
 ## What's next
 
-- **Encrypted copies of the backups** off the server, in Cloudflare R2, AWS S3 and other storage (2.20).
 - A **backend image setting,** for projects made with cookieplone, and Try It pages for add-ons that come as ready-made images.
 - **Aurora,** Plone's new frontend, in the catalog to try.
 - **HTTPS without your own domain,** so every site, including Try It demos, is encrypted.

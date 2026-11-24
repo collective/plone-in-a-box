@@ -223,7 +223,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.19/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.20/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -297,7 +297,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.19/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.20/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -405,15 +405,62 @@ also packs the database: it removes the history of changes older than a week, wh
 database grow forever. `sudo plone-backup` runs both now (`sudo plone-backup pack` packs as well), and the log is in
 `/var/log/plone-backup.log`. If a backup fails, a notice goes to the notification URL.
 
-These backups are on the same server, so they don't help if the server itself is lost. For that, turn on your
-provider's server backups (Linode Backups, DigitalOcean Backups, EBS snapshots on AWS, or Hetzner Backups), or copy a
-backup somewhere else now and then:
+These backups are on the same server, so they don't help if the server itself is lost. For that, send a copy of
+each night's backup to storage elsewhere (below), turn on your provider's server backups (Linode Backups,
+DigitalOcean Backups, EBS snapshots on AWS, or Hetzner Backups), or copy a backup somewhere else now and then:
 
 ```
 scp root@<server>:/var/backups/plone/plone-<date>.sql.gz .
 ```
 
 (On AWS, log in as `ubuntu` instead of `root`, and copy the file to your home directory with `sudo cp` first.)
+
+**Copies off the server**: every night's backup can also go to S3-compatible storage, such as Cloudflare R2, AWS S3,
+Backblaze B2, DigitalOcean Spaces or Hetzner Object Storage, encrypted on the server first, so a leaked bucket or key
+doesn't expose your site. A small site's copies cost cents a month, or nothing within R2's and B2's free allowances;
+R2 also charges nothing for downloading them again. At your storage service, create a **private** bucket and an
+access key that can list, read, write and delete in that bucket only:
+
+* **Cloudflare R2**: **R2 → Create bucket**, then **Manage API tokens → Create API token** with **Object Read &
+  Write**, limited to that bucket. The endpoint is `https://<account-id>.r2.cloudflarestorage.com` (the account ID
+  is on the R2 page), and the region is `auto`.
+* **AWS S3**: **S3 → Create bucket** (keep **Block all public access** on), then an IAM user with an access key and
+  this policy, with your bucket's name:
+
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {"Effect": "Allow", "Action": ["s3:ListBucket"], "Resource": "arn:aws:s3:::<bucket>"},
+      {"Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": "arn:aws:s3:::<bucket>/*"}
+    ]
+  }
+  ```
+
+  The endpoint is `https://s3.<region>.amazonaws.com`, for example `https://s3.us-east-1.amazonaws.com`.
+
+Then run:
+
+```
+sudo plone-offsite setup
+```
+
+It asks for the endpoint (it shows examples), region, bucket, the key, how many copies to keep (14 by default), and
+a folder in the bucket (one per server, so several servers can share a bucket). It uploads and deletes a test file
+to check them, then shows a **passphrase**: keep it in your password manager. The copies can't be read without it,
+and if the server is lost, so is its copy of the passphrase. From then on, `plone-backup` encrypts each night's
+backup, uploads it, and removes the oldest copies; if that fails, a notice goes to the notification URL.
+
+To restore from a copy, on this server or a new one (run `sudo plone-offsite setup` there first, with the same
+bucket and key, and paste the passphrase when it asks):
+
+```
+sudo plone-offsite list
+sudo plone-offsite fetch <folder>/<name>
+sudo plone-restore /var/backups/plone/offsite-<name>.sql.gz
+```
+
+`sudo plone-offsite off` stops making copies and leaves the bucket as it is.
 
 **Restoring a backup** puts the whole site back as it was when the backup was taken: pages, files, users,
 passwords and settings. `sudo plone-restore` lists the backups on the server, and
@@ -439,7 +486,7 @@ ssh root@<new-server> plone-restore /root/plone-<date>.sql.gz
 Then point your domain at the new server, and delete the old one when you're sure.
 
 A server set up before 2.16 gets the nightly backups with the [same command](#servers-set-up-before-212) as automatic
-updates, and one set up before 2.19 gets `plone-restore` with it too.
+updates, and one set up before 2.19 gets `plone-restore` with it too (and before 2.20, `plone-offsite`).
 
 **Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
 the site's address every few minutes and alert you. DigitalOcean has this built in (**Monitoring → Uptime**, then
@@ -548,7 +595,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.19/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.20/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -556,7 +603,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.19/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.20/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,

@@ -1,3 +1,19 @@
+2.20 (2026-11-23)
+-----------------
+
+Your site's nightly backups can now also go somewhere other than the server
+itself: run `sudo plone-offsite setup` once, and each night's backup is
+encrypted and copied to S3-compatible storage such as Cloudflare R2 (free for
+small sites), AWS S3, Backblaze B2, DigitalOcean Spaces or Hetzner. If the
+server is ever lost, set up a new one and restore your site from a copy. See
+"Copies off the server" in the setup guide.
+
+- `sudo plone-offsite setup` sends a copy of each night's backup to
+  S3-compatible storage (Cloudflare R2, AWS S3, Backblaze B2, DigitalOcean
+  Spaces, Hetzner Object Storage and others), encrypted with a passphrase on
+  the server first, and keeps the newest 14. `plone-offsite list` and `fetch`
+  get one back, also on a new server, for `plone-restore`.
+
 2.19 (2026-11-23)
 -----------------
 
