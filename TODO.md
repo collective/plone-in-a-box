@@ -40,8 +40,12 @@ still deploy with no build step. Add optional settings for people who need more:
   - [x] Try It for ready-made images (2.22): catalog keys `frontend_image:` and `backend_image:` instead of
     `packages`, documented in docs/try-it-buttons.md. Still to do: CI pulling them to check they're public and
     amd64, and match the Volto/Plone version.
+  - **Fall back when a backend image can't create the site** (found 2026-11-24): setup checks the image runs, but a
+    crash in its create-site still fails the whole setup. Falling back to the official backend there (after
+    clearing what the failed attempt wrote) would keep a box usable when a distribution changes how it reads its
+    settings, as kitconcept.core did.
   - **Plone distributions in the catalog** (2026-11-23), each as its own entry, ideally added by its makers:
-    kitconcept.intranet is in (2.22, `3.11` tags, as 3.12 crashes creating a site with SITE_SETUP_CONTENT set; tell kitconcept, who may want to own the entry), then
+    kitconcept.intranet is in (2.22, `3.11` tags; fits a 1 GB server, sample pages in German; tell kitconcept, who may want to own the entry), then
     kitconcept-website (`ghcr.io/kitconcept/kitconcept-website-backend`, 2.2; a public website), and
     PortalBrasil Intranet (`ghcr.io/portal-br/intranet-backend` and `-frontend`, 1.0.0; Portuguese; invite the
     portal-br community). Ask kitconcept first: they may want to own the entries (tag, demo roles, hint).

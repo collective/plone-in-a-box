@@ -76,8 +76,7 @@
   linode_stackscript: 2318969
 
 # A Plone distribution: kitconcept publishes both images, so nothing is built
-# here. The 3.11 tags move with its patch releases. Not 3.12 yet: its
-# kitconcept.core 2.2.1 crashes creating a site with SITE_SETUP_CONTENT set.
+# here. The 3.11 tags move with its patch releases. It fits a 1 GB server.
 - id: kitconcept-intranet
   name: kitconcept Intranet
   description: a complete intranet, ready to use
