@@ -62,7 +62,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; }
 hour, paid to the cloud provider; delete it when you're done, which deletes the site too.</p>
 
 <div class="buttons">
-<a class="button" href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=kitconcept-intranet-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=ghcr.io%2Fkitconcept%2Fkitconcept-intranet-frontend%3A3.12&amp;param_BackendImage=ghcr.io%2Fkitconcept%2Fkitconcept-intranet-backend%3A3.12&amp;param_DemoRoles=Editor">Launch on AWS</a>
+<a class="button" href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=kitconcept-intranet-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=ghcr.io%2Fkitconcept%2Fkitconcept-intranet-frontend%3A3.11&amp;param_BackendImage=ghcr.io%2Fkitconcept%2Fkitconcept-intranet-backend%3A3.11&amp;param_DemoRoles=Editor">Launch on AWS</a>
 <a class="button" href="#linode">Deploy on Linode</a>
 <a class="button" href="#digitalocean-and-hetzner">DigitalOcean or Hetzner</a>
 </div>
@@ -83,7 +83,7 @@ on the site, and nothing more. Share it with whoever you want to try kitconcept 
 <h2 id="aws">Amazon AWS</h2>
 <ol>
 <li>Sign in to the <a href="https://console.aws.amazon.com/">AWS console</a>, then click
-<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=kitconcept-intranet-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=ghcr.io%2Fkitconcept%2Fkitconcept-intranet-frontend%3A3.12&amp;param_BackendImage=ghcr.io%2Fkitconcept%2Fkitconcept-intranet-backend%3A3.12&amp;param_DemoRoles=Editor">Launch on AWS</a>: a form with kitconcept Intranet and the demo login filled in.</li>
+<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=kitconcept-intranet-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=ghcr.io%2Fkitconcept%2Fkitconcept-intranet-frontend%3A3.11&amp;param_BackendImage=ghcr.io%2Fkitconcept%2Fkitconcept-intranet-backend%3A3.11&amp;param_DemoRoles=Editor">Launch on AWS</a>: a form with kitconcept Intranet and the demo login filled in.</li>
 <li>Fill in <strong>AdminPassword</strong> and <strong>DemoPassword</strong> (at least 12 characters each), and click
 <strong>Create stack</strong>.</li>
 <li>When the stack says <strong>CREATE_COMPLETE</strong>, open the <strong>SiteURL</strong> on its
@@ -100,8 +100,8 @@ delete the stack.</p>
 <li>Fill in these fields, and leave the others as they are:
 <table><tr><th>Plone admin password</th><td>a password of at least 12 characters, for you</td></tr>
 <tr><th>Demo login</th><td><code>demo</code></td></tr>
-<tr><th>Frontend image</th><td><code>ghcr.io/kitconcept/kitconcept-intranet-frontend:3.12</code></td></tr>
-<tr><th>Backend image</th><td><code>ghcr.io/kitconcept/kitconcept-intranet-backend:3.12</code></td></tr>
+<tr><th>Frontend image</th><td><code>ghcr.io/kitconcept/kitconcept-intranet-frontend:3.11</code></td></tr>
+<tr><th>Backend image</th><td><code>ghcr.io/kitconcept/kitconcept-intranet-backend:3.11</code></td></tr>
 <tr><th>Roles of the demo login</th><td><code>Editor</code></td></tr>
 <tr><th>Demo login password</th><td>at least 12 characters, for the people you let try it</td></tr></table></li>
 <li>Choose <strong>Ubuntu 26.04 LTS</strong>, a region, a 1 GB <strong>Nanode</strong> and <strong>No firewall</strong>,
@@ -116,8 +116,8 @@ Startup scripts</strong> (DigitalOcean) or <strong>Cloud config</strong> (Hetzne
 characters:</p>
 <div class="copy"><pre><code>#!/bin/bash
 export ADMIN_PASSWORD=&#x27;CHANGE-ME&#x27;
-export FRONTEND_IMAGE=&#x27;ghcr.io/kitconcept/kitconcept-intranet-frontend:3.12&#x27;
-export BACKEND_IMAGE=&#x27;ghcr.io/kitconcept/kitconcept-intranet-backend:3.12&#x27;
+export FRONTEND_IMAGE=&#x27;ghcr.io/kitconcept/kitconcept-intranet-frontend:3.11&#x27;
+export BACKEND_IMAGE=&#x27;ghcr.io/kitconcept/kitconcept-intranet-backend:3.11&#x27;
 export DEMO_ROLES=&#x27;Editor&#x27;
 export DEMO_USER=&#x27;demo&#x27;
 export DEMO_PASSWORD=&#x27;CHANGE-ME-TOO&#x27;

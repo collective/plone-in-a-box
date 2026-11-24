@@ -36,8 +36,8 @@ This page is for add-on authors.
      name: kitconcept Intranet
      description: a complete intranet, ready to use
      url: https://github.com/kitconcept/kitconcept.intranet
-     frontend_image: ghcr.io/kitconcept/kitconcept-intranet-frontend:3.12
-     backend_image: ghcr.io/kitconcept/kitconcept-intranet-backend:3.12
+     frontend_image: ghcr.io/kitconcept/kitconcept-intranet-frontend:3.11
+     backend_image: ghcr.io/kitconcept/kitconcept-intranet-backend:3.11
      demo_roles: Editor
      try_it: yes
      try_hint: look around the sample intranet (its sample pages are in German) and edit a page or add a news item
@@ -45,7 +45,7 @@ This page is for add-on authors.
 
    The images must be public and built for `linux/amd64`, and the backend image must start like the official
    one ([Custom backend image](setup-guide.md#custom-backend-image) says what that means). Use tags that move with
-   your patch releases, such as `3.12`, so the weekly update installs them. Either image can be left out: a
+   your patch releases, such as `3.11`, so the weekly update installs them. Either image can be left out: a
    frontend image alone runs with the official backend, and a backend image alone with the standard Volto.
 
    The comments at the top of `addons.yml` explain every key.
