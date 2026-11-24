@@ -1405,7 +1405,8 @@ if [[ -s "$LIVE/fullchain.pem" ]] && openssl x509 -in "$LIVE/fullchain.pem" -noo
   end=$(openssl x509 -in "$LIVE/fullchain.pem" -noout -enddate | cut -d= -f2)
   left=$(( ($(date -d "$end" +%s) - $(date +%s)) / 3600 ))
 fi
-if (( left < 72 )); then
+# (PLONE_HTTPS_RENEW_HOURS: for tests, to renew sooner.)
+if (( left < ${PLONE_HTTPS_RENEW_HOURS:-72} )); then
   say "Requesting a certificate for $IP (the current one has ${left}h left)"
   install -d -m 755 "$WEBROOT"
   staging=()
