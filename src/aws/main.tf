@@ -196,11 +196,11 @@ variable "auto_update" {
 variable "release" {
   description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
   type        = string
-  default     = "2.20"
+  default     = "2.21"
 
   validation {
     condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
-    error_message = "release: a release, branch or commit, such as 2.20."
+    error_message = "release: a release, branch or commit, such as 2.21."
   }
 }
 

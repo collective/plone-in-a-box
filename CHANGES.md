@@ -1,5 +1,13 @@
-2.21 (unreleased)
+2.21 (2026-11-24)
 -----------------
+
+Every site is now on HTTPS, also without a domain name: the server gets a
+certificate for its IP address and renews it by itself, so passwords never
+travel unencrypted. You can create your site in your own language (`de`,
+`fr`, `pt-br`, …), with or without the sample pages, and run a whole Plone
+distribution, such as kitconcept's intranet, with the new Backend image
+setting. Backups now include the server's settings, and the weekly report
+says if they've stopped.
 
 - **HTTPS without a domain name**: a site without one now gets a Let's
   Encrypt certificate for the server's IP address and is at `https://<ip>`,
