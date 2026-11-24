@@ -15,6 +15,8 @@
 # <UDF name="DOMAIN" label="Domain name for the site, optional. DNS must already point here to get HTTPS" default="" />
 # <UDF name="LETSENCRYPT_EMAIL" label="Email for Lets Encrypt certificate notices, required if a domain is set" default="" />
 # <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
+# <UDF name="SITE_LANGUAGE" label="Site language: a language code such as en, de, fr, es or pt-br" default="en" example="de" />
+# <UDF name="STARTER_CONTENT" label="Starter content: yes creates the sample pages a new site or Plone distribution comes with; no starts with an empty site" oneOf="yes,no" default="yes" />
 # <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.2" />
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
@@ -52,6 +54,20 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DOMAIN="${DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 SITE_TIMEZONE="${SITE_TIMEZONE:-UTC}"
+# Site language, as a Plone language code (en, de, pt-br); a code setup doesn't
+# recognize as one falls back to English, with a note.
+SITE_LANGUAGE="$(printf '%s' "${SITE_LANGUAGE:-en}" | tr -d ' \t\r\n' | tr 'A-Z_' 'a-z-')"
+LANGUAGE_NOTE=""
+if [[ ! "$SITE_LANGUAGE" =~ ^[a-z]{2,3}(-[a-z]{2,4})?$ ]]; then
+  LANGUAGE_NOTE="The site language \"$SITE_LANGUAGE\" isn't a language code such as en or pt-br, so the site is in English."
+  SITE_LANGUAGE=en
+fi
+# Starter content: the sample pages a new site (or a Plone distribution) comes
+# with; no for an empty site.
+case "${STARTER_CONTENT:-yes}" in
+  [Nn]|[Nn][Oo]|[Ff]alse|0|[Oo]ff) STARTER_CONTENT=no ;;
+  *) STARTER_CONTENT=yes ;;
+esac
 PLONE_VERSION="${PLONE_VERSION:-6.2}"
 VOLTO_VERSION="${VOLTO_VERSION:-19}"
 POSTGRES_VERSION="${POSTGRES_VERSION:-17}"
@@ -286,7 +302,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -883,6 +899,17 @@ done
 BEFORE=$(versions)
 say "Checking for newer images (now ${BEFORE})"
 check_releases
+# Nightly backups that stopped (a stopped timer, a full disk) without a failure
+# notice: say so in the report.
+if systemctl is-enabled --quiet plone-backup.timer 2>/dev/null; then
+  # shellcheck disable=SC2012
+  newest=$(ls -1t "$BACKUP_DIR"/plone-*.sql.gz 2>/dev/null | head -n 1)
+  if [[ -z "$newest" ]]; then
+    NOTICE+="${NOTICE:+ }There's no database backup on this server: check sudo systemctl status plone-backup.timer and /var/log/plone-backup.log."
+  elif (( $(date +%s) - $(stat -c %Y "$newest") > 2 * 86400 )); then
+    NOTICE+="${NOTICE:+ }The newest database backup is from $(date -r "$newest" '+%F'), more than two days ago: check sudo systemctl status plone-backup.timer and /var/log/plone-backup.log."
+  fi
+fi
 # rclone for copies off the server (plone-offsite), if they're set up.
 [[ -s "$STATE_DIR/offsite.conf" ]] && docker pull -q rclone/rclone:1 >/dev/null 2>&1
 if ! compose pull --quiet; then
@@ -1041,11 +1068,22 @@ compose exec -T db pg_dump -U plone plone | gzip > "$DUMP.part"
 [[ "${PIPESTATUS[*]}" == "0 0" ]] || { rm -f "$DUMP.part"; fail "The database backup failed"; }
 mv "$DUMP.part" "$DUMP"
 say "Backed up the database to $DUMP"
+# The server's own settings next to it: setup's .env (versions, images,
+# add-ons) and compose file, and the nginx site. The content is all in the
+# database; these save redoing settings by hand on a new server.
+CONFIG="${DUMP%.sql.gz}.config.tar.gz"
+tar -czf "$CONFIG" -C / --ignore-failed-read opt/plone/.env opt/plone/docker-compose.yml \
+  etc/nginx/sites-available/plone 2>/dev/null && chmod 600 "$CONFIG" && say "Saved the server's settings to $CONFIG"
 # shellcheck disable=SC2012
 ls -1t "$BACKUP_DIR"/plone-*.sql.gz | tail -n +4 | xargs -r rm -f
+# shellcheck disable=SC2012
+ls -1t "$BACKUP_DIR"/plone-*.config.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f
 # A copy off the server, encrypted, if sudo plone-offsite setup was run.
 if [[ -s "$STATE_DIR/offsite.conf" ]]; then
   /usr/local/bin/plone-offsite upload "$DUMP" || problem "Copying the backup off the server failed"
+  if [[ -s "$CONFIG" ]]; then
+    /usr/local/bin/plone-offsite upload "$CONFIG" || problem "Copying the server's settings off the server failed"
+  fi
 fi
 
 if [[ "${1:-}" == pack ]] || (( $(date +%s) - $(cat "$STATE_DIR/last-pack" 2>/dev/null || echo 0) > 597600 )); then
@@ -1261,20 +1299,23 @@ upload)
   crypt --symmetric --cipher-algo AES256 -o "$tmp" "$FILE" || die "Encrypting $FILE failed"
   rc copyto "$tmp" "offsite:$BUCKET/$FOLDER/$name" || die "Uploading to $BUCKET/$FOLDER failed"
   say "Copied $name to $BUCKET/$FOLDER"
-  # Keep the newest KEEP copies (the names sort by date).
-  rc lsf --files-only "offsite:$BUCKET/$FOLDER/" | grep -E '^plone-.*\.sql\.gz\.gpg$' | sort -r | tail -n +"$((KEEP + 1))" \
+  # Keep the newest KEEP copies of this kind (database or settings; the names
+  # sort by date).
+  kind='\.sql\.gz\.gpg$'
+  [[ "$name" == *.config.tar.gz.gpg ]] && kind='\.config\.tar\.gz\.gpg$'
+  rc lsf --files-only "offsite:$BUCKET/$FOLDER/" | grep -E "^plone-.*$kind" | sort -r | tail -n +"$((KEEP + 1))" \
     | while read -r old; do rc deletefile "offsite:$BUCKET/$FOLDER/$old" && say "Removed the old copy $old"; done
   ;;
 list)
   load
   echo "Copies in $BUCKET, by folder (this server uses $FOLDER):"
-  rc lsf -R --files-only --format "tsp" "offsite:$BUCKET/" | grep -E '\.sql\.gz\.gpg' | sort -t ';' -k1,1r \
+  rc lsf -R --files-only --format "tsp" "offsite:$BUCKET/" | grep -E '\.(sql|config\.tar)\.gz\.gpg' | sort -t ';' -k1,1r \
     | awk -F';' '{printf "  %s  %s  %.1f MB\n", substr($1, 1, 16), $3, $2 / 1048576}'
   echo "Download one with: sudo plone-offsite fetch FOLDER/NAME, then restore it with sudo plone-restore."
   ;;
 fetch)
   load; NAME=${2:-}
-  [[ "$NAME" =~ ^[A-Za-z0-9._/-]+\.sql\.gz\.gpg$ ]] || die "Give the name as plone-offsite list shows it"
+  [[ "$NAME" =~ ^[A-Za-z0-9._/-]+\.(sql|config\.tar)\.gz\.gpg$ ]] || die "Give the name as plone-offsite list shows it"
   [[ "$NAME" == */* ]] || NAME="$FOLDER/$NAME"
   install -d -m 700 "$BACKUP_DIR"
   out="$BACKUP_DIR/offsite-$(basename "$NAME" .gpg)"
@@ -1283,7 +1324,11 @@ fetch)
   rc copyto "offsite:$BUCKET/$NAME" "$tmp" || die "Downloading $NAME failed"
   crypt -d -o "$out" "$tmp" || { rm -f "$out"; die "Decrypting $NAME failed: is this the passphrase it was made with?"; }
   echo "Downloaded and decrypted to $out"
-  echo "Restore it with: sudo plone-restore $out"
+  if [[ "$out" == *.sql.gz ]]; then
+    echo "Restore it with: sudo plone-restore $out"
+  else
+    echo "It holds the server's settings: see them with: tar -tzvf $out"
+  fi
   ;;
 off)
   rm -f "$CONF" "$RCLONE_CONF" "$STATE_DIR/offsite-passphrase"
@@ -1651,11 +1696,16 @@ fi
 log "Creating the Plone site (skipped if it already exists)"
 # The same settings for any backend image, under the names the official
 # image's create-site and plone.distribution sites read; an image ignores the
-# ones it doesn't know. There's no Solr in the box, and the site is in English.
+# ones it doesn't know. There's no Solr in the box.
+content=true CONTENT_NOTE=""
+if [[ "$STARTER_CONTENT" == no ]]; then
+  content=false CONTENT_NOTE=", created without starter content"
+fi
 compose run --rm --no-deps -e ADDONS= \
   -e SITE_ID=Plone \
   -e TIMEZONE="$SITE_TIMEZONE" -e SITE_PORTAL_TIMEZONE="$SITE_TIMEZONE" \
-  -e SITE_DEFAULT_LANGUAGE=en -e SITE_AVAILABLE_LANGUAGES=en -e SITE_SETUP_SOLR=false \
+  -e SITE_DEFAULT_LANGUAGE="$SITE_LANGUAGE" -e SITE_AVAILABLE_LANGUAGES="$SITE_LANGUAGE" \
+  -e SETUP_CONTENT="$content" -e SITE_SETUP_CONTENT="$content" -e SITE_SETUP_SOLR=false \
   "${SITE_ENV[@]}" \
   backend create-site
 
@@ -1747,7 +1797,20 @@ progress 6
 log "Starting Plone"
 compose up -d
 wait_for "Plone backend" 300 curl -fsS http://127.0.0.1:8080/ok
-wait_for "Volto frontend" 300 curl -fsS -o /dev/null http://127.0.0.1:3000/
+# A frontend image that doesn't start (built for another Volto, say) is
+# replaced by the standard Volto image, so the site still works.
+if ! wait_for "Volto frontend" 300 curl -fsS -o /dev/null http://127.0.0.1:3000/; then
+  [[ -n "$FRONTEND_IMAGE" ]] || false
+  log "The frontend image ${FRONTEND_IMAGE} didn't start; its last messages:"
+  compose logs --no-color --tail 15 frontend 2>&1 | sed 's/^/    /' || true
+  log "Using the standard Volto image instead"
+  FRONTEND_NOTE="The frontend image ${FRONTEND_IMAGE} didn't start, so the site uses the standard Volto image. Its messages are in /var/log/plone-in-a-box.log."
+  FRONTEND_IMAGE=""
+  sed -i "s/^FRONTEND_IMAGE=.*/FRONTEND_IMAGE=''/" "$APP_DIR/.env"
+  compose pull --quiet frontend
+  compose up -d frontend
+  wait_for "Volto frontend" 300 curl -fsS -o /dev/null http://127.0.0.1:3000/
+fi
 
 # --- nginx -------------------------------------------------------------------
 
@@ -1943,6 +2006,7 @@ ${PASSWORD_NOTE}
 ${ADDONS_LINE}${ADDONS_NOTE}
 ${FRONTEND_IMAGE:+Frontend image: ${FRONTEND_IMAGE}}${FRONTEND_NOTE}
 ${BACKEND_IMAGE:+Backend image: ${BACKEND_IMAGE}}${BACKEND_NOTE}
+Language:  ${SITE_LANGUAGE}${CONTENT_NOTE}${LANGUAGE_NOTE:+ ($LANGUAGE_NOTE)}
 ${DEMO_LINE}
 ${UPDATES_LINE}
 Security:  Plone security announcements are passed on every day, in the login message${NOTIFY_URL:+, at the notification URL}${SMTP_HOST:+ and by email}

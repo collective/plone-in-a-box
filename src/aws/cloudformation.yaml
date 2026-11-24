@@ -17,6 +17,8 @@ Metadata:
         Parameters:
           - AdminPassword
           - SiteTimezone
+          - SiteLanguage
+          - StarterContent
       - Label:
           default: Server
         Parameters:
@@ -70,6 +72,10 @@ Metadata:
         default: Plone admin password
       SiteTimezone:
         default: Site time zone
+      SiteLanguage:
+        default: Site language
+      StarterContent:
+        default: Starter content
       InstanceType:
         default: Server size
       VolumeSize:
@@ -131,6 +137,19 @@ Parameters:
     Type: String
     Default: UTC
     Description: Time zone for the Plone site, for example America/Chicago.
+  SiteLanguage:
+    Type: String
+    Default: en
+    AllowedPattern: '^[A-Za-z]{2,3}([-_][A-Za-z]{2,4})?$'
+    ConstraintDescription: Must be a language code such as en, de, fr, es or pt-br.
+    Description: The site's language, as a language code such as en, de, fr, es or pt-br.
+  StarterContent:
+    Type: String
+    Default: "yes"
+    AllowedValues: ["yes", "no"]
+    Description: >-
+      yes creates the sample pages a new site (or a Plone distribution) comes with; no starts with an
+      empty site.
   InstanceType:
     Type: String
     Default: t3.small
@@ -387,6 +406,8 @@ Resources:
             DOMAIN="$(d '${DomainB64}')"
             LETSENCRYPT_EMAIL="$(d '${EmailB64}')"
             SITE_TIMEZONE="$(d '${TimezoneB64}')"
+            SITE_LANGUAGE='${SiteLanguage}'
+            STARTER_CONTENT='${StarterContent}'
             PLONE_VERSION='${PloneVersion}'
             VOLTO_VERSION='${VoltoVersion}'
             ADDONS="$(d '${AddonsB64}')"
@@ -403,7 +424,7 @@ Resources:
             SMTP_PASSWORD="$(d '${SmtpPasswordB64}')"
             EMAIL_FROM="$(d '${EmailFromB64}')"
             REPORT_EMAIL="$(d '${ReportEmailB64}')"
-            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL
+            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL
             export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)

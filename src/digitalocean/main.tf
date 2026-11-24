@@ -105,6 +105,23 @@ variable "site_timezone" {
   default     = "UTC"
 }
 
+variable "site_language" {
+  description = "The site's language, as a language code such as en, de, fr, es or pt-br."
+  type        = string
+  default     = "en"
+
+  validation {
+    condition     = can(regex("^[A-Za-z]{2,3}([-_][A-Za-z]{2,4})?$", var.site_language))
+    error_message = "site_language: a language code such as en, de or pt-br."
+  }
+}
+
+variable "starter_content" {
+  description = "Create the sample pages a new site (or a Plone distribution) comes with; false starts with an empty site."
+  type        = bool
+  default     = true
+}
+
 variable "plone_version" {
   description = "plone/plone-backend image tag."
   type        = string
@@ -251,6 +268,8 @@ resource "digitalocean_droplet" "plone" {
     "export DOMAIN=${jsonencode(var.domain)}",
     "export LETSENCRYPT_EMAIL=${jsonencode(var.letsencrypt_email)}",
     "export SITE_TIMEZONE=${jsonencode(var.site_timezone)}",
+    "export SITE_LANGUAGE=${jsonencode(var.site_language)}",
+    "export STARTER_CONTENT=${var.starter_content ? "yes" : "no"}",
     "export PLONE_VERSION=${jsonencode(var.plone_version)}",
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
     "export ADDONS=\"$(echo ${base64encode(var.addons)} | base64 -d)\"",

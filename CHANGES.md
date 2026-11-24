@@ -11,6 +11,18 @@
   image. The weekly update covers the image too. `test-deploy.sh` has
   `--backend-image` and `--expect-backend-fallback`, and
   `linode-addon-stackscript.sh` has `--backend-image`.
+- **Site language** and **Starter content**, new settings on every route: the
+  site is created in the language you choose (a code such as `de` or `pt-br`;
+  English by default), and with or without the sample pages a new site or a
+  Plone distribution comes with.
+- A frontend image that's pulled but doesn't start (built for another Volto
+  version, say) no longer stops setup: the site starts with the standard
+  Volto image instead, and the credentials file says why.
+- The weekly update report says so when the newest database backup is more
+  than two days old (backups that stopped without failing).
+- Each nightly backup now also saves the server's own settings
+  (`plone-<date>.config.tar.gz`: `.env`, the compose file and the nginx site),
+  and copies them off the server with the database backup when that's set up.
 
 2.20 (2026-11-23)
 -----------------

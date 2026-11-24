@@ -12,6 +12,8 @@
 # <UDF name="DOMAIN" label="Domain name for the site, optional. DNS must already point here to get HTTPS" default="" />
 # <UDF name="LETSENCRYPT_EMAIL" label="Email for Lets Encrypt certificate notices, required if a domain is set" default="" />
 # <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
+# <UDF name="SITE_LANGUAGE" label="Site language: a language code such as en, de, fr, es or pt-br" default="en" example="de" />
+# <UDF name="STARTER_CONTENT" label="Starter content: yes creates the sample pages a new site or Plone distribution comes with; no starts with an empty site" oneOf="yes,no" default="yes" />
 # <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.2" />
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
@@ -39,7 +41,7 @@ PIAB_RELEASE=$(curl -fsS -m 20 https://api.github.com/repos/tkimnguyen/plone-in-
 PIAB_RELEASE=${PIAB_RELEASE:-2.20}
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
-export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_PASSWORD DEMO_ROLES SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL
+export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_PASSWORD DEMO_ROLES SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL
 set -uo pipefail
 SCRIPT=$(mktemp)
 if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \
