@@ -284,8 +284,8 @@ Releases** for people who follow it there):
 
 ```
 v=<version>
-{ printf 'Mirrored from [tkimnguyen/plone-in-a-box %s](https://github.com/tkimnguyen/plone-in-a-box/releases/tag/%s), where the downloads and the Launch Stack template come from.\n\n' "$v" "$v"
-  gh release view "$v" --json body -q .body; } > /tmp/notes.md
+{ gh release view "$v" --json body -q .body
+  printf '\n\n---\n\n<sub>Mirrored from [tkimnguyen/plone-in-a-box %s](https://github.com/tkimnguyen/plone-in-a-box/releases/tag/%s), where the downloads and the Launch Stack template come from.</sub>\n' "$v" "$v"; } > /tmp/notes.md
 gh release create "$v" --repo collective/plone-in-a-box --verify-tag --title "Plone in a Box $v" --notes-file /tmp/notes.md
 ```
 
