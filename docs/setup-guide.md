@@ -737,12 +737,39 @@ Add-on authors can give their README a button that sets up a server with their a
 
 ## Custom backend image
 
-Most sites don't need one: the [Backend add-ons](#add-ons) setting installs any package from PyPI. Build your own
-backend image when you need a package that isn't on PyPI (for example straight from GitHub), or your own project's
-code.
+Most sites don't need one: the [Backend add-ons](#add-ons) setting installs any package from PyPI. A **Backend
+image** replaces the official Plone backend with another one:
 
-Start from the official image of the Plone version your server runs (`6.2` unless you changed **Plone version**),
-and install your packages with its pip, held to the versions that Plone release was tested with:
+* a **Plone distribution**, a whole kind of site ready to use, such as kitconcept's intranet, usually published as
+  a backend image with a matching frontend image;
+* your **own project**, for example one made with [cookieplone](https://github.com/plone/cookieplone), or the
+  official image with packages that aren't on PyPI.
+
+Set **Backend image** when you create the server: in the Linode form, the Launch Stack form, `backend_image` in
+Terraform, or `export BACKEND_IMAGE='...'` in the launcher. Set its frontend half as the **Frontend image**. For
+example, kitconcept's intranet:
+
+* **Backend image**: `ghcr.io/kitconcept/kitconcept-intranet-backend:3.11`
+* **Frontend image**: `ghcr.io/kitconcept/kitconcept-intranet-frontend:3.11`
+
+Setup pulls the image and checks that it runs Plone with the server's settings. If it can't be pulled (a typo,
+or a private image), or doesn't run, the site starts with the official Plone backend instead, and the credentials
+file says why. The site is created the image's way: a distribution sets up its own content and settings. Setup
+asks for English, the server's time zone, and no Solr search server (a box doesn't have one), using the settings
+names the official image and Plone distributions read. kitconcept's intranet, for example, comes with sample pages
+in German.
+
+The weekly update installs newer builds of the image's tag, so pick a tag that moves with patch releases (such as
+`3.11`, not `3.11.0`), and goes back if the site doesn't come back, as for the official images. Moving to a new
+Plone version is up to the image's maker: the update report doesn't suggest new Plone versions for a custom image.
+
+**What an image needs**: it's built on the official `plone/plone-backend` image, or the same way (cookieplone
+projects and kitconcept's images are): its entrypoint has the `create-site`, `run` and `pack` commands, it reads
+`RELSTORAGE_DSN` for the database, it has a health check, and it listens on port 8080. Images for Linode,
+DigitalOcean and AWS are `linux/amd64`; Hetzner's Arm servers need `linux/arm64`. The **Backend add-ons** setting
+works on top of an image built on `plone/plone-backend`.
+
+**Building your own** from the official image, for packages that aren't on PyPI:
 
 ```dockerfile
 FROM plone/plone-backend:6.2
@@ -750,28 +777,27 @@ RUN /app/bin/pip install --no-cache-dir -c /app/constraints.txt \
     "git+https://github.com/<owner>/<package>.git@<tag or commit>"
 ```
 
-Pin a tag or commit, so a rebuild installs the same code. Build it for `linux/amd64` (`linux/arm64` for Hetzner's
-Arm servers), and push it to a registry, for example the GitHub Container Registry:
+Pin a tag or commit, so a rebuild installs the same code, and push the image to a registry, for example the GitHub
+Container Registry:
 
 ```
 docker login ghcr.io
-docker buildx build --platform linux/amd64 --push -t ghcr.io/<you>/plone-backend:6.2-1 .
+docker buildx build --platform linux/amd64 --push -t ghcr.io/<you>/plone-backend:6.2 .
 ```
 
-There's no setting for a backend image yet. On a running server, edit the backend's `image:` line in
-`/opt/plone/docker-compose.yml` (the one that says `plone/plone-backend:${PLONE_VERSION}`), then:
+Then activate the package in **Site Setup → Add-ons**.
+
+**On a server that's already running**, set `BACKEND_IMAGE='<image>'` in `/opt/plone/.env`, then:
 
 ```
 sudo docker compose --project-directory /opt/plone up -d backend
 ```
 
-Then activate the package in **Site Setup → Add-ons**. The site and its content stay as they are; they live in the
-database, not in the image. The **Backend add-ons** setting still works on top of a custom image. If the image is
-private, run `sudo docker login ghcr.io` on the server first. To go back, restore the original `image:` line and run
+The site and its content stay as they are; they live in the database, not in the image. Keep the image on the same
+Plone version as the site, or newer: a site can't move back to an older Plone. Switching a running site to a
+distribution's image doesn't turn it into that distribution; that only happens when a site is created. If the
+image is private, run `sudo docker login ghcr.io` on the server first. To go back, set `BACKEND_IMAGE=''` and run
 the same command.
-
-Keep the image on the same Plone version as the server, or a newer patch release: a site can't move back to an
-older Plone.
 
 ## Sending email
 

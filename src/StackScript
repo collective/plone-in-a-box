@@ -19,6 +19,7 @@
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
 # <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
+# <UDF name="BACKEND_IMAGE" label="Backend image, optional: replaces the official Plone backend, for example a Plone distribution such as ghcr.io/kitconcept/kitconcept-intranet-backend:3.11 (with its frontend image above), or your own project's. Empty: the official Plone backend" default="" />
 # <UDF name="DEMO_USER" label="Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password" default="" />
 # <UDF name="DEMO_PASSWORD" label="Demo login password, optional, at least 12 characters. Leave empty to have one generated and saved next to the admin password" default="" />
 # <UDF name="DEMO_ROLES" label="Roles of the demo login, optional, separated by commas, for example Editor or Site Administrator. Empty: what the frontend image suggests, or Site Administrator" default="" />
@@ -63,6 +64,10 @@ ADDONS="${ADDON_LIST[*]}"
 # Plone in a Box images say in their labels which backend add-ons and site
 # behaviors they need; setup installs and activates those too.
 FRONTEND_IMAGE="$(printf '%s' "${FRONTEND_IMAGE:-}" | tr -d ' \t\r\n')"
+# Backend image: replaces plone/plone-backend:${PLONE_VERSION}, for example a
+# Plone distribution or a project made with cookieplone. It has to start like
+# the official image (create-site, run, pack); setup checks that it does.
+BACKEND_IMAGE="$(printf '%s' "${BACKEND_IMAGE:-}" | tr -d ' \t\r\n')"
 # Demo login: an extra Plone user, created once at setup, for letting other
 # people try the site (DEMO_USER, with the roles DEMO_ROLES, separated by
 # commas). Empty: the roles the frontend image's label suggests, or Site
@@ -281,7 +286,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -376,6 +381,12 @@ if [[ ! -f "$APP_DIR/.env" ]]; then
     FRONTEND_NOTE="The frontend image \"$FRONTEND_IMAGE\" isn't an image name, so the site uses the standard Volto image."
     FRONTEND_IMAGE=""
   fi
+  BACKEND_NOTE=""
+  if [[ -n "$BACKEND_IMAGE" ]] && ! valid_image "$BACKEND_IMAGE"; then
+    log "Not using the backend image \"$BACKEND_IMAGE\": it isn't an image name; using the official Plone backend"
+    BACKEND_NOTE="The backend image \"$BACKEND_IMAGE\" isn't an image name, so the site uses the official Plone backend."
+    BACKEND_IMAGE=""
+  fi
   umask 077
   cat > "$APP_DIR/.env" <<EOF
 PLONE_VERSION=${PLONE_VERSION}
@@ -384,6 +395,7 @@ POSTGRES_VERSION=${POSTGRES_VERSION}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 ADDONS='${ADDONS}'
 FRONTEND_IMAGE='${FRONTEND_IMAGE}'
+BACKEND_IMAGE='${BACKEND_IMAGE}'
 EOF
   umask 022
   NEW_ADMIN_PASSWORD_SET=0
@@ -397,10 +409,12 @@ else
   ADDONS=$(sed -n "s/^ADDONS='\(.*\)'\$/\1/p" "$APP_DIR/.env")
   FRONTEND_NOTE=""
   FRONTEND_IMAGE=$(sed -n "s/^FRONTEND_IMAGE='\(.*\)'\$/\1/p" "$APP_DIR/.env")
+  BACKEND_NOTE=""
+  BACKEND_IMAGE=$(sed -n "s/^BACKEND_IMAGE='\(.*\)'\$/\1/p" "$APP_DIR/.env")
 fi
 # Docker Compose prefers an exported variable over the .env file; .env is what
 # the site keeps using after setup, so let Compose read it from there.
-export -n ADDONS FRONTEND_IMAGE
+export -n ADDONS FRONTEND_IMAGE BACKEND_IMAGE
 
 # --- Docker Compose stack ----------------------------------------------------
 
@@ -430,7 +444,8 @@ services:
         condition: service_healthy
 
   backend:
-    image: plone/plone-backend:${PLONE_VERSION}
+    # BACKEND_IMAGE in .env replaces the official Plone backend.
+    image: ${BACKEND_IMAGE:-plone/plone-backend:${PLONE_VERSION}}
     environment:
       RELSTORAGE_DSN: "dbname='plone' user='plone' host='db' password='${POSTGRES_PASSWORD}'"
       # Add-ons are installed with pip each time the container starts, held to
@@ -801,6 +816,9 @@ site_ok() {
 NOTICE=""
 check_releases() {
   local current next
+  # A custom backend image moves to a new Plone version when its maker
+  # publishes one; PLONE_VERSION doesn't apply to it.
+  grep -q "^BACKEND_IMAGE='[^']" "$APP_DIR/.env" && return 0
   current=$(sed -n 's/^PLONE_VERSION=//p' "$APP_DIR/.env")
   [[ "$current" =~ ^([0-9]+)\.([0-9]+)$ ]] || return 0
   for next in "${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1))" "$((BASH_REMATCH[1] + 1)).0"; do
@@ -1522,6 +1540,29 @@ cd "$APP_DIR"
 compose() { docker compose --project-directory "$APP_DIR" "$@"; }
 
 progress 4
+# A backend image that can't be pulled, or doesn't run like the official one
+# (checked once PostgreSQL is up), is left out, so the site still starts with
+# the official backend. Its label org.plone-in-a-box.site-env can add SITE_*
+# settings for creating the site, such as SITE_SETUP_CONTENT=false.
+SITE_ENV=()
+backend_fallback() {  # backend_fallback <what happened>
+  log "$1; using the official Plone backend"
+  BACKEND_NOTE="$1, so the site uses the official Plone backend. The reason is in /var/log/plone-in-a-box.log."
+  BACKEND_IMAGE=""
+  SITE_ENV=()
+  sed -i "s/^BACKEND_IMAGE=.*/BACKEND_IMAGE=''/" "$APP_DIR/.env"
+}
+if [[ -n "$BACKEND_IMAGE" ]]; then
+  log "Pulling the backend image ${BACKEND_IMAGE}"
+  if docker pull --quiet "$BACKEND_IMAGE"; then
+    for pair in $(docker image inspect -f '{{index .Config.Labels "org.plone-in-a-box.site-env"}}' "$BACKEND_IMAGE" 2>/dev/null); do
+      [[ "$pair" =~ ^SITE_[A-Z0-9_-]+=[A-Za-z0-9.,:/_@-]*$ ]] && SITE_ENV+=(-e "$pair")
+    done
+  else
+    backend_fallback "The backend image ${BACKEND_IMAGE} couldn't be pulled"
+  fi
+fi
+
 # A frontend image that can't be pulled (misspelled, private, gone) is left
 # out, so the site still starts with the standard Volto image. A ready-made
 # image's labels name the backend add-ons and site behaviors it needs.
@@ -1562,7 +1603,7 @@ if [[ -n "$FRONTEND_IMAGE" ]]; then
     sed -i "s/^FRONTEND_IMAGE=.*/FRONTEND_IMAGE=''/" "$APP_DIR/.env"
   fi
 fi
-log "Pulling images (Plone ${PLONE_VERSION}, ${FRONTEND_IMAGE:-Volto ${VOLTO_VERSION}}, PostgreSQL ${POSTGRES_VERSION})"
+log "Pulling images (${BACKEND_IMAGE:-Plone ${PLONE_VERSION}}, ${FRONTEND_IMAGE:-Volto ${VOLTO_VERSION}}, PostgreSQL ${POSTGRES_VERSION})"
 compose pull --quiet
 
 # A misspelled or incompatible add-on would stop the backend from starting,
@@ -1589,6 +1630,16 @@ progress 5
 log "Starting PostgreSQL"
 compose up -d --wait db
 
+# The backend image runs Plone with this stack's settings: start it once with
+# an empty script, which also connects to the database.
+if [[ -n "$BACKEND_IMAGE" ]]; then
+  log "Checking that the backend image ${BACKEND_IMAGE} runs Plone here"
+  if ! compose run --rm --no-deps -T -e ADDONS= -v /dev/null:/tmp/empty.py:ro backend run /tmp/empty.py </dev/null; then
+    backend_fallback "The backend image ${BACKEND_IMAGE} didn't run Plone with this server's settings"
+    compose pull --quiet backend
+  fi
+fi
+
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
   log "Setting the Zope admin password"
   NEW_ADMIN_PASSWORD="$ADMIN_PASSWORD" compose run --rm --no-deps \
@@ -1598,9 +1649,14 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
 fi
 
 log "Creating the Plone site (skipped if it already exists)"
+# The same settings for any backend image, under the names the official
+# image's create-site and plone.distribution sites read; an image ignores the
+# ones it doesn't know. There's no Solr in the box, and the site is in English.
 compose run --rm --no-deps -e ADDONS= \
   -e SITE_ID=Plone \
-  -e TIMEZONE="$SITE_TIMEZONE" \
+  -e TIMEZONE="$SITE_TIMEZONE" -e SITE_PORTAL_TIMEZONE="$SITE_TIMEZONE" \
+  -e SITE_DEFAULT_LANGUAGE=en -e SITE_AVAILABLE_LANGUAGES=en -e SITE_SETUP_SOLR=false \
+  "${SITE_ENV[@]}" \
   backend create-site
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && ( -n "$IMAGE_ADDONS" || -n "$IMAGE_BEHAVIORS" ) ]]; then
@@ -1886,6 +1942,7 @@ Password:  ${PASSWORD_LINE}
 ${PASSWORD_NOTE}
 ${ADDONS_LINE}${ADDONS_NOTE}
 ${FRONTEND_IMAGE:+Frontend image: ${FRONTEND_IMAGE}}${FRONTEND_NOTE}
+${BACKEND_IMAGE:+Backend image: ${BACKEND_IMAGE}}${BACKEND_NOTE}
 ${DEMO_LINE}
 ${UPDATES_LINE}
 Security:  Plone security announcements are passed on every day, in the login message${NOTIFY_URL:+, at the notification URL}${SMTP_HOST:+ and by email}
@@ -1920,6 +1977,12 @@ if [[ -n "$ADDONS_NOTE" ]]; then
 fi
 if [[ -n "$FRONTEND_IMAGE" ]]; then
   log "Frontend image: ${FRONTEND_IMAGE}"
+fi
+if [[ -n "$BACKEND_IMAGE" ]]; then
+  log "Backend image: ${BACKEND_IMAGE}"
+fi
+if [[ -n "$BACKEND_NOTE" ]]; then
+  log "$BACKEND_NOTE"
 fi
 if [[ -n "$FRONTEND_NOTE" ]]; then
   log "$FRONTEND_NOTE"

@@ -50,6 +50,11 @@ export ADDONS=''
 # backend add-on is installed and activated too), or your own. Leave empty for
 # the standard Volto image.
 export FRONTEND_IMAGE=''
+# Backend image, optional: replaces the official Plone backend, for example a
+# Plone distribution such as 'ghcr.io/kitconcept/kitconcept-intranet-backend:3.11'
+# (with its frontend image above), or your own project's. Leave empty for the
+# official Plone backend.
+export BACKEND_IMAGE=''
 # Demo login, optional: a username such as 'demo', for people you let try the
 # site. Setup creates it with a generated password, saved next to the admin
 # password in /root/plone-credentials.txt. Its roles, separated by commas, for

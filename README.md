@@ -58,8 +58,9 @@ Volto front end and PostgreSQL) behind nginx.
 **Customizing**
 * [Backend add-ons](docs/setup-guide.md#add-ons) such as `collective.easyform`, installed when deploying or later.
 * [Ready-made frontend images](docs/setup-guide.md#themes-and-frontend-images) such as Volto Light Theme
-  (`ghcr.io/collective/plone-in-a-box-frontend:19-vlt`), or your own, and your own
-  [backend image](docs/setup-guide.md#custom-backend-image).
+  (`ghcr.io/collective/plone-in-a-box-frontend:19-vlt`), or your own.
+* A [backend image](docs/setup-guide.md#custom-backend-image): a Plone distribution such as kitconcept's intranet,
+  or your own project, for example one made with cookieplone.
 * A [demo login](docs/setup-guide.md#demo-login), with the roles and password you choose, for letting others try the site.
 
 **For add-on authors**

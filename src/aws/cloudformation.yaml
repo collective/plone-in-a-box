@@ -37,6 +37,7 @@ Metadata:
         Parameters:
           - Addons
           - FrontendImage
+          - BackendImage
       - Label:
           default: Demo login (optional)
         Parameters:
@@ -85,6 +86,8 @@ Metadata:
         default: Backend add-ons
       FrontendImage:
         default: Frontend image
+      BackendImage:
+        default: Backend image
       DemoUser:
         default: Demo login
       DemoPassword:
@@ -189,6 +192,15 @@ Parameters:
       A ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt
       (Volto Light Theme; its backend add-on is installed and activated too), or your own. Leave empty
       for the standard Volto image.
+  BackendImage:
+    Type: String
+    Default: ""
+    AllowedPattern: '^[A-Za-z0-9./:@_-]*$'
+    ConstraintDescription: Must be a container image name, such as ghcr.io/kitconcept/kitconcept-intranet-backend:3.11.
+    Description: >-
+      Replaces the official Plone backend, for example a Plone distribution such as
+      ghcr.io/kitconcept/kitconcept-intranet-backend:3.11 (with its frontend image above), or your own
+      project's. Leave empty for the official Plone backend.
   DemoUser:
     Type: String
     Default: ""
@@ -379,6 +391,7 @@ Resources:
             VOLTO_VERSION='${VoltoVersion}'
             ADDONS="$(d '${AddonsB64}')"
             FRONTEND_IMAGE="$(d '${FrontendImageB64}')"
+            BACKEND_IMAGE="$(d '${BackendImageB64}')"
             DEMO_USER='${DemoUser}'
             DEMO_PASSWORD="$(d '${DemoPasswordB64}')"
             DEMO_ROLES='${DemoRoles}'
@@ -390,7 +403,7 @@ Resources:
             SMTP_PASSWORD="$(d '${SmtpPasswordB64}')"
             EMAIL_FROM="$(d '${EmailFromB64}')"
             REPORT_EMAIL="$(d '${ReportEmailB64}')"
-            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL
+            export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL
             export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)
@@ -406,6 +419,7 @@ Resources:
             TimezoneB64: !Base64 {Ref: SiteTimezone}
             AddonsB64: !Base64 {Ref: Addons}
             FrontendImageB64: !Base64 {Ref: FrontendImage}
+            BackendImageB64: !Base64 {Ref: BackendImage}
             NotifyUrlB64: !Base64 {Ref: NotifyUrl}
             DemoPasswordB64: !Base64 {Ref: DemoPassword}
             SmtpUserB64: !Base64 {Ref: SmtpUser}
