@@ -29,11 +29,11 @@ terraform {
 variable "release" {
   description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
   type        = string
-  default     = "2.20"
+  default     = "2.21"
 
   validation {
     condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
-    error_message = "release: a release, branch or commit, such as 2.20."
+    error_message = "release: a release, branch or commit, such as 2.21."
   }
 }
 
@@ -104,6 +104,23 @@ variable "site_timezone" {
   default     = "UTC"
 }
 
+variable "site_language" {
+  description = "The site's language, as a language code such as en, de, fr, es or pt-br."
+  type        = string
+  default     = "en"
+
+  validation {
+    condition     = can(regex("^[A-Za-z]{2,3}([-_][A-Za-z]{2,4})?$", var.site_language))
+    error_message = "site_language: a language code such as en, de or pt-br."
+  }
+}
+
+variable "starter_content" {
+  description = "Create the sample pages a new site (or a Plone distribution) comes with; false starts with an empty site."
+  type        = bool
+  default     = true
+}
+
 variable "plone_version" {
   description = "plone/plone-backend image tag."
   type        = string
@@ -124,6 +141,12 @@ variable "addons" {
 
 variable "frontend_image" {
   description = "Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image."
+  type        = string
+  default     = ""
+}
+
+variable "backend_image" {
+  description = "Backend image, optional: replaces the official Plone backend, for example a Plone distribution such as ghcr.io/kitconcept/kitconcept-intranet-backend:3.11 (with its frontend image in frontend_image), or your own project's. Empty: the official Plone backend."
   type        = string
   default     = ""
 }
@@ -271,10 +294,13 @@ resource "hcloud_server" "plone" {
     "export DOMAIN=${jsonencode(var.domain)}",
     "export LETSENCRYPT_EMAIL=${jsonencode(var.letsencrypt_email)}",
     "export SITE_TIMEZONE=${jsonencode(var.site_timezone)}",
+    "export SITE_LANGUAGE=${jsonencode(var.site_language)}",
+    "export STARTER_CONTENT=${var.starter_content ? "yes" : "no"}",
     "export PLONE_VERSION=${jsonencode(var.plone_version)}",
     "export VOLTO_VERSION=${jsonencode(var.volto_version)}",
     "export ADDONS=\"$(echo ${base64encode(var.addons)} | base64 -d)\"",
     "export FRONTEND_IMAGE=\"$(echo ${base64encode(var.frontend_image)} | base64 -d)\"",
+    "export BACKEND_IMAGE=\"$(echo ${base64encode(var.backend_image)} | base64 -d)\"",
     "export DEMO_USER=\"$(echo ${base64encode(var.demo_user)} | base64 -d)\"",
     "export DEMO_PASSWORD=\"$(echo ${base64encode(var.demo_password)} | base64 -d)\"",
     "export DEMO_ROLES=\"$(echo ${base64encode(var.demo_roles)} | base64 -d)\"",

@@ -120,7 +120,7 @@ ready to copy into **Startup scripts** (DigitalOcean) or **Cloud config** (Hetzn
 export ADMIN_PASSWORD='CHANGE-ME'
 export FRONTEND_IMAGE='ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard'
 export DEMO_USER='demo'
-curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.20/src/StackScript && bash /root/plone-in-a-box.sh
+curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.21/src/StackScript && bash /root/plone-in-a-box.sh
 ```
 
 Add `export DEMO_PASSWORD='...'` to choose the demo login's password (at least 12 characters), `export DEMO_ROLES='Editor'` to set the roles here, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of

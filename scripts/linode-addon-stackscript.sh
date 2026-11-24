@@ -15,6 +15,8 @@
 # Options:
 #   --name NAME            the add-on's name, shown in the script's comments
 #   --frontend-image IMAGE the frontend image to fill in
+#   --backend-image IMAGE  the backend image to fill in (a Plone distribution,
+#                          say), usually with its matching --frontend-image
 #   --addons "PKG ..."     backend add-ons to fill in (for add-ons without a
 #                          frontend part); at least one of these two is needed
 #   --demo-user NAME       the demo login to fill in (default: demo)
@@ -31,14 +33,15 @@
 
 set -euo pipefail
 
-usage() { sed -n '3,29p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 die() { echo "error: $*" >&2; exit 1; }
 
-NAME="" FRONTEND_IMAGE="" ADDONS="" DEMO_USER=demo DEMO_ROLES="" REF=""
+NAME="" FRONTEND_IMAGE="" BACKEND_IMAGE="" ADDONS="" DEMO_USER=demo DEMO_ROLES="" REF=""
 while (( $# )); do
   case "$1" in
     --name) NAME=${2:?--name needs a value}; shift ;;
     --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
+    --backend-image) BACKEND_IMAGE=${2:?--backend-image needs a value}; shift ;;
     --addons) ADDONS=${2:?--addons needs a value}; shift ;;
     --demo-user) DEMO_USER=${2:?--demo-user needs a value}; shift ;;
     --demo-roles) DEMO_ROLES=${2:?--demo-roles needs a value}; shift ;;
@@ -48,11 +51,12 @@ while (( $# )); do
   shift
 done
 [[ -n "$NAME" ]] || usage
-[[ -n "$FRONTEND_IMAGE$ADDONS" ]] || die "give --frontend-image, --addons or both"
+[[ -n "$FRONTEND_IMAGE$BACKEND_IMAGE$ADDONS" ]] || die "give --frontend-image, --backend-image or --addons"
 # What goes into the UDF defaults and the script: no quotes or other characters
 # the form or the shell would misread.
 [[ "$NAME" =~ ^[A-Za-z0-9\ ._()+-]+$ ]] || die "--name: letters, digits, spaces and . _ ( ) + - only"
 [[ "$FRONTEND_IMAGE" =~ ^[a-z0-9./:@_-]*$ ]] || die "--frontend-image: not an image name"
+[[ "$BACKEND_IMAGE" =~ ^[a-z0-9./:@_-]*$ ]] || die "--backend-image: not an image name"
 [[ "$ADDONS" =~ ^[A-Za-z0-9\ ._,~=!\<\>*+-]*$ ]] || die "--addons: Python package names separated by spaces"
 [[ -z "$DEMO_USER" || "$DEMO_USER" =~ ^[a-z][a-z0-9._-]{1,31}$ ]] || die "--demo-user: lowercase letters, digits, . _ -"
 [[ "$DEMO_ROLES" =~ ^[A-Za-z0-9\ ,._-]*$ ]] || die "--demo-roles: role names separated by commas"
@@ -69,11 +73,12 @@ set_default() {  # set_default NAME VALUE: on stdin, the UDF lines
 }
 udfs=$(grep '^# <UDF ' "$stackscript" \
   | set_default FRONTEND_IMAGE "$FRONTEND_IMAGE" \
+  | set_default BACKEND_IMAGE "$BACKEND_IMAGE" \
   | set_default ADDONS "$ADDONS" \
   | set_default DEMO_USER "$DEMO_USER" \
   | set_default DEMO_ROLES "$DEMO_ROLES")
 names=$(sed -n 's/^# <UDF name="\([A-Z_]*\)".*/\1/p' <<<"$udfs" | tr '\n' ' ')
-for field in FRONTEND_IMAGE ADDONS DEMO_USER DEMO_ROLES; do
+for field in FRONTEND_IMAGE BACKEND_IMAGE ADDONS DEMO_USER DEMO_ROLES; do
   [[ " $names" == *" $field "* ]] || die "src/StackScript has no $field field"
 done
 
@@ -102,7 +107,7 @@ ${udfs}
 
 # This add-on's settings, if the form didn't send them (a server created
 # through the API with only some fields); a field emptied in the form stays empty.
-: "\${FRONTEND_IMAGE=${FRONTEND_IMAGE}}" "\${ADDONS=${ADDONS}}" "\${DEMO_USER=${DEMO_USER}}" "\${DEMO_ROLES=${DEMO_ROLES}}"
+: "\${FRONTEND_IMAGE=${FRONTEND_IMAGE}}" "\${BACKEND_IMAGE=${BACKEND_IMAGE}}" "\${ADDONS=${ADDONS}}" "\${DEMO_USER=${DEMO_USER}}" "\${DEMO_ROLES=${DEMO_ROLES}}"
 
 ${release_lines}
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/\${PIAB_RELEASE}/src/StackScript"

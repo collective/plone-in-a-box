@@ -33,17 +33,21 @@ still deploy with no build step. Add optional settings for people who need more:
   publishes it (`frontend-image/README.md`).
 - [x] **Custom backend image, documented** for a running server: build on `plone/plone-backend`, and change the
   backend's `image:` line (setup guide, "Custom backend image").
-- [ ] **Custom backend image setting** (for example a cookieplone project's backend), like `FRONTEND_IMAGE`.
-  **Next after the off-server backups** (decided 2026-11-23).
-  - In every route (Linode form, Launch Stack, Terraform, launcher), and in `plone-update` (weekly update and
-    rollback, like the other images).
-  - Start with public images only (a Try It image has to be public anyway); decide later how private registries
-    authenticate (registry URL, username and token as optional fields?).
+- [x] **Custom backend image setting** (2.21): `BACKEND_IMAGE` in every route, checked at setup with a
+  fallback to the official backend, covered by `plone-update`. Tested with kitconcept's intranet distribution
+  (`ghcr.io/kitconcept/kitconcept-intranet-backend` and `-frontend`). Public images only so far; still to decide:
+  how private registries authenticate (registry URL, username and token as optional fields?).
   - Then Try It for add-ons that are ready-made images: catalog keys such as `frontend_image:` and `backend_image:`
     instead of `packages` (CI pulls them, checks they're public, match the Volto/Plone version and have the right
     labels), and a section in docs/try-it-buttons.md on the three shapes of add-on (backend package, npm packages,
     ready-made images) and the labels a ready-made frontend image needs. Today an author's own frontend image works
     only through "Doing it yourself", and a backend image not at all.
+  - **Plone distributions in the catalog** (2026-11-23), once the catalog takes ready-made images, each as its own
+    entry, ideally added by its makers: kitconcept.intranet (`ghcr.io/kitconcept/kitconcept-intranet-backend` and
+    `-frontend`, 3.11; tested in a box: works, sample content in German, no Solr; check what needs Solr and whether
+    1 GB is enough), kitconcept-website (`ghcr.io/kitconcept/kitconcept-website-backend`, 2.2; a public website), and
+    PortalBrasil Intranet (`ghcr.io/portal-br/intranet-backend` and `-frontend`, 1.0.0; Portuguese; invite the
+    portal-br community). Ask kitconcept first: they may want to own the entries (tag, demo roles, hint).
   - **Showcase Aurora in the catalog** (requested 2026-11-23): Aurora
     ([github.com/plone/aurora](https://github.com/plone/aurora), demo at aurora.demo.plone.org) is the new React
     frontend for Plone, the successor to Volto, developed for Plone 7. It replaces Volto rather than adding to it, so

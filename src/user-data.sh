@@ -35,6 +35,11 @@ export LETSENCRYPT_EMAIL=''
 
 # Site time zone, for example America/Chicago.
 export SITE_TIMEZONE='UTC'
+# Site language: a language code such as 'en', 'de', 'fr', 'es' or 'pt-br'.
+export SITE_LANGUAGE='en'
+# Starter content: 'yes' creates the sample pages a new site (or a Plone
+# distribution) comes with; 'no' starts with an empty site.
+export STARTER_CONTENT='yes'
 
 # Plone backend and Volto frontend image tags.
 export PLONE_VERSION='6.2'
@@ -50,6 +55,11 @@ export ADDONS=''
 # backend add-on is installed and activated too), or your own. Leave empty for
 # the standard Volto image.
 export FRONTEND_IMAGE=''
+# Backend image, optional: replaces the official Plone backend, for example a
+# Plone distribution such as 'ghcr.io/kitconcept/kitconcept-intranet-backend:3.11'
+# (with its frontend image above), or your own project's. Leave empty for the
+# official Plone backend.
+export BACKEND_IMAGE=''
 # Demo login, optional: a username such as 'demo', for people you let try the
 # site. Setup creates it with a generated password, saved next to the admin
 # password in /root/plone-credentials.txt. Its roles, separated by commas, for
@@ -82,7 +92,7 @@ export REPORT_EMAIL=''
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.
-PIAB_RELEASE='2.20'
+PIAB_RELEASE='2.21'
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 set -uo pipefail
