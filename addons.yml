@@ -30,7 +30,7 @@
 #
 #   Ready-made images, published by someone else (a Plone distribution, or a
 #   project with its own build), instead of packages: nothing is built here.
-#   Use tags that move with patch releases, such as 3.11:
+#   Use tags that move with patch releases, such as 1.2:
 #   frontend_image  the frontend image, registry/owner/name:tag
 #   backend_image   the backend image, registry/owner/name:tag
 #
@@ -74,16 +74,3 @@
   try_it: yes
   try_hint: open Activity in the user menu, make a change to a page, and watch it appear
   linode_stackscript: 2318969
-
-# A Plone distribution: kitconcept publishes both images, so nothing is built
-# here. The 3.11 tags move with its patch releases. It fits a 1 GB server.
-- id: kitconcept-intranet
-  name: kitconcept Intranet
-  description: a complete intranet, ready to use
-  url: https://github.com/kitconcept/kitconcept.intranet
-  frontend_image: ghcr.io/kitconcept/kitconcept-intranet-frontend:3.11
-  backend_image: ghcr.io/kitconcept/kitconcept-intranet-backend:3.11
-  # Editors can add and change pages and news, without the site's settings.
-  demo_roles: Editor
-  try_it: yes
-  try_hint: look around the sample intranet (its sample pages are in German) and edit a page or add a news item

@@ -184,8 +184,7 @@ What it takes:
    Hetzner steps, and follows Plone in a Box's releases by itself.
 
 The ["Try It" guide](docs/try-it-buttons.md) has the details, and how to make the buttons yourself instead. See
-[the Try It pages](https://collective.github.io/plone-in-a-box/try/), such as
-[kitconcept Intranet's](https://collective.github.io/plone-in-a-box/try/kitconcept-intranet/).
+[the Try It pages](https://collective.github.io/plone-in-a-box/try/).
 
 ## For developers and system administrators
 

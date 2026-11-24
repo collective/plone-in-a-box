@@ -32,20 +32,20 @@ This page is for add-on authors.
    instead of `volto`, `packages` and `addons`, and nothing is built here.
 
    ```yaml
-   - id: kitconcept-intranet
-     name: kitconcept Intranet
-     description: a complete intranet, ready to use
-     url: https://github.com/kitconcept/kitconcept.intranet
-     frontend_image: ghcr.io/kitconcept/kitconcept-intranet-frontend:3.11
-     backend_image: ghcr.io/kitconcept/kitconcept-intranet-backend:3.11
+   - id: my-distribution
+     name: My Distribution
+     description: a short description, as above
+     url: https://github.com/me/my-distribution
+     frontend_image: ghcr.io/me/my-distribution-frontend:1.2
+     backend_image: ghcr.io/me/my-distribution-backend:1.2
      demo_roles: Editor
      try_it: yes
-     try_hint: look around the sample intranet (its sample pages are in German) and edit a page or add a news item
+     try_hint: look around the sample pages and edit one
    ```
 
    The images must be public and built for `linux/amd64`, and the backend image must start like the official
    one ([Custom backend image](setup-guide.md#custom-backend-image) says what that means). Use tags that move with
-   your patch releases, such as `3.11`, so the weekly update installs them. Either image can be left out: a
+   your patch releases, such as `1.2`, so the weekly update installs them. Either image can be left out: a
    frontend image alone runs with the official backend, and a backend image alone with the standard Volto.
 
    The comments at the top of `addons.yml` explain every key.

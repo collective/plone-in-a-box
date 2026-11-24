@@ -1824,12 +1824,15 @@ if [[ -n "$BACKEND_IMAGE" ]]; then
   fi
 fi
 
-if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
+set_admin_password() {
   log "Setting the Zope admin password"
   NEW_ADMIN_PASSWORD="$ADMIN_PASSWORD" compose run --rm --no-deps \
     -e NEW_ADMIN_PASSWORD -e ADDONS= \
     -v "$APP_DIR/set_admin_password.py:/app/scripts/set_admin_password.py:ro" \
     backend run /app/scripts/set_admin_password.py
+}
+if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
+  set_admin_password
 fi
 
 log "Creating the Plone site (skipped if it already exists)"
@@ -1861,13 +1864,32 @@ then
 else
   rm -f "$APP_DIR/site-answers.json"
 fi
-compose run --rm --no-deps -e ADDONS= \
-  -e SITE_ID=Plone \
-  -e TIMEZONE="$SITE_TIMEZONE" -e SITE_PORTAL_TIMEZONE="$SITE_TIMEZONE" \
-  -e SITE_DEFAULT_LANGUAGE="$SITE_LANGUAGE" -e SITE_AVAILABLE_LANGUAGES="$SITE_LANGUAGE" \
-  -e SETUP_CONTENT="$content" -e SITE_SETUP_SOLR=false \
-  "${ANSWERS_MOUNT[@]}" "${SITE_ENV[@]}" \
-  backend create-site
+create_site() {
+  compose run --rm --no-deps -e ADDONS= \
+    -e SITE_ID=Plone \
+    -e TIMEZONE="$SITE_TIMEZONE" -e SITE_PORTAL_TIMEZONE="$SITE_TIMEZONE" \
+    -e SITE_DEFAULT_LANGUAGE="$SITE_LANGUAGE" -e SITE_AVAILABLE_LANGUAGES="$SITE_LANGUAGE" \
+    -e SETUP_CONTENT="$content" -e SITE_SETUP_SOLR=false \
+    "${ANSWERS_MOUNT[@]}" "${SITE_ENV[@]}" \
+    backend create-site
+}
+# A backend image whose create-site fails (it reads its settings differently,
+# or has a bug) is replaced by the official backend, on a fresh database.
+# Only on a new server: when setup runs again, the database may hold a site.
+if ! create_site; then
+  if [[ -z "$BACKEND_IMAGE" || "$NEW_ADMIN_PASSWORD_SET" != 0 ]]; then
+    log "Creating the site failed (see above)"
+    false
+  fi
+  backend_fallback "The backend image ${BACKEND_IMAGE} couldn't create the site"
+  ANSWERS_MOUNT=()
+  rm -f "$APP_DIR/site-answers.json"
+  compose pull --quiet backend
+  log "Emptying the database, to start again with the official backend"
+  compose exec -T db psql -q -U plone -d postgres -c 'DROP DATABASE plone' -c 'CREATE DATABASE plone OWNER plone'
+  set_admin_password
+  create_site
+fi
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && ( -n "$IMAGE_ADDONS" || -n "$IMAGE_BEHAVIORS" ) ]]; then
   log "Activating what the frontend image needs: ${IMAGE_ADDONS} ${IMAGE_BEHAVIORS}"

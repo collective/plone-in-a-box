@@ -411,8 +411,8 @@ def index_page(entries):
         f'<li><a href="{html.escape(e["id"])}/">{html.escape(e["name"])}</a>: {html.escape(e["description"])}</li>'
         for e in entries if e["try_it"] == "yes")
     body = f"""<h1>Try a Plone add-on</h1>
-<p class="lead">Your own Plone 6 site with one of these add-ons or distributions, and a demo login to share, in
-about 10 minutes, on a cloud server of your own.</p>
+<p class="lead">Your own Plone 6 site with one of these add-ons, and a demo login to share, in about 10 minutes, on
+a cloud server of your own.</p>
 <ul>
 {items}
 </ul>

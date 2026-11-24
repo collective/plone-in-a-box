@@ -1,19 +1,21 @@
 2.22 (unreleased)
 -----------------
 
-- **Try kitconcept Intranet**: a Try It page for kitconcept's intranet, a
-  Plone distribution, at
-  https://collective.github.io/plone-in-a-box/try/kitconcept-intranet/. The
-  catalog (`addons.yml`) takes ready-made images now, `frontend_image` and
-  `backend_image`, for add-ons and distributions whose makers publish their
-  own images: nothing is built for them, and their Try It page fills in both
-  images. "Try It" buttons explains them.
+- **Try It for ready-made images**: the catalog (`addons.yml`) takes
+  `frontend_image` and `backend_image`, for add-ons and Plone distributions
+  whose makers publish their own images: nothing is built for them, and their
+  Try It page fills in both images. "Try It" buttons explains them.
 - **Fixed: Plone distributions failed to set up.** Since 2.21, setup sent
   `SITE_SETUP_CONTENT`, which kitconcept's images can't read: creating the
   site stopped with an error, for the intranet and anything built on
   kitconcept.core. Setup now gives a distribution's image a copy of its own
   answers file (`/app/scripts/default.json`) with the starter content
   setting and no Solr, so Starter content `no` works for them too.
+- **A backend image that can't create the site** no longer stops setup: on a
+  new server, setup empties the database and creates the site with the
+  official Plone backend instead, and the credentials file says why. As
+  before, a backend image that can't be pulled or doesn't start is replaced
+  the same way.
 
 2.21 (2026-11-24)
 -----------------
