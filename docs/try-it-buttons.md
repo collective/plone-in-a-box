@@ -26,9 +26,31 @@ This page is for add-on authors.
    ```
 
    A backend-only add-on needs no image: leave out `volto`, `packages` and `addons`, and setup installs
-   `backend_addons` on the site. The comments at the top of `addons.yml` explain every key.
+   `backend_addons` on the site.
+
+   **Ready-made images**, such as a Plone distribution's, which you build and publish yourself: give the images
+   instead of `volto`, `packages` and `addons`, and nothing is built here.
+
+   ```yaml
+   - id: my-distribution
+     name: My Distribution
+     description: a short description, as above
+     url: https://github.com/me/my-distribution
+     frontend_image: ghcr.io/me/my-distribution-frontend:1.2
+     backend_image: ghcr.io/me/my-distribution-backend:1.2
+     demo_roles: Editor
+     try_it: yes
+     try_hint: look around the sample pages and edit one
+   ```
+
+   The images must be public and built for `linux/amd64`, and the backend image must start like the official
+   one ([Custom backend image](setup-guide.md#custom-backend-image) says what that means). Use tags that move with
+   your patch releases, such as `1.2`, so the weekly update installs them. Either image can be left out: a
+   frontend image alone runs with the official backend, and a backend image alone with the standard Volto.
+
+   The comments at the top of `addons.yml` explain every key.
 2. **When it's merged**, Plone in a Box builds your add-on's frontend image (`ghcr.io/collective/plone-in-a-box-frontend:19-my-addon`,
-   rebuilt every week), and publishes its Try It page at
+   rebuilt every week; not for ready-made images), and publishes its Try It page at
    `https://collective.github.io/plone-in-a-box/try/my-addon/`, with:
    * a Launch Stack link for AWS, with your add-on and the demo login filled in;
    * the Linode steps, and the lines to paste on DigitalOcean and Hetzner, for the current release;
@@ -106,7 +128,7 @@ The Launch Stack link can fill in the template's parameters: add `&param_<Name>=
 https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&stackName=plone-in-a-box&param_FrontendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-frontend%3A19-juizi-dashboard&param_DemoUser=demo
 ```
 
-The parameters are `FrontendImage`, `Addons`, `DemoUser` and `DemoRoles` (for example `param_DemoRoles=Editor`;
+The parameters are `FrontendImage`, `BackendImage`, `Addons`, `DemoUser` and `DemoRoles` (for example `param_DemoRoles=Editor`;
 by default, the image's suggestion or Site Administrator). The person still sets the admin password and the server size, then clicks
 **Create stack**.
 
@@ -123,7 +145,7 @@ export DEMO_USER='demo'
 curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.21/src/StackScript && bash /root/plone-in-a-box.sh
 ```
 
-Add `export DEMO_PASSWORD='...'` to choose the demo login's password (at least 12 characters), `export DEMO_ROLES='Editor'` to set the roles here, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
+Add `export DEMO_PASSWORD='...'` to choose the demo login's password (at least 12 characters), `export DEMO_ROLES='Editor'` to set the roles here, `export BACKEND_IMAGE='...'` for a backend image, or `export ADDONS='PKG==1.2.3'` for backend add-ons. The rest of
 the steps are in the [setup guide](setup-guide.md#option-c-digitalocean).
 
 ### The buttons

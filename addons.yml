@@ -28,6 +28,12 @@
 #   demo_roles      the demo login's roles, separated by commas: the narrowest
 #                   that show the add-on off. Empty: Site Administrator
 #
+#   Ready-made images, published by someone else (a Plone distribution, or a
+#   project with its own build), instead of packages: nothing is built here.
+#   Use tags that move with patch releases, such as 1.2:
+#   frontend_image  the frontend image, registry/owner/name:tag
+#   backend_image   the backend image, registry/owner/name:tag
+#
 #   For a Try It page:
 #   try_it          yes
 #   try_hint        what to do after logging in as demo ("open Activity in the
