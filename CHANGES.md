@@ -1,5 +1,12 @@
-2.23 (unreleased)
+2.23 (2026-11-25)
 -----------------
+
+Your site can now use private images: give the login for their registry
+when you create the server, and setup and the weekly updates use it. Setup
+also checks your site's domain, your email's domain and the server's IP
+address against the public blocklists mail services use, and the weekly
+report tells you if a domain gets listed, so email that lands in spam has a
+reason you can act on. Plone Aurora now runs on Arm servers too.
 
 - **Private images**: the new **Registry username** and **Registry token**
   settings log in to the registry of a private frontend or backend image,
