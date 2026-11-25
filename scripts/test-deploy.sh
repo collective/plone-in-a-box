@@ -43,6 +43,10 @@
 #   --backend-image IMAGE  use this backend image (a Plone distribution, say),
 #                          then check the backend runs it, also after the
 #                          restarts
+#   --registry-user USER   log in to the images' registry as USER, with the
+#                          token in the Keychain as piab-registry-token (for
+#                          private images), then check the login worked and the
+#                          token isn't in the setup log or credentials file
 #   --expect-backend-fallback
 #                          with --backend-image: expect setup to use the
 #                          official Plone backend instead (an image that can't
@@ -134,7 +138,7 @@ esac
 LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
-PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 SITE_LANGUAGE="" NO_STARTER=0 REAL_CERT=0 UPDATES=0 NOTIFY_URL="" MAIL_TO=""
+PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 SITE_LANGUAGE="" NO_STARTER=0 REAL_CERT=0 UPDATES=0 NOTIFY_URL="" MAIL_TO="" REGISTRY_USER="" REGISTRY_TOKEN=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
@@ -165,6 +169,7 @@ while (( $# )); do
     --frontend-image) FRONTEND_IMAGE=${2:?--frontend-image needs a value}; shift ;;
     --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
     --backend-image) BACKEND_IMAGE=${2:?--backend-image needs a value}; shift ;;
+    --registry-user) REGISTRY_USER=${2:?--registry-user needs a value}; shift ;;
     --site-language) SITE_LANGUAGE=${2:?--site-language needs a value}; shift ;;
     --no-starter-content) NO_STARTER=1 ;;
     --real-cert) REAL_CERT=1 ;;
@@ -217,6 +222,11 @@ if [[ -n "$MAIL_TO" ]]; then
   EMAIL_FROM=${PIAB_TEST_EMAIL_FROM:-$(keychain_token piab-email-from || true)}
   [[ -n "$SMTP_USER" && -n "$SMTP_PASSWORD" && -n "$EMAIL_FROM" ]] \
     || die "--mail needs piab-smtp-user, piab-smtp-password and piab-email-from in the Keychain"
+fi
+if [[ -n "$REGISTRY_USER" ]]; then
+  [[ "$REGISTRY_USER" =~ ^[A-Za-z0-9._-]+$ ]] || die "--registry-user: letters, digits, . _ - only"
+  REGISTRY_TOKEN=$(keychain_token piab-registry-token || true)
+  [[ "$REGISTRY_TOKEN" =~ ^[A-Za-z0-9._-]+$ ]] || die "--registry-user needs a token in the Keychain as piab-registry-token"
 fi
 TOKEN=""
 if [[ "$PROVIDER" == linode ]]; then
@@ -410,6 +420,7 @@ launcher() {
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
       ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
       ${BACKEND_IMAGE:+"export BACKEND_IMAGE='$BACKEND_IMAGE'"} \
+      ${REGISTRY_USER:+"export REGISTRY_USER='$REGISTRY_USER'" "export REGISTRY_TOKEN='$REGISTRY_TOKEN'"} \
       ${SITE_LANGUAGE:+"export SITE_LANGUAGE='$SITE_LANGUAGE'"} \
       ${STARTER_CONTENT:+"export STARTER_CONTENT='$STARTER_CONTENT'"} \
       ${STAGING:+"export LETSENCRYPT_STAGING='yes'"} \
@@ -426,6 +437,8 @@ launcher() {
           -e "s|^export ADDONS=''$|export ADDONS='${ADDONS//&/\\&}'|" \
           -e "s|^export FRONTEND_IMAGE=''$|export FRONTEND_IMAGE='$FRONTEND_IMAGE'|" \
           -e "s|^export BACKEND_IMAGE=''$|export BACKEND_IMAGE='$BACKEND_IMAGE'|" \
+          -e "s|^export REGISTRY_USER=''$|export REGISTRY_USER='$REGISTRY_USER'|" \
+          -e "s|^export REGISTRY_TOKEN=''$|export REGISTRY_TOKEN='$REGISTRY_TOKEN'|" \
           -e "s|^export SITE_LANGUAGE='en'$|export SITE_LANGUAGE='${SITE_LANGUAGE:-en}'|" \
           -e "s|^export STARTER_CONTENT='yes'$|export STARTER_CONTENT='${STARTER_CONTENT:-yes}'|" \
           -e "s|^export DEMO_USER=''$|export DEMO_USER='$DEMO_USER'|" \
@@ -443,6 +456,8 @@ launcher() {
     || die "couldn't set FRONTEND_IMAGE in src/user-data.sh"
   [[ -z "$BACKEND_IMAGE" ]] || grep -qF "export BACKEND_IMAGE='$BACKEND_IMAGE'" <<<"$text" \
     || die "couldn't set BACKEND_IMAGE in src/user-data.sh"
+  [[ -z "$REGISTRY_USER" ]] || grep -qF "export REGISTRY_TOKEN='$REGISTRY_TOKEN'" <<<"$text" \
+    || die "couldn't set REGISTRY_USER and REGISTRY_TOKEN in src/user-data.sh"
   [[ -z "$NOTIFY_URL" ]] || grep -qF "export NOTIFY_URL='$NOTIFY_URL'" <<<"$text" \
     || die "couldn't set NOTIFY_URL in src/user-data.sh"
   [[ -z "$DEMO_USER" ]] || grep -qF "export DEMO_USER='$DEMO_USER'" <<<"$text" \
@@ -484,13 +499,13 @@ if [[ "$PROVIDER" == linode ]]; then
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
-      --arg frontend "$FRONTEND_IMAGE" --arg backend "$BACKEND_IMAGE" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
+      --arg frontend "$FRONTEND_IMAGE" --arg backend "$BACKEND_IMAGE" --arg reg_user "$REGISTRY_USER" --arg reg_token "$REGISTRY_TOKEN" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
       --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
       --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
-        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, BACKEND_IMAGE: $backend, SITE_LANGUAGE: $lang, STARTER_CONTENT: $content, DEMO_USER: $demo,
+        stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, BACKEND_IMAGE: $backend, REGISTRY_USER: $reg_user, REGISTRY_TOKEN: $reg_token, SITE_LANGUAGE: $lang, STARTER_CONTENT: $content, DEMO_USER: $demo,
             DEMO_PASSWORD: $demopw, DEMO_ROLES: $roles, NOTIFY_URL: $notify,
             SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
             EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email}
@@ -569,11 +584,11 @@ else
     git show "$SHA:src/aws/cloudformation.yaml" > "$WORK/cloudformation.yaml"
     jq -n --arg pw "$ADMIN_PASSWORD" --arg key "$key_name" --arg release "$SHA" \
         --arg type "${PIAB_AWS_INSTANCE_TYPE:-t3.small}" --arg addons "$ADDONS" --arg frontend "$FRONTEND_IMAGE" \
-        --arg backend "$BACKEND_IMAGE" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
+        --arg backend "$BACKEND_IMAGE" --arg reg_user "$REGISTRY_USER" --arg reg_token "$REGISTRY_TOKEN" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
         --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
         --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{AdminPassword: $pw, KeyName: $key, Release: $release, InstanceType: $type, Addons: $addons,
-        FrontendImage: $frontend, BackendImage: $backend, SiteLanguage: $lang, StarterContent: $content, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
+        FrontendImage: $frontend, BackendImage: $backend, RegistryUser: $reg_user, RegistryToken: $reg_token, SiteLanguage: $lang, StarterContent: $content, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
         SmtpHost: $smtp_host, SmtpPort: $smtp_port, SmtpUser: $smtp_user, SmtpPassword: $smtp_password,
         EmailFrom: $email_from, ReportEmail: $report_email}
        | to_entries | map(select(.value != "") | {ParameterKey: .key, ParameterValue: .value})' \
@@ -850,6 +865,13 @@ fi
 if (( NO_STARTER )); then
   say "      items at the site root: $(site_items "$NEW_PASSWORD")"
   check "the site was created without starter content" test "$(site_items "$NEW_PASSWORD")" = 0
+fi
+if [[ -n "$REGISTRY_USER" ]]; then
+  grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'registry\|logged in to\|logging in to' | sed 's/^/      /' || true
+  check "setup logged in to the registry as $REGISTRY_USER" rssh "grep -qF 'Registry:  logged in to' /root/plone-credentials.txt"
+  check "Docker keeps the registry login for updates" rssh "test -s /root/.docker/config.json && grep -q '\"auths\"' /root/.docker/config.json"
+  check "the registry token isn't in the setup log or credentials file" \
+    rssh "! grep -qF -- $(printf '%q' "$REGISTRY_TOKEN") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
 fi
 if (( BACKEND_FALLBACK )); then
   grep '^\[plone-in-a-box\]' "$WORK/setup.log" | grep -i 'backend image' | sed 's/^/      /' || true

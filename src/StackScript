@@ -22,6 +22,8 @@
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
 # <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
 # <UDF name="BACKEND_IMAGE" label="Backend image, optional: replaces the official Plone backend, for example a Plone distribution such as ghcr.io/kitconcept/kitconcept-intranet-backend:3.11 (with its frontend image above), or your own project's. Empty: the official Plone backend" default="" />
+# <UDF name="REGISTRY_USER" label="Registry login for private images, optional: the username for the registry of the frontend and backend images above, for example your GitHub username for ghcr.io" default="" />
+# <UDF name="REGISTRY_TOKEN" label="Registry token: a read-only access token for that registry, such as a GitHub token with only read:packages" default="" />
 # <UDF name="DEMO_USER" label="Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password" default="" />
 # <UDF name="DEMO_PASSWORD" label="Demo login password, optional, at least 12 characters. Leave empty to have one generated and saved next to the admin password" default="" />
 # <UDF name="DEMO_ROLES" label="Roles of the demo login, optional, separated by commas, for example Editor or Site Administrator. Empty: what the frontend image suggests, or Site Administrator" default="" />
@@ -87,6 +89,12 @@ FRONTEND_IMAGE="$(printf '%s' "${FRONTEND_IMAGE:-}" | tr -d ' \t\r\n')"
 # Plone distribution or a project made with cookieplone. It has to start like
 # the official image (create-site, run, pack); setup checks that it does.
 BACKEND_IMAGE="$(printf '%s' "${BACKEND_IMAGE:-}" | tr -d ' \t\r\n')"
+# Registry login for private frontend or backend images: one username and
+# token for the registries those images are on. The token is never logged;
+# Docker keeps the login in /root/.docker/config.json, so updates can pull the
+# images too.
+REGISTRY_USER="$(printf '%s' "${REGISTRY_USER:-}" | tr -d ' \t\r\n')"
+REGISTRY_TOKEN="$(printf '%s' "${REGISTRY_TOKEN:-}" | tr -d ' \t\r\n')"
 # Demo login: an extra Plone user, created once at setup, for letting other
 # people try the site (DEMO_USER, with the roles DEMO_ROLES, separated by
 # commas). Empty: the roles the frontend image's label suggests, or Site
@@ -305,7 +313,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL LETSENCRYPT_STAGING STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL LETSENCRYPT_STAGING STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -1740,6 +1748,35 @@ backend_fallback() {  # backend_fallback <what happened>
   SITE_ENV=()
   sed -i "s/^BACKEND_IMAGE=.*/BACKEND_IMAGE=''/" "$APP_DIR/.env"
 }
+# Log in to the registries of private images, with the one login given.
+REGISTRY_LINE=""
+if [[ -n "$REGISTRY_USER" && -n "$REGISTRY_TOKEN" ]]; then
+  registries=""
+  for image in "$FRONTEND_IMAGE" "$BACKEND_IMAGE"; do
+    [[ -n "$image" ]] || continue
+    host=${image%%/*}
+    # Docker Hub images (owner/name:tag) don't name their registry.
+    if [[ "$image" != */* || ( "$host" != *.* && "$host" != *:* && "$host" != localhost ) ]]; then
+      host=docker.io
+    fi
+    [[ " $registries " == *" $host "* ]] || registries+="${registries:+ }$host"
+  done
+  for host in $registries; do
+    if printf '%s' "$REGISTRY_TOKEN" | docker login "$host" --username "$REGISTRY_USER" --password-stdin >/dev/null 2>&1; then
+      log "Logged in to ${host} as ${REGISTRY_USER}"
+      REGISTRY_LINE+="${REGISTRY_LINE:+$'\n'}Registry:  logged in to ${host} as ${REGISTRY_USER}, for pulling the images (the login is in /root/.docker/config.json)"
+    else
+      log "Logging in to ${host} as ${REGISTRY_USER} failed: check the username and token"
+      REGISTRY_LINE+="${REGISTRY_LINE:+$'\n'}Registry:  logging in to ${host} as ${REGISTRY_USER} failed, so its private images couldn't be pulled: check the username and token"
+    fi
+  done
+  [[ -n "$registries" ]] || log "Not logging in to a registry: there's no frontend or backend image"
+elif [[ -n "$REGISTRY_USER$REGISTRY_TOKEN" ]]; then
+  log "Not logging in to a registry: it needs both the registry username and the token"
+  REGISTRY_LINE="Registry:  not logged in: it needs both the username and the token"
+fi
+export -n REGISTRY_TOKEN
+
 if [[ -n "$BACKEND_IMAGE" ]]; then
   log "Pulling the backend image ${BACKEND_IMAGE}"
   if docker pull --quiet "$BACKEND_IMAGE"; then
@@ -2222,6 +2259,7 @@ ${PASSWORD_NOTE}
 ${ADDONS_LINE}${ADDONS_NOTE}
 ${FRONTEND_IMAGE:+Frontend image: ${FRONTEND_IMAGE}}${FRONTEND_NOTE}
 ${BACKEND_IMAGE:+Backend image: ${BACKEND_IMAGE}}${BACKEND_NOTE}
+${REGISTRY_LINE}
 Language:  ${SITE_LANGUAGE}${CONTENT_NOTE}${LANGUAGE_NOTE:+ ($LANGUAGE_NOTE)}
 ${DEMO_LINE}
 ${UPDATES_LINE}
