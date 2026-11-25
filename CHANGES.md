@@ -1,3 +1,29 @@
+2.22 (unreleased)
+-----------------
+
+- **Try It for ready-made images**: the catalog (`addons.yml`) takes
+  `frontend_image` and `backend_image`, for add-ons and Plone distributions
+  whose makers publish their own images: nothing is built for them, and their
+  Try It page fills in both images. "Try It" buttons explains them.
+- **Fixed: Plone distributions failed to set up.** Since 2.21, setup sent
+  `SITE_SETUP_CONTENT`, which kitconcept's images can't read: creating the
+  site stopped with an error, for the intranet and anything built on
+  kitconcept.core. Setup now gives a distribution's image a copy of its own
+  answers file (`/app/scripts/default.json`) with the starter content
+  setting and no Solr, so Starter content `no` works for them too.
+- **A backend image that can't create the site** no longer stops setup: on a
+  new server, setup empties the database and creates the site with the
+  official Plone backend instead, and the credentials file says why. As
+  before, a backend image that can't be pulled or doesn't start is replaced
+  the same way.
+- **Try Plone Aurora**, the new React frontend for Plone, still in
+  development: a Try It page with the `plone/aurora` image and a new
+  ready-made backend image, `ghcr.io/collective/plone-in-a-box-backend:6.2-aurora`
+  (Plone 6.2 with the newer `plone.restapi` and `plone.volto` Aurora needs,
+  and its `plone.volto:aurora` profile), built weekly by GitHub Actions.
+  The frontend gets `PLONE_API_PATH`, so an Aurora frontend image finds the
+  backend, and the update report names Aurora's version instead of Volto's.
+
 2.21 (2026-11-24)
 -----------------
 

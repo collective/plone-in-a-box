@@ -1,0 +1,74 @@
+name: Backend images
+
+# Builds the ready-made backend images from backend-image/Dockerfile, and
+# publishes them to ghcr.io/<owner>/plone-in-a-box-backend: the real images
+# from collective/plone-in-a-box, test images from forks (run it by hand on a
+# branch). Pull requests only build. A failed build publishes nothing, so the
+# previous image stays.
+
+on:
+  push:
+    branches: [main]
+    paths: [backend-image/**, .github/workflows/backend-images.yml]
+  pull_request:
+    paths: [backend-image/**, .github/workflows/backend-images.yml]
+  schedule:
+    # Weekly, to pick up Plone patch releases in plone/plone-backend.
+    - cron: "47 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # For Plone Aurora (the aurora entry in addons.yml): Aurora needs
+          # plone.restapi 10.3.0 and plone.volto 6.2.1, newer than Plone 6.2.3
+          # ships, and the plone.volto:aurora profile.
+          - variant: aurora
+            plone: "6.2"
+            packages: "plone.restapi>=10.3.0,<11 plone.volto>=6.2.1,<7"
+            profiles: plone.volto:aurora
+            description: the packages and profile Plone Aurora needs
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/plone-in-a-box-backend
+      TAG: ${{ matrix.plone }}-${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tags
+        id: tags
+        run: |
+          {
+            echo "list<<EOF"
+            echo "$IMAGE:$TAG"
+            echo "$IMAGE:$TAG-$(date -u +%Y-%m-%d)"
+            echo "$IMAGE:$TAG-${GITHUB_SHA::7}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: backend-image
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          pull: true
+          build-args: |
+            PLONE_VERSION=${{ matrix.plone }}
+            PACKAGES=${{ matrix.packages }}
+            PROFILES=${{ matrix.profiles }}
+          tags: ${{ steps.tags.outputs.list }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Plone in a Box backend: plone/plone-backend ${{ matrix.plone }} with ${{ matrix.description }}

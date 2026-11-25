@@ -454,6 +454,8 @@ services:
     image: ${FRONTEND_IMAGE:-plone/plone-frontend:${VOLTO_VERSION}}
     environment:
       RAZZLE_INTERNAL_API_PATH: http://backend:8080/Plone
+      # The same, for a Plone Aurora frontend image.
+      PLONE_API_PATH: http://backend:8080/Plone
     logging: *logging
     restart: unless-stopped
     ports:
@@ -822,9 +824,11 @@ versions() {
   local plone volto pg
   plone=$(compose exec -T backend /app/bin/python -c \
     'from importlib.metadata import version; print(version("Products.CMFPlone"))' 2>/dev/null) || plone="?"
-  volto=$(compose exec -T frontend node -p 'require("@plone/volto/package.json").version' 2>/dev/null) || volto="?"
+  volto=$(compose exec -T frontend node -p 'require("@plone/volto/package.json").version' 2>/dev/null) && volto="Volto ${volto:-?}" \
+    || { volto=$(compose exec -T frontend node -p 'require("@plone/aurora/package.json").version' 2>/dev/null) && volto="Aurora ${volto:-?}"; } \
+    || volto="Volto ?"
   pg=$(compose exec -T db postgres --version 2>/dev/null | awk '{print $3}') || pg="?"
-  echo "Plone ${plone:-?}, Volto ${volto:-?}, PostgreSQL ${pg:-?}"
+  echo "Plone ${plone:-?}, ${volto}, PostgreSQL ${pg:-?}"
 }
 
 site_ok() {
@@ -1824,12 +1828,15 @@ if [[ -n "$BACKEND_IMAGE" ]]; then
   fi
 fi
 
-if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
+set_admin_password() {
   log "Setting the Zope admin password"
   NEW_ADMIN_PASSWORD="$ADMIN_PASSWORD" compose run --rm --no-deps \
     -e NEW_ADMIN_PASSWORD -e ADDONS= \
     -v "$APP_DIR/set_admin_password.py:/app/scripts/set_admin_password.py:ro" \
     backend run /app/scripts/set_admin_password.py
+}
+if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
+  set_admin_password
 fi
 
 log "Creating the Plone site (skipped if it already exists)"
@@ -1840,13 +1847,53 @@ content=true CONTENT_NOTE=""
 if [[ "$STARTER_CONTENT" == no ]]; then
   content=false CONTENT_NOTE=", created without starter content"
 fi
-compose run --rm --no-deps -e ADDONS= \
-  -e SITE_ID=Plone \
-  -e TIMEZONE="$SITE_TIMEZONE" -e SITE_PORTAL_TIMEZONE="$SITE_TIMEZONE" \
-  -e SITE_DEFAULT_LANGUAGE="$SITE_LANGUAGE" -e SITE_AVAILABLE_LANGUAGES="$SITE_LANGUAGE" \
-  -e SETUP_CONTENT="$content" -e SITE_SETUP_CONTENT="$content" -e SITE_SETUP_SOLR=false \
-  "${SITE_ENV[@]}" \
-  backend create-site
+# A distribution's image (kitconcept's, cookieplone projects) reads its
+# answers from /app/scripts/default.json, and its SITE_* variables only change
+# answers that file has; kitconcept's can't take SITE_SETUP_CONTENT at all. So
+# it gets a copy of its own file with the starter content and no Solr.
+ANSWERS_MOUNT=()
+if [[ -n "$BACKEND_IMAGE" ]] \
+  && docker run --rm --entrypoint cat "$BACKEND_IMAGE" /app/scripts/default.json > "$APP_DIR/site-answers.json" 2>/dev/null \
+  && python3 - "$APP_DIR/site-answers.json" "$content" <<'EOF'
+import json, sys
+path, content = sys.argv[1], sys.argv[2] == "true"
+answers = json.load(open(path))
+answers["setup_content"] = content
+if "setup_solr" in answers:
+    answers["setup_solr"] = False
+json.dump(answers, open(path, "w"), indent=2)
+EOF
+then
+  ANSWERS_MOUNT=(-v "$APP_DIR/site-answers.json:/app/scripts/default.json:ro")
+else
+  rm -f "$APP_DIR/site-answers.json"
+fi
+create_site() {
+  compose run --rm --no-deps -e ADDONS= \
+    -e SITE_ID=Plone \
+    -e TIMEZONE="$SITE_TIMEZONE" -e SITE_PORTAL_TIMEZONE="$SITE_TIMEZONE" \
+    -e SITE_DEFAULT_LANGUAGE="$SITE_LANGUAGE" -e SITE_AVAILABLE_LANGUAGES="$SITE_LANGUAGE" \
+    -e SETUP_CONTENT="$content" -e SITE_SETUP_SOLR=false \
+    "${ANSWERS_MOUNT[@]}" "${SITE_ENV[@]}" \
+    backend create-site
+}
+# A backend image whose create-site fails (it reads its settings differently,
+# or has a bug) is replaced by the official backend, on a fresh database.
+# Only on a new server: when setup runs again, the database may hold a site.
+if ! create_site; then
+  if [[ -z "$BACKEND_IMAGE" || "$NEW_ADMIN_PASSWORD_SET" != 0 ]]; then
+    log "Creating the site failed (see above)"
+    false
+  fi
+  backend_fallback "The backend image ${BACKEND_IMAGE} couldn't create the site"
+  ANSWERS_MOUNT=()
+  rm -f "$APP_DIR/site-answers.json"
+  compose pull --quiet backend
+  log "Emptying the database, to start again with the official backend"
+  compose exec -T db psql -q -U plone -d postgres -c 'DROP DATABASE plone' -c 'CREATE DATABASE plone OWNER plone'
+  set_admin_password
+  create_site
+fi
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && ( -n "$IMAGE_ADDONS" || -n "$IMAGE_BEHAVIORS" ) ]]; then
   log "Activating what the frontend image needs: ${IMAGE_ADDONS} ${IMAGE_BEHAVIORS}"

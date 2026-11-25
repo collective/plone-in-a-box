@@ -37,26 +37,25 @@ still deploy with no build step. Add optional settings for people who need more:
   fallback to the official backend, covered by `plone-update`. Tested with kitconcept's intranet distribution
   (`ghcr.io/kitconcept/kitconcept-intranet-backend` and `-frontend`). Public images only so far; still to decide:
   how private registries authenticate (registry URL, username and token as optional fields?).
-  - Then Try It for add-ons that are ready-made images: catalog keys such as `frontend_image:` and `backend_image:`
-    instead of `packages` (CI pulls them, checks they're public, match the Volto/Plone version and have the right
-    labels), and a section in docs/try-it-buttons.md on the three shapes of add-on (backend package, npm packages,
-    ready-made images) and the labels a ready-made frontend image needs. Today an author's own frontend image works
-    only through "Doing it yourself", and a backend image not at all.
-  - **Plone distributions in the catalog** (2026-11-23), once the catalog takes ready-made images, each as its own
-    entry, ideally added by its makers: kitconcept.intranet (`ghcr.io/kitconcept/kitconcept-intranet-backend` and
-    `-frontend`, 3.11; tested in a box: works, sample content in German, no Solr; check what needs Solr and whether
-    1 GB is enough), kitconcept-website (`ghcr.io/kitconcept/kitconcept-website-backend`, 2.2; a public website), and
+  - [x] Try It for ready-made images (2.22): catalog keys `frontend_image:` and `backend_image:` instead of
+    `packages`, documented in docs/try-it-buttons.md. Still to do: CI pulling them to check they're public and
+    amd64, and match the Volto/Plone version.
+  - [x] **Fall back when a backend image can't create the site** (2.22): on a new server, the official backend on
+    a fresh database.
+  - **Plone distributions in the catalog** (2026-11-23), each as its own entry, ideally added by its makers:
+    kitconcept.intranet (set aside 2026-11-24, to add later: the entry was ready on the try-kitconcept-intranet
+    branch, `3.11` and `3.12` both work since 2.22, it fits a 1 GB server, its sample pages are in German, and
+    without Solr search works but suggestions and email/phone search don't; tell kitconcept, who may want to own
+    the entry), then
+    kitconcept-website (`ghcr.io/kitconcept/kitconcept-website-backend`, 2.2; a public website), and
     PortalBrasil Intranet (`ghcr.io/portal-br/intranet-backend` and `-frontend`, 1.0.0; Portuguese; invite the
     portal-br community). Ask kitconcept first: they may want to own the entries (tag, demo roles, hint).
-  - **Showcase Aurora in the catalog** (requested 2026-11-23): Aurora
-    ([github.com/plone/aurora](https://github.com/plone/aurora), demo at aurora.demo.plone.org) is the new React
-    frontend for Plone, the successor to Volto, developed for Plone 7. It replaces Volto rather than adding to it, so
-    it fits the ready-made image path, not the Volto build. Its images are published as
-    [plone/aurora](https://hub.docker.com/r/plone/aurora) on Docker Hub (amd64 and arm64; as of 2026-11-23, alpha
-    releases such as `1.0.0-alpha.26`, every few days, plus `latest` and `sha-...` builds), so a Try It page can pin a
-    release tag. Still to find out: which Plone backend version and packages it needs (does it run against Plone 6.2, or
-    only a Plone 7 pre-release?), what port and settings the image expects compared with `plone-frontend`, and how
-    stable it is today. A Try It page would say clearly that Aurora is in development.
+  - [x] **Plone Aurora in the catalog** (2.22): `plone/aurora` pinned to one alpha release, with
+    `ghcr.io/collective/plone-in-a-box-backend:6.2-aurora` (backend-image/, built weekly). Still to do: move the
+    pinned Aurora release on after trying the next one; drop the newer `plone.restapi` and `plone.volto` from the
+    backend image once a Plone 6.2 release ships them (6.2.4?), keeping the profile; old builds of the backend
+    image aren't deleted yet (scripts/cleanup-frontend-images.py only knows the frontend one); arm64 builds, so
+    Hetzner Arm servers work too.
   - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
     its backend package hides it from Site Setup → Add-ons unless the frontend includes `volto-juizi-dashboard`,
     and (as of 2026-11-19) it isn't on PyPI, so the backend add-ons setting can't install it either.

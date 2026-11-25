@@ -22,7 +22,7 @@ CATALOG = os.path.join(ROOT, "addons.yml")
 PAGES = os.path.join(ROOT, "docs", "try")
 
 KEYS = ("id name description url volto packages addons theme backend_addons site_behaviors demo_roles "
-        "try_it try_hint linode_stackscript").split()
+        "frontend_image backend_image try_it try_hint linode_stackscript").split()
 IMAGE_OWNER = "collective"
 SITE = "https://collective.github.io/plone-in-a-box"
 REPO = "https://github.com/tkimnguyen/plone-in-a-box"
@@ -86,6 +86,27 @@ def image(entry):
     return f"ghcr.io/{IMAGE_OWNER}/plone-in-a-box-frontend:{entry['volto']}-{entry['id']}"
 
 
+def ready_made(entry):
+    """Images someone else publishes, such as a Plone distribution's."""
+    return bool(entry["frontend_image"] or entry["backend_image"])
+
+
+def settings(entry):
+    """What the server needs, in order: (launcher variable, Launch Stack parameter, Linode field, value)."""
+    out = []
+    if has_image(entry):
+        return [("FRONTEND_IMAGE", "FrontendImage", "Frontend image", image(entry))]
+    if entry["frontend_image"]:
+        out.append(("FRONTEND_IMAGE", "FrontendImage", "Frontend image", entry["frontend_image"]))
+    if entry["backend_image"]:
+        out.append(("BACKEND_IMAGE", "BackendImage", "Backend image", entry["backend_image"]))
+    if entry["backend_addons"]:
+        out.append(("ADDONS", "Addons", "Backend add-ons", entry["backend_addons"]))
+    if roles(entry):
+        out.append(("DEMO_ROLES", "DemoRoles", "Roles of the demo login", ", ".join(roles(entry))))
+    return out
+
+
 def problems(entries):
     """What's wrong with the entries, as messages."""
     found, seen = [], set()
@@ -112,8 +133,13 @@ def problems(entries):
                     say(f"packages: {pkg} isn't name@exact.version")
             if not entry["addons"]:
                 say("addons: the Volto add-ons to load")
+            if ready_made(entry):
+                say("frontend_image and backend_image are for images made elsewhere, without packages")
         elif any(entry[k] for k in ("volto", "addons", "theme", "site_behaviors")):
             say("volto, addons, theme and site_behaviors need packages")
+        for key in ("frontend_image", "backend_image"):
+            if entry[key] and not re.fullmatch(r"[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)+:[A-Za-z0-9._-]+", entry[key]):
+                say(f"{key}: an image name with its registry and a tag, such as ghcr.io/owner/name:1.2")
         for pkg in entry["backend_addons"].split():
             if not re.fullmatch(r"[A-Za-z0-9._-]+(\[[A-Za-z0-9,._-]+\])?==[0-9][0-9A-Za-z.+!-]*", pkg):
                 say(f"backend_addons: {pkg} isn't name==exact.version")
@@ -128,8 +154,8 @@ def problems(entries):
         if entry["try_it"] not in ("", "yes", "no"):
             say("try_it: yes or no")
         if entry["try_it"] == "yes":
-            if not (has_image(entry) or entry["backend_addons"]):
-                say("try_it needs packages or backend_addons")
+            if not (has_image(entry) or ready_made(entry) or entry["backend_addons"]):
+                say("try_it needs packages, backend_addons, frontend_image or backend_image")
             if not entry["try_hint"]:
                 say("try_hint: what to do after logging in as demo")
             elif re.search(r"[<>`]", entry["try_hint"]):
@@ -256,12 +282,7 @@ def copyable(text):
 
 def aws_link(entry):
     params = {"DemoUser": "demo"}
-    if has_image(entry):
-        params["FrontendImage"] = image(entry)
-    else:
-        params["Addons"] = entry["backend_addons"]
-        if roles(entry):
-            params["DemoRoles"] = ", ".join(roles(entry))
+    params.update((param, value) for _var, param, _field, value in settings(entry))
     query = "".join(f"&param_{k}={quote(v, safe='')}" for k, v in params.items())
     return ("https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review"
             f"?templateURL={quote(TEMPLATE_URL, safe='')}&stackName={entry['id']}-demo{query}")
@@ -271,19 +292,13 @@ def try_page(entry, version):
     e = {k: html.escape(v) for k, v in entry.items()}
     name = e["name"]
     role_text = ", ".join(roles(entry)) or "Site Administrator"
-    image_entry = has_image(entry)
     linode_ss = entry["linode_stackscript"] or LINODE_STACKSCRIPT
     linode_url = f"https://cloud.linode.com/stackscripts/{linode_ss}"
 
     fields = [("Plone admin password", "a password of at least 12 characters, for you")]
     if not entry["linode_stackscript"]:
         fields.append(("Demo login", "<code>demo</code>"))
-        if image_entry:
-            fields.append(("Frontend image", f"<code>{html.escape(image(entry))}</code>"))
-        else:
-            fields.append(("Backend add-ons", f"<code>{e['backend_addons']}</code>"))
-            if roles(entry):
-                fields.append(("Roles of the demo login", f"<code>{html.escape(role_text)}</code>"))
+        fields += [(field, f"<code>{html.escape(value)}</code>") for _var, _param, field, value in settings(entry)]
     fields.append(("Demo login password", "at least 12 characters, for the people you let try it"))
     rows = "\n".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in fields)
     if entry["linode_stackscript"]:
@@ -308,16 +323,15 @@ set a root password, and click <strong>Create Linode</strong>.</li>
 </ol>"""
 
     lines = ["#!/bin/bash", "export ADMIN_PASSWORD='CHANGE-ME'"]
-    if image_entry:
-        lines.append(f"export FRONTEND_IMAGE='{image(entry)}'")
-    else:
-        lines.append(f"export ADDONS='{entry['backend_addons']}'")
-        if roles(entry):
-            lines.append(f"export DEMO_ROLES='{role_text}'")
+    lines += [f"export {var}='{value}'" for var, _param, _field, value in settings(entry)]
     lines += ["export DEMO_USER='demo'", "export DEMO_PASSWORD='CHANGE-ME-TOO'",
               "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh "
               f"https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/{version}/src/StackScript"
               " && bash /root/plone-in-a-box.sh"]
+
+    arm_note = ("" if not ready_made(entry) else f"""
+<p class="note">On Hetzner, choose an <strong>x86</strong> server type (Intel or AMD), not Arm: {name}'s images
+are made for x86.</p>""")
 
     page_url = f"{SITE}/try/{entry['id']}/"
     badge = (f"[![Try It in Plone in a Box](https://img.shields.io/badge/Try%20It-Plone%20in%20a%20Box-0083be)]"
@@ -372,7 +386,7 @@ delete the stack.</p>
 Startup scripts</strong> (DigitalOcean) or <strong>Cloud config</strong> (Hetzner). Replace
 <code>CHANGE-ME</code> with an admin password and <code>CHANGE-ME-TOO</code> with a demo password, each at least 12
 characters:</p>
-{copyable(chr(10).join(lines))}
+{copyable(chr(10).join(lines))}{arm_note}
 <p class="note">Then open the server's IP address in a browser. More detail:
 <a href="{REPO}/blob/main/docs/setup-guide.md#option-c-digitalocean">DigitalOcean</a>,
 <a href="{REPO}/blob/main/docs/setup-guide.md#option-d-hetzner">Hetzner</a>.</p>
