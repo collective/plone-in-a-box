@@ -74,3 +74,18 @@
   try_it: yes
   try_hint: open Activity in the user menu, make a change to a page, and watch it appear
   linode_stackscript: 2318969
+
+- id: aurora
+  name: Plone Aurora
+  description: the new React frontend for Plone, still in development
+  url: https://github.com/plone/aurora
+  # Aurora is in alpha, with releases every few days that may change a lot:
+  # pinned to one release, moved on by hand after trying the next.
+  frontend_image: plone/aurora:1.0.0-alpha.26
+  # Plone 6.2 with the newer plone.restapi and plone.volto Aurora needs, and
+  # its plone.volto:aurora profile (built by .github/workflows/backend-images.yml).
+  backend_image: ghcr.io/collective/plone-in-a-box-backend:6.2-aurora
+  # Editors can edit the home page and add pages.
+  demo_roles: Editor
+  try_it: yes
+  try_hint: edit the home page with Aurora's new block editor, and add a page of your own

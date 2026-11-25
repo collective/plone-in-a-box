@@ -918,7 +918,7 @@ has_security_headers() {
   h=$(headers "$@")
   grep -qix 'x-frame-options: SAMEORIGIN' <<<"$h" && grep -qix 'x-content-type-options: nosniff' <<<"$h"
 }
-js=$(curl -s -m 20 "$SITE/" | grep -o '/static/js/[^"]*\.js' | head -n 1)
+js=$(curl -s -m 20 "$SITE/" | grep -oE '/(static/js|assets)/[^"]*\.js' | head -n 1)
 check "security headers on pages" has_security_headers "$SITE/"
 check "security headers on the REST API" has_security_headers -H 'Accept: application/json' "$SITE/++api++/"
 check "security headers and compression on JavaScript ($js)" \

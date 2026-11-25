@@ -50,15 +50,12 @@ still deploy with no build step. Add optional settings for people who need more:
     kitconcept-website (`ghcr.io/kitconcept/kitconcept-website-backend`, 2.2; a public website), and
     PortalBrasil Intranet (`ghcr.io/portal-br/intranet-backend` and `-frontend`, 1.0.0; Portuguese; invite the
     portal-br community). Ask kitconcept first: they may want to own the entries (tag, demo roles, hint).
-  - **Showcase Aurora in the catalog** (requested 2026-11-23): Aurora
-    ([github.com/plone/aurora](https://github.com/plone/aurora), demo at aurora.demo.plone.org) is the new React
-    frontend for Plone, the successor to Volto, developed for Plone 7. It replaces Volto rather than adding to it, so
-    it fits the ready-made image path, not the Volto build. Its images are published as
-    [plone/aurora](https://hub.docker.com/r/plone/aurora) on Docker Hub (amd64 and arm64; as of 2026-11-23, alpha
-    releases such as `1.0.0-alpha.26`, every few days, plus `latest` and `sha-...` builds), so a Try It page can pin a
-    release tag. Still to find out: which Plone backend version and packages it needs (does it run against Plone 6.2, or
-    only a Plone 7 pre-release?), what port and settings the image expects compared with `plone-frontend`, and how
-    stable it is today. A Try It page would say clearly that Aurora is in development.
+  - [x] **Plone Aurora in the catalog** (2.22): `plone/aurora` pinned to one alpha release, with
+    `ghcr.io/collective/plone-in-a-box-backend:6.2-aurora` (backend-image/, built weekly). Still to do: move the
+    pinned Aurora release on after trying the next one; drop the newer `plone.restapi` and `plone.volto` from the
+    backend image once a Plone 6.2 release ships them (6.2.4?), keeping the profile; old builds of the backend
+    image aren't deleted yet (scripts/cleanup-frontend-images.py only knows the frontend one); arm64 builds, so
+    Hetzner Arm servers work too.
   - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
     its backend package hides it from Site Setup → Add-ons unless the frontend includes `volto-juizi-dashboard`,
     and (as of 2026-11-19) it isn't on PyPI, so the backend add-ons setting can't install it either.
