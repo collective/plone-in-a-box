@@ -184,6 +184,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # site_timezone     = "America/Chicago"
 # site_language     = "de"
 # starter_content   = false
+# backups           = true  # daily disk snapshots, the newest 7 kept (extra cost); see Backups
 # addons            = "collective.easyform"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
 # demo_user         = "demo"   # demo_roles = "Editor"; by default the image's suggestion, or Site Administrator
@@ -350,7 +351,7 @@ This applies to AWS, DigitalOcean and Hetzner. Most owners never run Terraform a
 current with `plone-update` (see [Updates](#updates)), and everything else is done on the server. You might come
 back to the same `src/<provider>/` folder to:
 
-* **Change who can use SSH** (`ssh_allowed_cidrs`), **turn the provider's backups on or off** (`backups`, on DigitalOcean and Hetzner), or
+* **Change who can use SSH** (`ssh_allowed_cidrs`), **turn the provider's backups on or off** (`backups`), or
   **resize the server** (`instance_type` and `volume_size_gb` on AWS, `size` on DigitalOcean, `server_type` on
   Hetzner). Run `terraform apply` with the new value; Terraform changes these on the existing server (resizing
   restarts it).
@@ -424,6 +425,21 @@ scp root@<server>:/var/backups/plone/plone-<date>.sql.gz .
 ```
 
 (On AWS, log in as `ubuntu` instead of `root`, and copy the file to your home directory with `sudo cp` first.)
+
+**Server backups on AWS**: with Terraform, `backups = true` turns on daily snapshots of the server's disk through
+AWS Data Lifecycle Manager, and keeps the newest 7. A server made with **Launch Stack** gets them with a policy you
+make once in the AWS console:
+
+1. **EC2 → Lifecycle Manager → Create lifecycle policy**, then **EBS snapshot policy**.
+2. **Target resource types**: **Instance**. **Target resource tags**: key `Name`, value your stack's name (such as
+   `plone-in-a-box`). **IAM role**: **Default role** (the console makes it if it doesn't exist yet).
+3. **Schedule**: **Daily**, every **24 hours**, starting at `03:00` UTC (after the nightly database backup), with
+   retention by **Count**, `7`. Leave the rest, and **Create policy**.
+
+Snapshots are charged for the space they take (about US$0.05 a GB a month; after the first, each holds only what
+changed), and appear in **EC2 → Snapshots**. To get a server back from one, see AWS's
+[Restore from a snapshot](https://docs.aws.amazon.com/ebs/latest/userguide/ebs-restoring-volume.html). Deleting the
+policy stops new snapshots and leaves the ones taken.
 
 **Copies off the server**: every night's backup can also go to S3-compatible storage, such as Cloudflare R2, AWS S3,
 Backblaze B2, DigitalOcean Spaces or Hetzner Object Storage, encrypted on the server first, so a leaked bucket or key

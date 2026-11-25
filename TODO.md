@@ -90,9 +90,10 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
   daily; patch releases and new versions were already in the weekly update report). Still open: end-of-support
   notices, once there's a reliable source for the dates.
 - [x] **Backups off the server** (2.20): `plone-offsite` sends encrypted copies of the nightly backups to
-  S3-compatible storage. Still open: a `backups` option for AWS (daily EBS
-  snapshots with Data Lifecycle Manager); back up `/opt/plone` and the nginx site file too; warn in the update report
-  when the newest backup is too old.
+  S3-compatible storage. The server's settings (`/opt/plone` and the nginx site) are
+  saved next to each backup, and the update report warns when the newest backup is more than two days old. AWS
+  server backups (2.24): Terraform `backups` (daily EBS snapshots through Data Lifecycle Manager), and the console
+  steps for Launch Stack servers, documented. Not in the template, which would then need IAM acknowledgment.
 - [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where
   the data would go on a single small server.
 - [ ] **Other Plone best practices.** Review the box against current Plone deployment recommendations

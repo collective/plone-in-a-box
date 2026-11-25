@@ -1,3 +1,12 @@
+2.24 (unreleased)
+-----------------
+
+- **Server backups on AWS**: Terraform's new `backups` setting turns on
+  daily snapshots of the server's disk through AWS Data Lifecycle Manager,
+  the newest 7 kept, as `backups` does on DigitalOcean and Hetzner. For
+  Launch Stack servers, the setup guide gives the steps to make the same
+  policy in the AWS console. ("Backups" in the setup guide.)
+
 2.23 (2026-11-25)
 -----------------
 
