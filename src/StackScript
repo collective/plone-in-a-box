@@ -781,6 +781,50 @@ curl -fsS -m 30 --retry 3 -o /dev/null -X POST -H "Content-Type: ${type}" -H "Ti
 EOF
 chmod 755 /usr/local/lib/plone-in-a-box/notify
 
+# Looks up the server's IP address and the site's domain names in public
+# blocklists that mail receivers use. Each list is only asked after its test
+# entry answers: some refuse queries through big shared DNS resolvers, and
+# then the answer means nothing.
+cat > /usr/local/lib/plone-in-a-box/blocklists <<'EOF'
+#!/bin/bash
+# Usage: blocklists [--ip ADDRESS] [DOMAIN ...]
+# Prints "LISTED <name> <list> <url>" for each listing and "UNCHECKED <list>"
+# for each list that couldn't be asked. Exit 0: not listed; 1: listed.
+lookup() { getent ahostsv4 "$1" 2>/dev/null | awk 'NR == 1 { print $1 }'; }
+# check <list> <its test entry> <what a listing answers, as a regular
+# expression> <where to read more> <the name to report> <the name to ask>
+check() {
+  local list=$1 test=$2 hit=$3 url=$4 name=$5 query=$6
+  [[ "$(lookup "$test.$list")" =~ $hit ]] || { echo "UNCHECKED $list"; return; }
+  [[ "$(lookup "$query.$list")" =~ $hit ]] && echo "LISTED $name $list $url"
+}
+all() {
+  local ip="" d rev
+  if [[ "${1:-}" == --ip ]]; then ip=$2; shift 2; fi
+  if [[ "$ip" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    rev="${BASH_REMATCH[4]}.${BASH_REMATCH[3]}.${BASH_REMATCH[2]}.${BASH_REMATCH[1]}"
+    # Spamhaus ZEN without its Policy Block List (127.0.0.10 and .11), which
+    # only says an address isn't a mail server's.
+    check zen.spamhaus.org 2.0.0.127 '^127\.0\.0\.[2-9]$' https://check.spamhaus.org/ "$ip" "$rev"
+    check bl.spamcop.net 2.0.0.127 '^127\.0\.0\.2$' "https://www.spamcop.net/bl.shtml?$ip" "$ip" "$rev"
+  fi
+  for d in "$@"; do
+    d=${d,,}; d=${d%.}
+    [[ "$d" =~ ^[a-z0-9-]+(\.[a-z0-9-]+)+$ ]] || continue
+    # The registered domain too (example.org for www.example.org): the lists
+    # name domains more often than single hosts.
+    for name in "$d" $([[ "$d" =~ \.([a-z0-9-]+\.[a-z0-9-]+)$ ]] && echo "${BASH_REMATCH[1]}"); do
+      check dbl.spamhaus.org dbltest.com '^127\.0\.1\.([2-9]|[1-9][0-9]|1[0-9][0-9])$' https://check.spamhaus.org/ "$name" "$name"
+      check multi.surbl.org test.surbl.org '^127\.0\.0\.([2-9]|[1-9][0-9]|1[0-9][0-9]|2[0-5][0-9])$' https://surbl.org/surbl-analysis "$name" "$name"
+    done
+  done
+}
+out=$(all "$@" | awk '!seen[$0]++')
+[[ -n "$out" ]] && printf '%s\n' "$out"
+! grep -q '^LISTED' <<<"$out"
+EOF
+chmod 755 /usr/local/lib/plone-in-a-box/blocklists
+
 # Updates: sudo plone-update, and weekly through plone-update.timer when
 # automatic updates are on. It installs newer images of the same Plone, Volto
 # and PostgreSQL versions (the tags in .env stay as they are), after a
@@ -925,6 +969,14 @@ if systemctl is-enabled --quiet plone-backup.timer 2>/dev/null; then
     NOTICE+="${NOTICE:+ }The newest database backup is from $(date -r "$newest" '+%F'), more than two days ago: check sudo systemctl status plone-backup.timer and /var/log/plone-backup.log."
   fi
 fi
+# The site's domain and the From address's domain on a mail blocklist: email
+# from them, or with links to them, may land in spam.
+site_host=${SITE_URL#*://}; site_host=${site_host%%[:/]*}
+[[ "$site_host" =~ ^[0-9.]+$ ]] && site_host=""
+# shellcheck disable=SC2046,SC2086 # no domain is no argument
+while read -r kind name list url; do
+  [[ "$kind" == LISTED ]] && NOTICE+="${NOTICE:+ }${name} is on the blocklist ${list} (${url}): email from it, or with links to it, may land in spam. That page explains how to have it removed."
+done < <(/usr/local/lib/plone-in-a-box/blocklists $site_host $(cat "$STATE_DIR/email-domain" 2>/dev/null) || true)
 # rclone for copies off the server (plone-offsite), if they're set up, and
 # Certbot for the IP address certificate (plone-https-ip), if it's in use.
 [[ -s "$STATE_DIR/offsite.conf" ]] && docker pull -q rclone/rclone:1 >/dev/null 2>&1
@@ -2219,6 +2271,35 @@ if [[ -n "$SMTP_HOST" && "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
   fi
 fi
 
+# --- Blocklists -----------------------------------------------------------------
+# Mail receivers look up the site's domain and its From address's domain in
+# public blocklists, and a cloud server's IP address can be on one from
+# whoever had it before. Say so in the credentials file if they are.
+BLOCKLIST_LINES=""
+email_domain=""
+if valid_email "$EMAIL_FROM"; then
+  email_domain=${EMAIL_FROM#*@}
+  printf '%s\n' "$email_domain" > /var/lib/plone-in-a-box/email-domain
+fi
+server_ip=$(curl -fsS -4 -m 20 https://ifconfig.me 2>/dev/null || true)
+# shellcheck disable=SC2086 # no domain is no argument
+bl_out=$(/usr/local/lib/plone-in-a-box/blocklists --ip "$server_ip" $DOMAIN $email_domain || true)
+while read -r kind name list url; do
+  case "$kind" in
+    LISTED)
+      if [[ "$name" == "$server_ip" ]]; then
+        line="This server's IP address ${name} is on the blocklist ${list} (${url}). Email sent through an email service isn't affected, but the address has a bad history: you may prefer a new server."
+      else
+        line="${name} is on the blocklist ${list} (${url}): email from it, or with links to it, may land in spam. That page explains how to have it removed."
+      fi
+      log "$line"
+      BLOCKLIST_LINES+="Blocklist: ${line}"$'\n'
+      ;;
+    UNCHECKED) log "Couldn't ask the blocklist ${name} from this server" ;;
+  esac
+done <<<"$bl_out"
+[[ "$bl_out" == *LISTED* ]] || log "Not on the blocklists checked: ${server_ip:-?}${DOMAIN:+, ${DOMAIN}}${email_domain:+, ${email_domain}}"
+
 NL=$'\n'
 # The notification URL works like a password, so only root can read it, and
 # it isn't logged. A first notice says the site is ready, and shows it works.
@@ -2266,7 +2347,7 @@ ${UPDATES_LINE}
 Security:  Plone security announcements are passed on every day, in the login message${NOTIFY_URL:+, at the notification URL}${SMTP_HOST:+ and by email}
 ${NOTIFY_LINE}
 ${MAIL_LINE}
-Store the password in a password manager, then delete this file.
+${BLOCKLIST_LINES}Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF
   umask 022

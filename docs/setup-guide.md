@@ -894,6 +894,17 @@ go to the Site 'From' address, unless `/var/lib/plone-in-a-box/report-email` on 
 
 Either way, password resets and forms then send email. To change the settings later, use **Site Setup → Mail**.
 
+### Blocklists
+
+Receiving mail servers look up domains in public blocklists, and email from a listed domain, or with links to one,
+tends to land in spam. Setup looks up the site's domain and the From address's domain in the Spamhaus domain list
+and SURBL, and the server's IP address in Spamhaus ZEN and SpamCop: a cloud server's address can be on one from
+whoever had it before. The credentials file says if any of them is listed, with the page that explains how to have it
+removed. (A listed IP address doesn't affect email sent through an email service, whose own addresses receivers
+judge; you may still prefer a new server.) The weekly [update](#updates) looks up the domains again, and the report
+says if one has been listed since. Some lists don't answer queries through the big DNS resolvers that cloud
+providers use; those are skipped, and the setup log says which.
+
 ## HTTPS
 
 Every site is on HTTPS, so passwords and everything else travel encrypted:
