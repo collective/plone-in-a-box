@@ -47,6 +47,10 @@
 #                          token in the Keychain as piab-registry-token (for
 #                          private images), then check the login worked and the
 #                          token isn't in the setup log or credentials file
+#   --spamhaus             give the Spamhaus DQS key in the Keychain as
+#                          piab-spamhaus-key, then check Spamhaus answers
+#                          through it, and the key isn't in the setup log or
+#                          credentials file
 #   --expect-backend-fallback
 #                          with --backend-image: expect setup to use the
 #                          official Plone backend instead (an image that can't
@@ -139,7 +143,7 @@ LINODE_STACKSCRIPT_LABEL=plone-in-a-box-test
 SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 SITE_LANGUAGE="" NO_STARTER=0 REAL_CERT=0 UPDATES=0 NOTIFY_URL="" MAIL_TO="" REGISTRY_USER="" REGISTRY_TOKEN=""
-SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM=""
+SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM="" SPAMHAUS=0 SPAMHAUS_KEY=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
@@ -170,6 +174,7 @@ while (( $# )); do
     --expect-frontend-fallback) FRONTEND_FALLBACK=1 ;;
     --backend-image) BACKEND_IMAGE=${2:?--backend-image needs a value}; shift ;;
     --registry-user) REGISTRY_USER=${2:?--registry-user needs a value}; shift ;;
+    --spamhaus) SPAMHAUS=1 ;;
     --site-language) SITE_LANGUAGE=${2:?--site-language needs a value}; shift ;;
     --no-starter-content) NO_STARTER=1 ;;
     --real-cert) REAL_CERT=1 ;;
@@ -227,6 +232,10 @@ if [[ -n "$REGISTRY_USER" ]]; then
   [[ "$REGISTRY_USER" =~ ^[A-Za-z0-9._-]+$ ]] || die "--registry-user: letters, digits, . _ - only"
   REGISTRY_TOKEN=$(keychain_token piab-registry-token || true)
   [[ "$REGISTRY_TOKEN" =~ ^[A-Za-z0-9._-]+$ ]] || die "--registry-user needs a token in the Keychain as piab-registry-token"
+fi
+if (( SPAMHAUS )); then
+  SPAMHAUS_KEY=$(keychain_token piab-spamhaus-key || true)
+  [[ "$SPAMHAUS_KEY" =~ ^[A-Za-z0-9]+$ ]] || die "--spamhaus needs a key in the Keychain as piab-spamhaus-key"
 fi
 TOKEN=""
 if [[ "$PROVIDER" == linode ]]; then
@@ -421,6 +430,7 @@ launcher() {
       ${FRONTEND_IMAGE:+"export FRONTEND_IMAGE='$FRONTEND_IMAGE'"} \
       ${BACKEND_IMAGE:+"export BACKEND_IMAGE='$BACKEND_IMAGE'"} \
       ${REGISTRY_USER:+"export REGISTRY_USER='$REGISTRY_USER'" "export REGISTRY_TOKEN='$REGISTRY_TOKEN'"} \
+      ${SPAMHAUS_KEY:+"export SPAMHAUS_KEY='$SPAMHAUS_KEY'"} \
       ${SITE_LANGUAGE:+"export SITE_LANGUAGE='$SITE_LANGUAGE'"} \
       ${STARTER_CONTENT:+"export STARTER_CONTENT='$STARTER_CONTENT'"} \
       ${STAGING:+"export LETSENCRYPT_STAGING='yes'"} \
@@ -439,6 +449,7 @@ launcher() {
           -e "s|^export BACKEND_IMAGE=''$|export BACKEND_IMAGE='$BACKEND_IMAGE'|" \
           -e "s|^export REGISTRY_USER=''$|export REGISTRY_USER='$REGISTRY_USER'|" \
           -e "s|^export REGISTRY_TOKEN=''$|export REGISTRY_TOKEN='$REGISTRY_TOKEN'|" \
+          -e "s|^export SPAMHAUS_KEY=''$|export SPAMHAUS_KEY='$SPAMHAUS_KEY'|" \
           -e "s|^export SITE_LANGUAGE='en'$|export SITE_LANGUAGE='${SITE_LANGUAGE:-en}'|" \
           -e "s|^export STARTER_CONTENT='yes'$|export STARTER_CONTENT='${STARTER_CONTENT:-yes}'|" \
           -e "s|^export DEMO_USER=''$|export DEMO_USER='$DEMO_USER'|" \
@@ -458,6 +469,8 @@ launcher() {
     || die "couldn't set BACKEND_IMAGE in src/user-data.sh"
   [[ -z "$REGISTRY_USER" ]] || grep -qF "export REGISTRY_TOKEN='$REGISTRY_TOKEN'" <<<"$text" \
     || die "couldn't set REGISTRY_USER and REGISTRY_TOKEN in src/user-data.sh"
+  [[ -z "$SPAMHAUS_KEY" ]] || grep -qF "export SPAMHAUS_KEY='$SPAMHAUS_KEY'" <<<"$text" \
+    || die "couldn't set SPAMHAUS_KEY in src/user-data.sh"
   [[ -z "$NOTIFY_URL" ]] || grep -qF "export NOTIFY_URL='$NOTIFY_URL'" <<<"$text" \
     || die "couldn't set NOTIFY_URL in src/user-data.sh"
   [[ -z "$DEMO_USER" ]] || grep -qF "export DEMO_USER='$DEMO_USER'" <<<"$text" \
@@ -499,7 +512,7 @@ if [[ "$PROVIDER" == linode ]]; then
   body=$(jq -nc --arg region "$REGION" --arg label "$NAME" --arg tag "$TAG" --arg root "$ROOT_PASS" \
       --arg key "$(cat "$SSH_KEY.pub")" --argjson ss "$STACKSCRIPT_ID" --arg pw "$ADMIN_PASSWORD" \
       --arg fw "${PIAB_LINODE_FIREWALL_ID:-}" --arg ubuntu "$UBUNTU" --arg addons "$ADDONS" \
-      --arg frontend "$FRONTEND_IMAGE" --arg backend "$BACKEND_IMAGE" --arg reg_user "$REGISTRY_USER" --arg reg_token "$REGISTRY_TOKEN" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
+      --arg frontend "$FRONTEND_IMAGE" --arg backend "$BACKEND_IMAGE" --arg reg_user "$REGISTRY_USER" --arg reg_token "$REGISTRY_TOKEN" --arg spamhaus "$SPAMHAUS_KEY" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
       --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
       --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
@@ -508,7 +521,7 @@ if [[ "$PROVIDER" == linode ]]; then
         stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, BACKEND_IMAGE: $backend, REGISTRY_USER: $reg_user, REGISTRY_TOKEN: $reg_token, SITE_LANGUAGE: $lang, STARTER_CONTENT: $content, DEMO_USER: $demo,
             DEMO_PASSWORD: $demopw, DEMO_ROLES: $roles, NOTIFY_URL: $notify,
             SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
-            EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email}
+            EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email, SPAMHAUS_KEY: $spamhaus}
           | with_entries(select(.value != ""))),
         booted: true}
        + (if $fw == "" then {} else {firewall_id: ($fw | tonumber)} end)')
@@ -584,13 +597,13 @@ else
     git show "$SHA:src/aws/cloudformation.yaml" > "$WORK/cloudformation.yaml"
     jq -n --arg pw "$ADMIN_PASSWORD" --arg key "$key_name" --arg release "$SHA" \
         --arg type "${PIAB_AWS_INSTANCE_TYPE:-t3.small}" --arg addons "$ADDONS" --arg frontend "$FRONTEND_IMAGE" \
-        --arg backend "$BACKEND_IMAGE" --arg reg_user "$REGISTRY_USER" --arg reg_token "$REGISTRY_TOKEN" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
+        --arg backend "$BACKEND_IMAGE" --arg reg_user "$REGISTRY_USER" --arg reg_token "$REGISTRY_TOKEN" --arg spamhaus "$SPAMHAUS_KEY" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
         --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
         --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       '{AdminPassword: $pw, KeyName: $key, Release: $release, InstanceType: $type, Addons: $addons,
         FrontendImage: $frontend, BackendImage: $backend, RegistryUser: $reg_user, RegistryToken: $reg_token, SiteLanguage: $lang, StarterContent: $content, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
         SmtpHost: $smtp_host, SmtpPort: $smtp_port, SmtpUser: $smtp_user, SmtpPassword: $smtp_password,
-        EmailFrom: $email_from, ReportEmail: $report_email}
+        EmailFrom: $email_from, ReportEmail: $report_email, SpamhausKey: $spamhaus}
        | to_entries | map(select(.value != "") | {ParameterKey: .key, ParameterValue: .value})' \
       > "$WORK/cloudformation-parameters.json"
     say "Creating stack $NAME from src/aws/cloudformation.yaml"
@@ -951,8 +964,17 @@ check "nginx doesn't show its version" bash -c "! curl -s -m 20 -o /dev/null -D 
 bl=$(rssh '/usr/local/lib/plone-in-a-box/blocklists --ip 127.0.0.2 dbltest.com test.surbl.org' || true)
 printf '%s\n' "$bl" | sed 's/^/      /'
 # shellcheck disable=SC2016 # expanded by the inner bash
-check "the blocklist lookup gives every list's test entry as listed or unchecked" \
-  bash -c 'for l in zen.spamhaus.org bl.spamcop.net dbl.spamhaus.org multi.surbl.org; do grep -qE "^(LISTED [^ ]+|UNCHECKED) $l( |\$)" <<<"$1" || exit 1; done' _ "$bl"
+if [[ -n "$SPAMHAUS_KEY" ]]; then
+  check "the blocklist lookup asks Spamhaus through the DQS key, and gives its test entries as listed" \
+    bash -c 'for l in zen.dq.spamhaus.net dbl.dq.spamhaus.net; do grep -qE "^LISTED [^ ]+ $l " <<<"$1" || exit 1; done' _ "$bl"
+  check "the Spamhaus key is only readable by root" rssh "test \"\$(stat -c %a /var/lib/plone-in-a-box/spamhaus-key)\" = 600"
+  check "the blocklist output doesn't show the Spamhaus key" bash -c '! grep -qF -- "$1" <<<"$2"' _ "$SPAMHAUS_KEY" "$bl"
+  check "the Spamhaus key isn't in the setup log or credentials file" \
+    rssh "! grep -qF -- $(printf '%q' "$SPAMHAUS_KEY") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
+else
+  check "the blocklist lookup gives every list's test entry as listed or unchecked" \
+    bash -c 'for l in zen.spamhaus.org bl.spamcop.net dbl.spamhaus.org multi.surbl.org; do grep -qE "^(LISTED [^ ]+|UNCHECKED) $l( |\$)" <<<"$1" || exit 1; done' _ "$bl"
+fi
 check "setup looked up the site in the blocklists" rssh "grep -qiE 'blocklist' /var/log/plone-in-a-box.log"
 
 # --- Server state ---------------------------------------------------------------------

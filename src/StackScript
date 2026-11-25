@@ -35,6 +35,7 @@
 # <UDF name="SMTP_PASSWORD" label="Email: SMTP password" default="" />
 # <UDF name="EMAIL_FROM" label="Email: the site's From address, at a domain the email service has verified, for example plone@example.org" default="" />
 # <UDF name="REPORT_EMAIL" label="Email: your address for a test email and the update reports. Empty: the From address" default="" />
+# <UDF name="SPAMHAUS_KEY" label="Spamhaus DQS key, optional: a free key from spamhaus.com, so the blocklist checks can ask Spamhaus from any cloud provider" default="" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -117,6 +118,11 @@ SMTP_USER="$(printf '%s' "${SMTP_USER:-}" | tr -d '\r\n')"
 SMTP_PASSWORD="$(printf '%s' "${SMTP_PASSWORD:-}" | tr -d '\r\n')"
 EMAIL_FROM="$(printf '%s' "${EMAIL_FROM:-}" | tr -d ' \t\r\n')"
 REPORT_EMAIL="$(printf '%s' "${REPORT_EMAIL:-}" | tr -d ' \t\r\n')"
+# A Spamhaus Data Query Service key: Spamhaus answers the blocklist checks
+# through it from any network, where its public servers refuse big cloud
+# providers' DNS resolvers. It's kept where only root can read it.
+SPAMHAUS_KEY="$(printf '%s' "${SPAMHAUS_KEY:-}" | tr -d ' \t\r\n')"
+SPAMHAUS_KEY="${SPAMHAUS_KEY,,}"
 # Automatic updates (plone-update.timer): on unless set to no.
 case "${AUTO_UPDATE:-yes}" in
   [Nn]|[Nn][Oo]|[Ff]alse|0|[Oo]ff) AUTO_UPDATE=no ;;
@@ -313,7 +319,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL LETSENCRYPT_STAGING STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LETSENCRYPT_STAGING STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -784,7 +790,9 @@ chmod 755 /usr/local/lib/plone-in-a-box/notify
 # Looks up the server's IP address and the site's domain names in public
 # blocklists that mail receivers use. Each list is only asked after its test
 # entry answers: some refuse queries through big shared DNS resolvers, and
-# then the answer means nothing.
+# then the answer means nothing. With a Spamhaus DQS key in
+# /var/lib/plone-in-a-box/spamhaus-key, Spamhaus is asked through it, which
+# works from any network.
 cat > /usr/local/lib/plone-in-a-box/blocklists <<'EOF'
 #!/bin/bash
 # Usage: blocklists [--ip ADDRESS] [DOMAIN ...]
@@ -794,10 +802,16 @@ lookup() { getent ahostsv4 "$1" 2>/dev/null | awk 'NR == 1 { print $1 }'; }
 # check <list> <its test entry> <what a listing answers, as a regular
 # expression> <where to read more> <the name to report> <the name to ask>
 check() {
-  local list=$1 test=$2 hit=$3 url=$4 name=$5 query=$6
-  [[ "$(lookup "$test.$list")" =~ $hit ]] || { echo "UNCHECKED $list"; return; }
-  [[ "$(lookup "$query.$list")" =~ $hit ]] && echo "LISTED $name $list $url"
+  local list=$1 test=$2 hit=$3 url=$4 name=$5 query=$6 shown=${1#"$key".}
+  [[ "$(lookup "$test.$list")" =~ $hit ]] || { echo "UNCHECKED $shown"; return; }
+  [[ "$(lookup "$query.$list")" =~ $hit ]] && echo "LISTED $name $shown $url"
 }
+key=$(tr -cd 'a-z0-9' 2>/dev/null < /var/lib/plone-in-a-box/spamhaus-key)
+if [[ -n "$key" ]]; then
+  zen="$key.zen.dq.spamhaus.net" dbl="$key.dbl.dq.spamhaus.net"
+else
+  zen=zen.spamhaus.org dbl=dbl.spamhaus.org
+fi
 all() {
   local ip="" d rev
   if [[ "${1:-}" == --ip ]]; then ip=$2; shift 2; fi
@@ -805,7 +819,7 @@ all() {
     rev="${BASH_REMATCH[4]}.${BASH_REMATCH[3]}.${BASH_REMATCH[2]}.${BASH_REMATCH[1]}"
     # Spamhaus ZEN without its Policy Block List (127.0.0.10 and .11), which
     # only says an address isn't a mail server's.
-    check zen.spamhaus.org 2.0.0.127 '^127\.0\.0\.[2-9]$' https://check.spamhaus.org/ "$ip" "$rev"
+    check "$zen" 2.0.0.127 '^127\.0\.0\.[2-9]$' https://check.spamhaus.org/ "$ip" "$rev"
     check bl.spamcop.net 2.0.0.127 '^127\.0\.0\.2$' "https://www.spamcop.net/bl.shtml?$ip" "$ip" "$rev"
   fi
   for d in "$@"; do
@@ -814,7 +828,7 @@ all() {
     # The registered domain too (example.org for www.example.org): the lists
     # name domains more often than single hosts.
     for name in "$d" $([[ "$d" =~ \.([a-z0-9-]+\.[a-z0-9-]+)$ ]] && echo "${BASH_REMATCH[1]}"); do
-      check dbl.spamhaus.org dbltest.com '^127\.0\.1\.([2-9]|[1-9][0-9]|1[0-9][0-9])$' https://check.spamhaus.org/ "$name" "$name"
+      check "$dbl" dbltest.com '^127\.0\.1\.([2-9]|[1-9][0-9]|1[0-9][0-9])$' https://check.spamhaus.org/ "$name" "$name"
       check multi.surbl.org test.surbl.org '^127\.0\.0\.([2-9]|[1-9][0-9]|1[0-9][0-9]|2[0-5][0-9])$' https://surbl.org/surbl-analysis "$name" "$name"
     done
   done
@@ -976,6 +990,7 @@ site_host=${SITE_URL#*://}; site_host=${site_host%%[:/]*}
 # shellcheck disable=SC2046,SC2086 # no domain is no argument
 while read -r kind name list url; do
   [[ "$kind" == LISTED ]] && NOTICE+="${NOTICE:+ }${name} is on the blocklist ${list} (${url}): email from it, or with links to it, may land in spam. That page explains how to have it removed."
+  [[ "$kind" == UNCHECKED && "$name" == dbl.dq.spamhaus.net ]] && NOTICE+="${NOTICE:+ }Spamhaus didn't answer through the DQS key in /var/lib/plone-in-a-box/spamhaus-key: check the key."
 done < <(/usr/local/lib/plone-in-a-box/blocklists $site_host $(cat "$STATE_DIR/email-domain" 2>/dev/null) || true)
 # rclone for copies off the server (plone-offsite), if they're set up, and
 # Certbot for the IP address certificate (plone-https-ip), if it's in use.
@@ -2277,6 +2292,14 @@ fi
 # whoever had it before. Say so in the credentials file if they are.
 BLOCKLIST_LINES=""
 email_domain=""
+if [[ -n "$SPAMHAUS_KEY" ]]; then
+  if [[ "$SPAMHAUS_KEY" =~ ^[a-z0-9]{20,40}$ ]]; then
+    (umask 077; printf '%s\n' "$SPAMHAUS_KEY" > /var/lib/plone-in-a-box/spamhaus-key)
+    log "Asking Spamhaus through its Data Query Service, with the key given"
+  else
+    log "Spamhaus DQS key: letters and digits only; asking Spamhaus's public servers instead"
+  fi
+fi
 if valid_email "$EMAIL_FROM"; then
   email_domain=${EMAIL_FROM#*@}
   printf '%s\n' "$email_domain" > /var/lib/plone-in-a-box/email-domain
@@ -2295,7 +2318,16 @@ while read -r kind name list url; do
       log "$line"
       BLOCKLIST_LINES+="Blocklist: ${line}"$'\n'
       ;;
-    UNCHECKED) log "Couldn't ask the blocklist ${name} from this server" ;;
+    UNCHECKED)
+      if [[ "$name" == *.dq.spamhaus.net ]]; then
+        log "Spamhaus didn't answer through the DQS key given: check the key"
+        BLOCKLIST_LINES+="Blocklist: Spamhaus didn't answer through the DQS key given, so ${name} wasn't checked: check the key, and put the right one in /var/lib/plone-in-a-box/spamhaus-key"$'\n'
+      elif [[ "$name" == *.spamhaus.org ]]; then
+        log "Couldn't ask the blocklist ${name} from this server: a free Spamhaus DQS key would let it"
+      else
+        log "Couldn't ask the blocklist ${name} from this server"
+      fi
+      ;;
   esac
 done <<<"$bl_out"
 [[ "$bl_out" == *LISTED* ]] || log "Not on the blocklists checked: ${server_ip:-?}${DOMAIN:+, ${DOMAIN}}${email_domain:+, ${email_domain}}"
