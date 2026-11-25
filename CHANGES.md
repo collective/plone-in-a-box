@@ -1,5 +1,13 @@
-2.22 (unreleased)
+2.22 (2026-11-24)
 -----------------
+
+Try Plone Aurora, the new React frontend for Plone, on a server of your own:
+its Try It page sets up a site with Aurora in about ten minutes. Plone
+distributions, such as kitconcept's intranet, set up again (2.21 broke
+them), and a backend image that can't create the site no longer stops
+setup: the site starts with the official Plone backend instead. Add-on and
+distribution makers who publish their own images can now have a Try It page
+too.
 
 - **Try It for ready-made images**: the catalog (`addons.yml`) takes
   `frontend_image` and `backend_image`, for add-ons and Plone distributions
