@@ -541,7 +541,7 @@ elif [[ "$PROVIDER" == hetzner ]]; then
   SERVER_ID=$(jq -r '.server.id' <<<"$created")
   IP=$(jq -r '.server.public_net.ipv4.ip' <<<"$created")
 elif [[ "$PROVIDER" == digitalocean ]]; then
-  REGION=${PIAB_TEST_REGION:-tor1}
+  REGION=${PIAB_TEST_REGION:-nyc3}
   fingerprint=$(ssh-keygen -l -E md5 -f "$SSH_KEY.pub" | awk '{print $2}' | sed 's/^MD5://')
   if ! api GET "/account/keys/$fingerprint" >/dev/null 2>&1; then
     say "Adding the test SSH key to DigitalOcean"
