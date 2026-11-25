@@ -54,8 +54,8 @@ still deploy with no build step. Add optional settings for people who need more:
     `ghcr.io/collective/plone-in-a-box-backend:6.2-aurora` (backend-image/, built weekly). Still to do: move the
     pinned Aurora release on after trying the next one; drop the newer `plone.restapi` and `plone.volto` from the
     backend image once a Plone 6.2 release ships them (6.2.4?), keeping the profile; old builds of the backend
-    image aren't deleted yet (scripts/cleanup-frontend-images.py only knows the frontend one); arm64 builds, so
-    Hetzner Arm servers work too.
+    image aren't deleted yet (scripts/cleanup-frontend-images.py only knows the frontend one). Arm: the backend image
+    is built for arm64 too (2.23).
   - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
     its backend package hides it from Site Setup → Add-ons unless the frontend includes `volto-juizi-dashboard`,
     and (as of 2026-11-19) it isn't on PyPI, so the backend add-ons setting can't install it either.

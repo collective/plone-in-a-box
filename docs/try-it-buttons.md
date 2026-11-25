@@ -47,6 +47,8 @@ This page is for add-on authors.
    one ([Custom backend image](setup-guide.md#custom-backend-image) says what that means). Use tags that move with
    your patch releases, such as `1.2`, so the weekly update installs them. Either image can be left out: a
    frontend image alone runs with the official backend, and a backend image alone with the standard Volto.
+   If both are built for `linux/arm64` too, add `arm: yes`; otherwise the page tells Hetzner users to choose an x86
+   server.
 
    The comments at the top of `addons.yml` explain every key.
 2. **When it's merged**, Plone in a Box builds your add-on's frontend image (`ghcr.io/collective/plone-in-a-box-frontend:19-my-addon`,

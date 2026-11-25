@@ -1,7 +1,7 @@
 name: Backend images
 
-# Builds the ready-made backend images from backend-image/Dockerfile, and
-# publishes them to ghcr.io/<owner>/plone-in-a-box-backend: the real images
+# Builds the ready-made backend images from backend-image/Dockerfile, for x86
+# and Arm servers, and publishes them to ghcr.io/<owner>/plone-in-a-box-backend: the real images
 # from collective/plone-in-a-box, test images from forks (run it by hand on a
 # branch). Pull requests only build. A failed build publishes nothing, so the
 # previous image stays.
@@ -51,6 +51,11 @@ jobs:
             echo "$IMAGE:$TAG-${GITHUB_SHA::7}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+      # Arm builds run under emulation: slower, but these images only add a
+      # few Python packages.
+      - uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         if: github.event_name != 'pull_request'
@@ -61,7 +66,7 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: backend-image
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           pull: true
           build-args: |

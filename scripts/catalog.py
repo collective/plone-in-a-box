@@ -22,7 +22,7 @@ CATALOG = os.path.join(ROOT, "addons.yml")
 PAGES = os.path.join(ROOT, "docs", "try")
 
 KEYS = ("id name description url volto packages addons theme backend_addons site_behaviors demo_roles "
-        "frontend_image backend_image try_it try_hint linode_stackscript").split()
+        "frontend_image backend_image arm try_it try_hint linode_stackscript").split()
 IMAGE_OWNER = "collective"
 SITE = "https://collective.github.io/plone-in-a-box"
 REPO = "https://github.com/tkimnguyen/plone-in-a-box"
@@ -151,6 +151,10 @@ def problems(entries):
                 say(f"demo_roles: {role} isn't allowed")
             elif not re.fullmatch(r"[A-Za-z0-9 ._-]+", role):
                 say(f"demo_roles: {role} isn't a role name")
+        if entry["arm"] not in ("", "yes", "no"):
+            say("arm: yes or no")
+        elif entry["arm"] == "yes" and not ready_made(entry):
+            say("arm is for ready-made images (frontend_image, backend_image)")
         if entry["try_it"] not in ("", "yes", "no"):
             say("try_it: yes or no")
         if entry["try_it"] == "yes":
@@ -329,7 +333,7 @@ set a root password, and click <strong>Create Linode</strong>.</li>
               f"https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/{version}/src/StackScript"
               " && bash /root/plone-in-a-box.sh"]
 
-    arm_note = ("" if not ready_made(entry) else f"""
+    arm_note = ("" if not ready_made(entry) or entry["arm"] == "yes" else f"""
 <p class="note">On Hetzner, choose an <strong>x86</strong> server type (Intel or AMD), not Arm: {name}'s images
 are made for x86.</p>""")
 

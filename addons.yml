@@ -33,6 +33,8 @@
 #   Use tags that move with patch releases, such as 1.2:
 #   frontend_image  the frontend image, registry/owner/name:tag
 #   backend_image   the backend image, registry/owner/name:tag
+#   arm             yes if the images are built for Arm servers too
+#                   (linux/arm64); otherwise the page says to choose x86
 #
 #   For a Try It page:
 #   try_it          yes
@@ -85,6 +87,8 @@
   # Plone 6.2 with the newer plone.restapi and plone.volto Aurora needs, and
   # its plone.volto:aurora profile (built by .github/workflows/backend-images.yml).
   backend_image: ghcr.io/collective/plone-in-a-box-backend:6.2-aurora
+  # plone/aurora is built for Arm too, and so is the backend image.
+  arm: yes
   # Editors can edit the home page and add pages.
   demo_roles: Editor
   try_it: yes
