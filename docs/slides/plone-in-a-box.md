@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 without needing a command line.
 
-<small>Release 2.22 · November 2026</small>
+<small>Release 2.23 · November 2026</small>
 
 ---
 
@@ -181,6 +181,7 @@ Plone sends email for password resets, forms and update reports. Cloud servers c
 - Fill in the service's settings **when you create the server**.
 - Setup puts them into **Site Setup → Mail**, and sends you a **test email**.
 - The weekly update reports go to your inbox too.
+- Setup checks your domains and the server's address against the **blocklists** mail services use, and the weekly report says if a domain gets listed.
 
 The setup guide compares the services, and explains the DNS records your domain needs.
 
@@ -219,14 +220,14 @@ Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's new fron
 ## Your own add-ons and themes
 
 - **Volto add-ons:** fork the repository, add an entry to `addons.yml`, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.
-- **Backend image:** a Plone distribution, a cookieplone project, or the official image with packages that aren't on PyPI. Setup checks it runs Plone and can create the site, and otherwise uses the official one.
+- **Backend image:** a Plone distribution, a cookieplone project, or the official image with packages that aren't on PyPI. Setup checks it runs Plone and can create the site, and otherwise uses the official one. **Private images** work too, with a registry login.
 
 ---
 
 ## What's next
 
 - **Plone distributions to try:** kitconcept's intranet and website, and PortalBrasil.
-- **Aurora** kept up with its releases, and on Arm servers too.
+- **Aurora** kept up with its releases.
 - **More add-ons** in the catalog, each with its own Try It page.
 
 ---
