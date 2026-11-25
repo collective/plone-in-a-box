@@ -35,8 +35,8 @@ still deploy with no build step. Add optional settings for people who need more:
   backend's `image:` line (setup guide, "Custom backend image").
 - [x] **Custom backend image setting** (2.21): `BACKEND_IMAGE` in every route, checked at setup with a
   fallback to the official backend, covered by `plone-update`. Tested with kitconcept's intranet distribution
-  (`ghcr.io/kitconcept/kitconcept-intranet-backend` and `-frontend`). Public images only so far; still to decide:
-  how private registries authenticate (registry URL, username and token as optional fields?).
+  (`ghcr.io/kitconcept/kitconcept-intranet-backend` and `-frontend`). Private images: a registry username and token
+  (2.23).
   - [x] Try It for ready-made images (2.22): catalog keys `frontend_image:` and `backend_image:` instead of
     `packages`, documented in docs/try-it-buttons.md. Still to do: CI pulling them to check they're public and
     amd64, and match the Volto/Plone version.
@@ -81,10 +81,11 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
   sslip.io is on the Public Suffix List, all its users share one quota. A Plone in a Box subdomain service would
   share one too, unless its parent domain is on that list. Alternatives: a rate-limit increase, another ACME CA
   (ZeroSSL, Google Trust Services), Cloudflare Tunnel.
-- [ ] **Email reputation.** Through a relay, receivers judge the relay's IP, which the relay watches; the site owner
+- [x] **Email reputation.** Through a relay, receivers judge the relay's IP, which the relay watches; the site owner
   controls the domain's reputation (DMARC reports, Google Postmaster Tools). Cloud providers reuse IP addresses, so
   a new server may inherit a blocklisted one. Idea: check the server's IP and the sending domain against public
   blocklists (Spamhaus and others) at setup and in `plone-update`, and say so in the update report.
+  Done in 2.23: blocklist checks at setup (domains and IP address) and weekly (domains).
 - [x] **Tell site owners about Plone releases and security fixes** (2.18: security posts from the Plone forum,
   daily; patch releases and new versions were already in the weekly update report). Still open: end-of-support
   notices, once there's a reliable source for the dates.

@@ -60,6 +60,11 @@ export FRONTEND_IMAGE=''
 # (with its frontend image above), or your own project's. Leave empty for the
 # official Plone backend.
 export BACKEND_IMAGE=''
+# Registry login, optional, for private frontend or backend images: a username
+# and a read-only access token for their registry (for ghcr.io, your GitHub
+# username and a token with only read:packages). Keep the token private.
+export REGISTRY_USER=''
+export REGISTRY_TOKEN=''
 # Demo login, optional: a username such as 'demo', for people you let try the
 # site. Setup creates it with a generated password, saved next to the admin
 # password in /root/plone-credentials.txt. Its roles, separated by commas, for
@@ -92,7 +97,7 @@ export REPORT_EMAIL=''
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.
-PIAB_RELEASE='2.22'
+PIAB_RELEASE='2.23'
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 set -uo pipefail

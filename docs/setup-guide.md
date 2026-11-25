@@ -228,7 +228,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.22/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.23/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -302,7 +302,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.22/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.23/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -605,7 +605,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.22/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.23/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -613,7 +613,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.22/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.23/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,
@@ -765,7 +765,7 @@ example, kitconcept's intranet:
 * **Frontend image**: `ghcr.io/kitconcept/kitconcept-intranet-frontend:3.11`
 
 Setup pulls the image and checks that it runs Plone with the server's settings. If it can't be pulled (a typo,
-or a private image), or doesn't run, the site starts with the official Plone backend instead, and the credentials
+or a private image without a [registry login](#private-images)), or doesn't run, the site starts with the official Plone backend instead, and the credentials
 file says why. The site is created the image's way: a distribution sets up its own content and settings. Setup
 asks for the **Site language**, the server's time zone, **Starter content** and no Solr search server (a box doesn't
 have one), using the settings names the official image and Plone distributions read. kitconcept's intranet, for
@@ -810,6 +810,25 @@ Plone version as the site, or newer: a site can't move back to an older Plone. S
 distribution's image doesn't turn it into that distribution; that only happens when a site is created. If the
 image is private, run `sudo docker login ghcr.io` on the server first. To go back, set `BACKEND_IMAGE=''` and run
 the same command.
+
+### Private images
+
+A private frontend or backend image needs a login to its registry. Fill in **Registry username** and **Registry
+token** when you create the server: in the Linode form, the Launch Stack form, `registry_user` and `registry_token`
+in Terraform, or `export REGISTRY_USER='...'` and `export REGISTRY_TOKEN='...'` in the launcher. Setup logs in to the
+registry of each image (both images share the one login, so keep them in one registry, under one account), and the
+credentials file says whether it worked. Docker keeps the login on the server, in `/root/.docker/config.json`, so
+the weekly updates can pull new builds too; the token isn't logged anywhere else.
+
+Use a token that can only read images:
+
+* **GitHub (ghcr.io)**: your GitHub username, and a classic personal access token (**Settings → Developer settings →
+  Personal access tokens → Tokens (classic)**) with only the `read:packages` scope.
+* **Docker Hub**: your Docker Hub username, and a personal access token with **Read-only** access.
+* **GitLab** and others: a deploy token or access token with only the registry read scope.
+
+When the token expires or you replace it, log in again on the server: `sudo docker login ghcr.io` (or the other
+registry), with the same username and the new token.
 
 ## Sending email
 
@@ -874,6 +893,17 @@ address**. To check it, use **Forgot your password?** on the login page for a us
 go to the Site 'From' address, unless `/var/lib/plone-in-a-box/report-email` on the server names another one.
 
 Either way, password resets and forms then send email. To change the settings later, use **Site Setup → Mail**.
+
+### Blocklists
+
+Receiving mail servers look up domains in public blocklists, and email from a listed domain, or with links to one,
+tends to land in spam. Setup looks up the site's domain and the From address's domain in the Spamhaus domain list
+and SURBL, and the server's IP address in Spamhaus ZEN and SpamCop: a cloud server's address can be on one from
+whoever had it before. The credentials file says if any of them is listed, with the page that explains how to have it
+removed. (A listed IP address doesn't affect email sent through an email service, whose own addresses receivers
+judge; you may still prefer a new server.) The weekly [update](#updates) looks up the domains again, and the report
+says if one has been listed since. Some lists don't answer queries through the big DNS resolvers that cloud
+providers use; those are skipped, and the setup log says which.
 
 ## HTTPS
 

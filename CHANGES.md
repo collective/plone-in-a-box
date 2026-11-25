@@ -1,6 +1,27 @@
-2.23 (unreleased)
+2.23 (2026-11-25)
 -----------------
 
+Your site can now use private images: give the login for their registry
+when you create the server, and setup and the weekly updates use it. Setup
+also checks your site's domain, your email's domain and the server's IP
+address against the public blocklists mail services use, and the weekly
+report tells you if a domain gets listed, so email that lands in spam has a
+reason you can act on. Plone Aurora now runs on Arm servers too.
+
+- **Private images**: the new **Registry username** and **Registry token**
+  settings log in to the registry of a private frontend or backend image,
+  in every route (Linode form, Launch Stack, Terraform `registry_user` and
+  `registry_token`, the launcher's `REGISTRY_USER` and `REGISTRY_TOKEN`).
+  Docker keeps the login on the server, so the weekly updates pull new builds
+  too. The token isn't logged, and the credentials file says whether the
+  login worked. ("Private images" in the setup guide.)
+- **Blocklist checks**: setup looks up the site's domain and the From
+  address's domain in the Spamhaus domain list and SURBL, and the server's IP
+  address in Spamhaus ZEN and SpamCop, and the credentials file says if one is
+  listed, with the page that explains how to have it removed. The weekly
+  update looks up the domains again and says so in its report. Lists that
+  don't answer through the provider's DNS resolver are skipped. ("Sending
+  email", "Blocklists" in the setup guide.)
 - **Plone Aurora on Arm servers**: the Aurora backend image is built for Arm
   (`linux/arm64`) as well as x86, so its Try It page works on Hetzner's Arm
   servers too, and no longer says to choose x86. The catalog's new `arm` key
