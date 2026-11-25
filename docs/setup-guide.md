@@ -680,8 +680,9 @@ A ready-made image brings its backend half: setup installs and activates the mat
 Theme, `kitconcept.voltolighttheme`) and turns on its site settings. Edit the home page to find them: the logo,
 colours, header and footer settings sit with the site's own fields.
 
-The ready-made images are built for x86 servers; on Hetzner's Arm servers (`cax…`) setup uses the standard Volto
-image.
+The ready-made frontend images are built for x86 servers; on Hetzner's Arm servers (`cax…`) setup uses the
+standard Volto image. (The Aurora backend image, `ghcr.io/collective/plone-in-a-box-backend:6.2-aurora`, is built for
+both.)
 
 If the image can't be pulled (a typo, a private image, or no build for the server's processor), its backend
 add-on can't be installed, or it doesn't start (built for another Volto version, say), the site is set up with the
