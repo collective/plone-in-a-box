@@ -35,8 +35,8 @@ still deploy with no build step. Add optional settings for people who need more:
   backend's `image:` line (setup guide, "Custom backend image").
 - [x] **Custom backend image setting** (2.21): `BACKEND_IMAGE` in every route, checked at setup with a
   fallback to the official backend, covered by `plone-update`. Tested with kitconcept's intranet distribution
-  (`ghcr.io/kitconcept/kitconcept-intranet-backend` and `-frontend`). Public images only so far; still to decide:
-  how private registries authenticate (registry URL, username and token as optional fields?).
+  (`ghcr.io/kitconcept/kitconcept-intranet-backend` and `-frontend`). Private images: a registry username and token
+  (2.23).
   - [x] Try It for ready-made images (2.22): catalog keys `frontend_image:` and `backend_image:` instead of
     `packages`, documented in docs/try-it-buttons.md. Still to do: CI pulling them to check they're public and
     amd64, and match the Volto/Plone version.
