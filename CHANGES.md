@@ -1,3 +1,11 @@
+2.23 (unreleased)
+-----------------
+
+- **Plone Aurora on Arm servers**: the Aurora backend image is built for Arm
+  (`linux/arm64`) as well as x86, so its Try It page works on Hetzner's Arm
+  servers too, and no longer says to choose x86. The catalog's new `arm` key
+  says when a ready-made entry's images run on Arm.
+
 2.22 (2026-11-24)
 -----------------
 
