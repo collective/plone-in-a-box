@@ -371,6 +371,70 @@ ufw allow OpenSSH
 ufw allow 'Nginx Full'
 ufw --force enable
 
+# --- SSH -----------------------------------------------------------------------
+# fail2ban blocks an address for an hour after 5 failed SSH logins in 10
+# minutes, longer each time it comes back. Password logins are turned off
+# when an SSH key is installed (for root, or the provider's default user such
+# as ubuntu on AWS), so nobody is locked out of a server created with only a
+# password.
+
+log "Securing SSH"
+apt-get install -y fail2ban python3-systemd
+cat > /etc/fail2ban/jail.d/plone-in-a-box.local <<'EOF'
+# Plone in a Box: block addresses that keep failing to log in over SSH.
+[DEFAULT]
+backend = systemd
+banaction = nftables
+banaction_allports = nftables[type=allports]
+findtime = 10m
+maxretry = 5
+bantime = 1h
+bantime.increment = true
+bantime.maxtime = 1w
+
+[sshd]
+enabled = true
+EOF
+if fail2ban-client -t >/dev/null 2>&1; then
+  systemctl enable fail2ban
+  systemctl restart fail2ban
+  SSH_FAIL2BAN="; addresses that keep failing to log in are blocked for a while (fail2ban)"
+else
+  log "fail2ban's settings didn't check out; leaving it off"
+  rm -f /etc/fail2ban/jail.d/plone-in-a-box.local
+  systemctl disable --now fail2ban 2>/dev/null || true
+  SSH_FAIL2BAN=""
+fi
+SSH_KEYS=0
+for keys in /root/.ssh/authorized_keys /home/*/.ssh/authorized_keys; do
+  # AWS puts a "please log in as ubuntu" line in root's file, which doesn't
+  # start with the key type; the default user's file has the key itself.
+  [[ -f "$keys" ]] && grep -qE '^(ssh-(ed25519|rsa|dss)|ecdsa-sha2-|sk-)' "$keys" && SSH_KEYS=1
+done
+SSHD_CONF=/etc/ssh/sshd_config.d/00-plone-in-a-box.conf
+if [[ "$SSH_KEYS" == 1 ]]; then
+  # sshd uses the first value it reads for a setting, and reads this
+  # directory in name order, so 00- comes before the provider's
+  # 50-cloud-init.conf, which turns passwords on for servers created with one.
+  cat > "$SSHD_CONF" <<'EOF'
+# Plone in a Box: SSH keys only; root can log in with a key, never a password.
+# To allow passwords again: delete this file, then: sudo systemctl reload ssh
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+EOF
+  if sshd -t 2>/dev/null; then
+    systemctl reload ssh 2>/dev/null || true
+    SSH_LINE="SSH:       keys only, no passwords${SSH_FAIL2BAN}"
+  else
+    rm -f "$SSHD_CONF"
+    SSH_LINE="SSH:       unchanged: turning off passwords failed the SSH settings check${SSH_FAIL2BAN}"
+  fi
+else
+  SSH_LINE="SSH:       passwords still work, because no SSH key is installed${SSH_FAIL2BAN}. Add your key and turn passwords off: see \"SSH\" in the setup guide"
+fi
+log "${SSH_LINE#SSH:       }"
+
 # --- Secrets -----------------------------------------------------------------
 
 mkdir -p "$APP_DIR"
@@ -2345,6 +2409,7 @@ Language:  ${SITE_LANGUAGE}${CONTENT_NOTE}${LANGUAGE_NOTE:+ ($LANGUAGE_NOTE)}
 ${DEMO_LINE}
 ${UPDATES_LINE}
 Security:  Plone security announcements are passed on every day, in the login message${NOTIFY_URL:+, at the notification URL}${SMTP_HOST:+ and by email}
+${SSH_LINE}
 ${NOTIFY_LINE}
 ${MAIL_LINE}
 ${BLOCKLIST_LINES}Store the password in a password manager, then delete this file.

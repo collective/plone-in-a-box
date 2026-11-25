@@ -404,6 +404,21 @@ docker compose --project-directory /opt/plone logs -f backend   # logs (backend,
 
 For updates, see [Updates](#updates).
 
+**SSH**: if the server has an SSH key (you chose one when creating it), setup turns password logins off, for root
+too: logging in takes the key. A server created with only a password keeps password logins, so you can still get in;
+the credentials file says so. To turn them off later, add your public key to `/root/.ssh/authorized_keys` (or the
+default user's, such as `ubuntu` on AWS), check that you can log in with it, and then:
+
+```
+printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n' \
+  | sudo tee /etc/ssh/sshd_config.d/00-plone-in-a-box.conf
+sudo sshd -t && sudo systemctl reload ssh
+```
+
+Either way, fail2ban blocks an address for an hour after 5 failed logins in 10 minutes, longer each time it comes
+back. If it blocks you, log in from the provider's browser console, and `sudo fail2ban-client set sshd unbanip
+<your address>`.
+
 **Backups**: every night, the server saves a database backup in `/var/backups/plone/`. The three newest are kept,
 counting those taken before updates, and each one is the whole site, files and images included. Once a week it
 also packs the database: it removes the history of changes older than a week, which would otherwise make the
