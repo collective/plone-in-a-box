@@ -454,6 +454,8 @@ services:
     image: ${FRONTEND_IMAGE:-plone/plone-frontend:${VOLTO_VERSION}}
     environment:
       RAZZLE_INTERNAL_API_PATH: http://backend:8080/Plone
+      # The same, for a Plone Aurora frontend image.
+      PLONE_API_PATH: http://backend:8080/Plone
     logging: *logging
     restart: unless-stopped
     ports:
@@ -822,9 +824,11 @@ versions() {
   local plone volto pg
   plone=$(compose exec -T backend /app/bin/python -c \
     'from importlib.metadata import version; print(version("Products.CMFPlone"))' 2>/dev/null) || plone="?"
-  volto=$(compose exec -T frontend node -p 'require("@plone/volto/package.json").version' 2>/dev/null) || volto="?"
+  volto=$(compose exec -T frontend node -p 'require("@plone/volto/package.json").version' 2>/dev/null) && volto="Volto ${volto:-?}" \
+    || { volto=$(compose exec -T frontend node -p 'require("@plone/aurora/package.json").version' 2>/dev/null) && volto="Aurora ${volto:-?}"; } \
+    || volto="Volto ?"
   pg=$(compose exec -T db postgres --version 2>/dev/null | awk '{print $3}') || pg="?"
-  echo "Plone ${plone:-?}, Volto ${volto:-?}, PostgreSQL ${pg:-?}"
+  echo "Plone ${plone:-?}, ${volto}, PostgreSQL ${pg:-?}"
 }
 
 site_ok() {

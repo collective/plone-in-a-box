@@ -16,6 +16,13 @@
   official Plone backend instead, and the credentials file says why. As
   before, a backend image that can't be pulled or doesn't start is replaced
   the same way.
+- **Try Plone Aurora**, the new React frontend for Plone, still in
+  development: a Try It page with the `plone/aurora` image and a new
+  ready-made backend image, `ghcr.io/collective/plone-in-a-box-backend:6.2-aurora`
+  (Plone 6.2 with the newer `plone.restapi` and `plone.volto` Aurora needs,
+  and its `plone.volto:aurora` profile), built weekly by GitHub Actions.
+  The frontend gets `PLONE_API_PATH`, so an Aurora frontend image finds the
+  backend, and the update report names Aurora's version instead of Volto's.
 
 2.21 (2026-11-24)
 -----------------
