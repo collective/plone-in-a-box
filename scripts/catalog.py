@@ -6,6 +6,9 @@
   python3 scripts/catalog.py pages    write the Try It pages in docs/try/
   python3 scripts/catalog.py matrix   print the frontend image builds, as a
                                       GitHub Actions matrix (JSON)
+  python3 scripts/catalog.py images   check that the ready-made images can be
+                                      pulled without logging in, and are built
+                                      for the right platforms (CI runs this)
 
 No dependencies: addons.yml is a list of flat entries, which this reads
 itself (see the comments at the top of addons.yml).
@@ -15,6 +18,9 @@ import json
 import os
 import re
 import sys
+import time
+import urllib.error
+import urllib.request
 from urllib.parse import quote
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -188,6 +194,120 @@ def release():
     if not m:
         raise CatalogError("no PIAB_RELEASE in src/user-data.sh")
     return m.group(1)
+
+
+# --- The ready-made images ---------------------------------------------------------
+
+MANIFESTS = ", ".join([
+    "application/vnd.oci.image.index.v1+json",
+    "application/vnd.docker.distribution.manifest.list.v2+json",
+    "application/vnd.oci.image.manifest.v1+json",
+    "application/vnd.docker.distribution.manifest.v2+json",
+])
+# What setup expects of an image, from the official ones.
+EXPECTED = {
+    "backend_image": {"port": "8080/tcp", "entrypoint": ["/app/docker-entrypoint.sh"]},
+    "frontend_image": {"port": "3000/tcp", "entrypoint": None},
+}
+
+
+class Registry:
+    """Reads manifests and image configs from a registry, without logging in."""
+
+    def __init__(self, ref):
+        name, self.tag = ref.rsplit(":", 1)
+        first, _, rest = name.partition("/")
+        if "." in first or ":" in first:
+            self.host, self.repo = first, rest
+        else:  # Docker Hub
+            self.host, self.repo = "registry-1.docker.io", name if "/" in name else f"library/{name}"
+        self.token = None
+
+    def get(self, path, accept=MANIFESTS):
+        url = f"https://{self.host}/v2/{self.repo}/{path}"
+        for attempt in range(3):
+            headers = {"Accept": accept, "User-Agent": "plone-in-a-box-catalog"}
+            if self.token:
+                headers["Authorization"] = f"Bearer {self.token}"
+            try:
+                with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as r:
+                    return json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                if e.code == 401 and not self.token:
+                    # An anonymous token, as docker pull gets one.
+                    challenge = dict(re.findall(r'(\w+)="([^"]*)"', e.headers.get("WWW-Authenticate", "")))
+                    if "realm" not in challenge:
+                        raise
+                    token_url = (f"{challenge['realm']}?service={quote(challenge.get('service', ''))}"
+                                 f"&scope=repository:{self.repo}:pull")
+                    with urllib.request.urlopen(token_url, timeout=30) as r:
+                        answer = json.loads(r.read())
+                    self.token = answer.get("token") or answer.get("access_token")
+                    continue
+                if e.code >= 500 and attempt < 2:
+                    time.sleep(5)
+                    continue
+                raise
+            except urllib.error.URLError:
+                if attempt < 2:
+                    time.sleep(5)
+                    continue
+                raise
+        raise urllib.error.URLError(f"no answer from {self.host}")
+
+    def platforms(self):
+        """{"linux/amd64": the image's config, ...}."""
+        manifest = self.get(f"manifests/{self.tag}")
+        if "manifests" in manifest:
+            found = {}
+            for m in manifest["manifests"]:
+                p = m.get("platform") or {}
+                if p.get("os") == "linux":
+                    found[f"linux/{p['architecture']}"] = m["digest"]
+            return {p: self.config(self.get(f"manifests/{d}")) for p, d in found.items()}
+        config = self.config(manifest)
+        return {f"{config.get('os', 'linux')}/{config.get('architecture', '?')}": config}
+
+    def config(self, manifest):
+        return self.get(f"blobs/{manifest['config']['digest']}", accept="*/*")
+
+
+def image_problems(entries, registry=Registry):
+    """(problems, warnings) with the ready-made images, as messages."""
+    found, warned = [], []
+    for entry in entries:
+        wanted = ["linux/amd64"] + (["linux/arm64"] if entry["arm"] == "yes" else [])
+        all_arm = True
+        for key in ("frontend_image", "backend_image"):
+            ref = entry[key]
+            if not ref:
+                continue
+            say = lambda msg: found.append(f"{entry['id']}: {key} {ref}: {msg}")  # noqa: E731
+            warn = lambda msg: warned.append(f"{entry['id']}: {key} {ref}: {msg}")  # noqa: E731
+            try:
+                platforms = registry(ref).platforms()
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403, 404):
+                    say("can't be pulled without logging in: it must be public, and the tag must exist")
+                else:
+                    say(f"the registry answered {e.code}")
+                continue
+            except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
+                say(f"couldn't read it ({e})")
+                continue
+            missing = [p for p in wanted if p not in platforms]
+            if missing:
+                say(f"isn't built for {', '.join(missing)} (it has {', '.join(sorted(platforms)) or 'none'})")
+            all_arm = all_arm and "linux/arm64" in platforms
+            config = (platforms.get("linux/amd64") or {}).get("config") or {}
+            expect = EXPECTED[key]
+            if expect["port"] not in (config.get("ExposedPorts") or {}):
+                warn(f"doesn't expose {expect['port']}, as the official image does")
+            if expect["entrypoint"] and config.get("Entrypoint") != expect["entrypoint"]:
+                warn(f"starts with {config.get('Entrypoint')}, not {expect['entrypoint']} as the official one does")
+        if ready_made(entry) and entry["arm"] != "yes" and all_arm and not any(m.startswith(f"{entry['id']}: ") for m in found):
+            warned.append(f"{entry['id']}: its images are built for linux/arm64 too: add arm: yes")
+    return found, warned
 
 
 # --- The pages --------------------------------------------------------------------
@@ -456,6 +576,15 @@ def main(argv):
         if found:
             print("addons.yml:\n  " + "\n  ".join(found), file=sys.stderr)
             return 1
+        if command == "images":
+            found, warned = image_problems(entries)
+            for message in warned:
+                print(f"::warning::{message}" if os.environ.get("GITHUB_ACTIONS") else f"warning: {message}")
+            if found:
+                print("Ready-made images in addons.yml:\n  " + "\n  ".join(found), file=sys.stderr)
+                return 1
+            print(f"Ready-made images: {sum(bool(e[k]) for e in entries for k in EXPECTED)} checked")
+            return 0
         wanted = pages(entries)
         if command == "pages":
             have = existing_pages()
