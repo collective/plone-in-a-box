@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 without needing a command line.
 
-<small>Release 2.21 · November 2026</small>
+<small>Release 2.22 · November 2026</small>
 
 ---
 
@@ -210,21 +210,23 @@ Let people try your Plone add-on on a real site of their own, in about ten minut
 2. Plone in a Box builds its image and publishes a **Try It page**, with the steps for AWS, Linode, DigitalOcean and Hetzner.
 3. **One button** in your README links to it.
 
-Example: **collective.github.io/plone-in-a-box/try/juizi-dashboard/**
+Already publish your own images, for a Plone distribution, say? The entry names them, and nothing is built.
+
+Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's new frontend
 
 ---
 
 ## Your own add-ons and themes
 
 - **Volto add-ons:** fork the repository, add an entry to `addons.yml`, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.
-- **Backend image:** a Plone distribution, a cookieplone project, or the official image with packages that aren't on PyPI. Setup checks it runs Plone, and otherwise uses the official one.
+- **Backend image:** a Plone distribution, a cookieplone project, or the official image with packages that aren't on PyPI. Setup checks it runs Plone and can create the site, and otherwise uses the official one.
 
 ---
 
 ## What's next
 
-- **Try It pages for ready-made images:** Plone distributions such as kitconcept's intranet and website, and PortalBrasil.
-- **Aurora,** Plone's new frontend, in the catalog to try.
+- **Plone distributions to try:** kitconcept's intranet and website, and PortalBrasil.
+- **Aurora** kept up with its releases, and on Arm servers too.
 - **More add-ons** in the catalog, each with its own Try It page.
 
 ---
