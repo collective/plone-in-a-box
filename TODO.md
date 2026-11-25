@@ -81,10 +81,11 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
   sslip.io is on the Public Suffix List, all its users share one quota. A Plone in a Box subdomain service would
   share one too, unless its parent domain is on that list. Alternatives: a rate-limit increase, another ACME CA
   (ZeroSSL, Google Trust Services), Cloudflare Tunnel.
-- [ ] **Email reputation.** Through a relay, receivers judge the relay's IP, which the relay watches; the site owner
+- [x] **Email reputation.** Through a relay, receivers judge the relay's IP, which the relay watches; the site owner
   controls the domain's reputation (DMARC reports, Google Postmaster Tools). Cloud providers reuse IP addresses, so
   a new server may inherit a blocklisted one. Idea: check the server's IP and the sending domain against public
   blocklists (Spamhaus and others) at setup and in `plone-update`, and say so in the update report.
+  Done in 2.23: blocklist checks at setup (domains and IP address) and weekly (domains).
 - [x] **Tell site owners about Plone releases and security fixes** (2.18: security posts from the Plone forum,
   daily; patch releases and new versions were already in the weekly update report). Still open: end-of-support
   notices, once there's a reliable source for the dates.

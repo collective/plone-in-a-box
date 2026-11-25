@@ -541,7 +541,7 @@ elif [[ "$PROVIDER" == hetzner ]]; then
   SERVER_ID=$(jq -r '.server.id' <<<"$created")
   IP=$(jq -r '.server.public_net.ipv4.ip' <<<"$created")
 elif [[ "$PROVIDER" == digitalocean ]]; then
-  REGION=${PIAB_TEST_REGION:-tor1}
+  REGION=${PIAB_TEST_REGION:-nyc3}
   fingerprint=$(ssh-keygen -l -E md5 -f "$SSH_KEY.pub" | awk '{print $2}' | sed 's/^MD5://')
   if ! api GET "/account/keys/$fingerprint" >/dev/null 2>&1; then
     say "Adding the test SSH key to DigitalOcean"
@@ -946,6 +946,14 @@ check "security headers on the REST API" has_security_headers -H 'Accept: applic
 check "security headers and compression on JavaScript ($js)" \
   bash -c "h=\$(curl -s -m 20 -o /dev/null -D - -H 'Accept-Encoding: gzip' '$SITE$js' | tr -d '\r'); grep -qix 'x-content-type-options: nosniff' <<<\"\$h\" && grep -qix 'content-encoding: gzip' <<<\"\$h\""
 check "nginx doesn't show its version" bash -c "! curl -s -m 20 -o /dev/null -D - 'http://$IP/' | grep -i '^server:' | grep -q '[0-9]'"
+# The blocklist helper, with each list's own test entries: listed where the
+# list answers this provider's DNS resolver, unchecked where it doesn't.
+bl=$(rssh '/usr/local/lib/plone-in-a-box/blocklists --ip 127.0.0.2 dbltest.com test.surbl.org' || true)
+printf '%s\n' "$bl" | sed 's/^/      /'
+# shellcheck disable=SC2016 # expanded by the inner bash
+check "the blocklist lookup gives every list's test entry as listed or unchecked" \
+  bash -c 'for l in zen.spamhaus.org bl.spamcop.net dbl.spamhaus.org multi.surbl.org; do grep -qE "^(LISTED [^ ]+|UNCHECKED) $l( |\$)" <<<"$1" || exit 1; done' _ "$bl"
+check "setup looked up the site in the blocklists" rssh "grep -qiE 'blocklist' /var/log/plone-in-a-box.log"
 
 # --- Server state ---------------------------------------------------------------------
 
