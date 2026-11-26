@@ -71,7 +71,7 @@ Cloud Manager asks you to choose a **Public Interface Firewall**. Pick **No fire
 its own firewall, ufw, which allows only ports 22, 80 and 443). Otherwise create one named `plone-in-a-box` and reuse it
 for every deploy: default inbound policy **Drop**, default outbound **Accept**, and three inbound **Accept** rules for
 TCP ports **22**, **80** and **443** from all IPv4 and IPv6 addresses. A firewall without those rules blocks both SSH
-and the site.
+and the site. If you set the outbound policy to **Drop** instead, see [Outgoing connections](#outgoing-connections).
 
 Once the Linode shows *Running*, open `http://<linode-ip>` in your browser. Within a minute or two it shows a
 **"Your Plone site is being set up"** page that lists each step and refreshes itself; when setup is done (usually about
@@ -520,9 +520,39 @@ A server set up before 2.16 gets the nightly backups with the [same command](#se
 updates, and one set up before 2.19 gets `plone-restore` with it too (and before 2.20, `plone-offsite`).
 
 **Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
-the site's address every few minutes and alert you. DigitalOcean has this built in (**Monitoring → Uptime**, then
-add a check for the site's URL, with an alert to your email). On other providers, use an outside uptime service,
-many of which have a free plan.
+the site's address every minute or so and alert you:
+
+* **DigitalOcean Uptime** (**Monitoring → Uptime → Create Uptime Check**) can check any address, so it works for a
+  site on Linode, AWS or Hetzner too. Choose type **HTTPS**, the site's address, and
+  three regions. A check gets its alerts one at a time: add a **Downtime** alert set to **down in all regions** with
+  a wait of 2 minutes (so a network problem near one region doesn't wake you), then use **Add alert** again for an
+  **SSL certificate expiry** alert at 14 days, in case renewing the certificate stops working. Alerts only go to
+  email addresses verified in the DigitalOcean account.
+* **AWS**: a **Route 53 health check** on the site's address, with a CloudWatch alarm that emails you.
+* Or an outside uptime service, many of which have a free plan.
+
+Your provider can also tell you when the server itself is struggling:
+
+* **Linode**: the Linode's **Alerts** tab (CPU, disk activity, network traffic and transfer quota, by email), and
+  **Settings → Shutdown Watchdog**, which starts the Linode again if it powers off unexpectedly. Check once that
+  both are on, and that your Linode profile's email address reaches you.
+* **DigitalOcean**: install the metrics agent (`curl -sSL https://repos.insights.digitalocean.com/install.sh | sudo
+  bash`; the Droplet's **Insights** tab then shows memory and disk use), and create **Monitoring → Resource Alerts**
+  for disk use over 85%, memory over 90% for 10 minutes, and CPU over 90% for 30 minutes. Give the Droplets a tag and
+  choose the tag, so a new server gets the same alerts.
+* **AWS**: CloudWatch alarms on the instance's CPU and status checks. **Hetzner** Cloud has no alerts of this kind;
+  an uptime check covers the most common problems.
+
+**Outgoing connections**: setup doesn't limit what the server connects to. If you add a firewall in front of it that
+does (a Linode Cloud Firewall with outbound policy **Drop**, say), allow these, or parts of the box stop working
+without saying why:
+
+| Port | For |
+|---|---|
+| TCP 443 and 80 | Ubuntu's updates, Docker images, Let's Encrypt, security notices, notifications, off-site backups |
+| UDP and TCP 53 | DNS, unless the provider's resolver is inside its network |
+| UDP 123 | the clock (NTP); without it the clock drifts, and HTTPS and logins can start failing |
+| TCP 587 or 2525 | email, if the site sends it (see [Sending email](#sending-email)) |
 
 ## Updates
 
@@ -892,7 +922,9 @@ AWS. The username is usually one the service creates for SMTP, not your login: S
 Postmark uses a server token as both username and password, and Resend uses the username `resend` with an API key as
 the password.
 
-If your cloud provider also blocks port 587, try 2525, which SMTP2GO, Mailgun and Postmark accept too.
+If your cloud provider also blocks port 587, try 2525, which SMTP2GO, Mailgun and Postmark accept too. DigitalOcean
+blocks 25, 465 and 587 on many accounts; its support can open 587 if you ask, usually within a day or two. A
+firewall you add yourself may block them too (see [Outgoing connections](#outgoing-connections)).
 
 ### Setting it up
 
@@ -994,6 +1026,7 @@ need it.
 | Problem | Fix |
 | --- | --- |
 | `ssh: connect ... Operation timed out` on Linode | A Cloud Firewall is blocking port 22. Allow TCP 22, 80, 443, or detach it. |
+| The server's clock is off, or updates, notifications or email fail with no clear reason | A firewall in front of the server blocks outgoing connections. See [Outgoing connections](#outgoing-connections). |
 | Forgot the admin password | Log in to the server as root (SSH, or your provider's console: Linode **Launch LISH Console**, DigitalOcean **Access → Launch Droplet Console**, which needs no password; Hetzner **Console**) and run `sudo plone-reset-admin-password`, or `cat /root/plone-credentials.txt` if a password was generated and you never read it. Forgot the root password too? On Linode, power off and use **Reset Root Password**; on DigitalOcean, **Access → Reset root password**; on Hetzner, **Rescue → Reset Root Password**. |
 | The page says "Setup didn't finish" | It shows which step failed. Usually a temporary download problem: delete the server and deploy again. To see details, log in as root and read `/var/log/plone-in-a-box.log`. |
 | No setup page, or no `/root/plone-credentials.txt` after 15 minutes | Read `/var/log/plone-in-a-box.log` (or, if it's missing, `/var/log/cloud-init-output.log` on AWS, DigitalOcean and Hetzner), and check `sudo docker compose --project-directory /opt/plone ps`. |
