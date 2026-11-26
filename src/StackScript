@@ -1378,16 +1378,18 @@ if site is None:
 else:
     setSite(site)
     catalog = site.portal_catalog
-    entries = len(catalog.unrestrictedSearchResults())
+    # (A catalog search with no query finds nothing, so: everything under the site.)
+    path = "/".join(site.getPhysicalPath())
+    entries = len(catalog.unrestrictedSearchResults(path=path))
     loaded = failed = 0
-    for brain in catalog.unrestrictedSearchResults(sort_on="modified", sort_order="descending")[:20]:
+    for brain in catalog.unrestrictedSearchResults(path=path, sort_on="modified", sort_order="descending")[:20]:
         try:
             brain._unrestrictedGetObject().Title()
             loaded += 1
         except Exception:
             failed += 1
     blob = "none"
-    for brain in catalog.unrestrictedSearchResults(portal_type=["File", "Image"], sort_on="modified", sort_order="descending")[:1]:
+    for brain in catalog.unrestrictedSearchResults(path=path, portal_type=["File", "Image"], sort_on="modified", sort_order="descending")[:1]:
         try:
             obj = brain._unrestrictedGetObject()
             field = getattr(obj, "file", None) or getattr(obj, "image", None)
@@ -1454,7 +1456,7 @@ if [[ -z "$FILE" && -s "$STATE_DIR/offsite.conf" ]]; then
   /usr/local/bin/plone-offsite fetch "$name" >/dev/null || fail "Downloading or decrypting the copy $name failed"
   FILE="$BACKUP_DIR/offsite-$(basename "$name" .gpg)"
   FETCHED=$FILE
-  WHERE="off the server ($name)"
+  WHERE="off the server, $name"
   # The name has the date it was taken; an old newest copy means the copies stopped.
   taken=$(sed -nE 's/^plone-([0-9]{4}-[0-9]{2}-[0-9]{2})-.*/\1/p' <<<"$(basename "$name")")
   if [[ -n "$taken" ]] && (( $(date +%s) - $(date -d "$taken" +%s) > 3 * 86400 )); then
@@ -1507,8 +1509,8 @@ blob=$(sed -nE 's/.*blob=([^ ]+).*/\1/p' <<<"$result")
 (( entries == 0 || loaded > 0 )) || fail "Plone opened the site in the backup, but none of its newest $failed pages could be read"
 [[ "$blob" == failed* ]] && fail "Plone opened the site in the backup, but the newest file or image couldn't be read (${blob#failed:})"
 
-summary="OK: the backup $(basename "$FILE") from $WHERE restores: $restored objects, $entries pages and files in the catalog, the newest $loaded read"
-[[ "$blob" == ok ]] && summary+=", and a file or image"
+summary="OK: the backup $(basename "$FILE") ($WHERE) restores: $restored database objects, $entries pages and files, the newest $loaded opened"
+[[ "$blob" == ok ]] && summary+=", and a file or image read"
 (( failed > 0 )) && summary+=" ($failed more are add-on content, not checked)"
 say "$summary"
 printf '%s: %s\n' "$(date '+%F')" "$summary" > "$STATE_DIR/backup-check"
