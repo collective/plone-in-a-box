@@ -584,7 +584,8 @@ sudo plone-syslog on logs.example.org:6514
 
 It uses TLS, checked against the server's name, unless you add `--tcp` or `--udp` (unencrypted: only within a
 private network). For a log server with a certificate of its own making, add `--ca <file>` with its certificate
-authority. The site's containers restart once, so the site is away for a minute or two. If the log server can't be
+authority. Each message carries the site's name (its domain, or its IP address), so you can tell servers apart.
+The site's containers restart once, so the site is away for a minute or two. If the log server can't be
 reached, up to 100 MB of logs wait on the server and go out once it's back. `sudo plone-syslog test` sends a test
 message, `status` shows where they go, and `off` keeps the logs on the server only again. A server set up before
 2.25 gets the command with the [same command](#servers-set-up-before-212) as automatic updates.
