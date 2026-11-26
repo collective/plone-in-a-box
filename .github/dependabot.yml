@@ -1,0 +1,12 @@
+# Keeps the GitHub Actions in .github/workflows up to date. The Dockerfiles in
+# backend-image/ and frontend-image/ take their base image tags from build
+# arguments, which Dependabot can't update, so they're left out.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

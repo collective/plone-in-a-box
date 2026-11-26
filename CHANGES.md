@@ -1,6 +1,16 @@
 2.24 (unreleased)
 -----------------
 
+- **Catalog checks for ready-made images**: CI checks that each ready-made
+  image in `addons.yml` can be pulled without logging in, is built for
+  `linux/amd64` (and `linux/arm64` with `arm: yes`), and exposes the ports
+  the official images do; it suggests `arm: yes` when every image has Arm
+  builds. (`python3 scripts/catalog.py images`.)
+- **Old backend image builds are deleted** like the frontend ones: each
+  backend image keeps its newest 26 weekly builds. Builds replaced later the
+  same day, which keep only their commit tag, now count too.
+  (`scripts/cleanup-images.py`, which replaces
+  `scripts/cleanup-frontend-images.py`.)
 - **Server backups on AWS**: Terraform's new `backups` setting turns on
   daily snapshots of the server's disk through AWS Data Lifecycle Manager,
   the newest 7 kept, as `backups` does on DigitalOcean and Hetzner. For

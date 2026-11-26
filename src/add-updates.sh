@@ -7,7 +7,7 @@
 #
 # It installs plone-update, the weekly plone-update.timer, plone-backup with
 # the nightly plone-backup.timer, plone-restore, plone-offsite, plone-security-notices with
-# its daily timer, and the login message, exactly as setup does on new servers, and then runs
+# its daily timer, plone-reboot with its nightly timer, failure reports, and the login message, exactly as setup does on new servers, and then runs
 # plone-update once. Running it again brings these tools up to date with the release.
 #
 # Settings go between "sudo" and "bash", for example
@@ -68,6 +68,8 @@ main() {
   [[ -s "$STATE_DIR/security-seen" ]] || /usr/local/bin/plone-security-notices >/dev/null 2>&1 || true
   systemctl enable --now plone-security-notices.timer
   say "Plone security announcements are passed on every day (sudo plone-security-notices to check now)"
+  systemctl enable --now plone-reboot.timer
+  say "The server restarts at night when Ubuntu's security updates need it (sudo systemctl disable --now plone-reboot.timer to stop)"
 
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then
