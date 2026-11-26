@@ -65,6 +65,8 @@ main() {
   say "Installed plone-update and plone-backup"
   systemctl enable --now plone-backup.timer
   say "The database is backed up every night, and packed once a week (sudo plone-backup to run it now)"
+  systemctl enable --now plone-backup-check.timer
+  say "Once a month, the newest backup is restored into a test database to check it (sudo plone-backup-check to run it now)"
   [[ -s "$STATE_DIR/security-seen" ]] || /usr/local/bin/plone-security-notices >/dev/null 2>&1 || true
   systemctl enable --now plone-security-notices.timer
   say "Plone security announcements are passed on every day (sudo plone-security-notices to check now)"
