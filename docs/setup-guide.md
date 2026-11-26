@@ -985,6 +985,15 @@ go to the Site 'From' address, unless `/var/lib/plone-in-a-box/report-email` on 
 
 Either way, password resets and forms then send email. To change the settings later, use **Site Setup → Mail**.
 
+**The server's own mail**: besides the site, the server itself sometimes has something to say: Ubuntu's automatic
+security updates when one fails, and any program that mails root. With mail settings in place, setup has that mail
+sent through the same service, from the site's From address, to the address for reports (with msmtp, configured in
+`/etc/msmtprc`, which only root can read). The weekly update takes the settings from **Site Setup → Mail** again,
+so a change there reaches the server within a week; `sudo plone-server-mail` does it now, and `sudo
+plone-server-mail test` also sends a test email. If the server already has another mail program, such as postfix,
+it's left alone. A server set up before 2.25 gets this with the [same command](#servers-set-up-before-212) as
+automatic updates.
+
 ### Blocklists
 
 Receiving mail servers look up domains in public blocklists, and email from a listed domain, or with links to one,
