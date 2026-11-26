@@ -1028,6 +1028,35 @@ echo 'https://<domain>' | sudo tee /var/lib/plone-in-a-box/site-url
 The first line turns the IP address certificate off (on a server set up before 2.21, which doesn't have one, skip
 it); the last makes update reports name the new address.
 
+### Behind Cloudflare
+
+If your domain's DNS is on Cloudflare, its proxy (the orange cloud) can stand in front of the site: Cloudflare
+answers visitors, caches images and files, and absorbs attacks, and only it talks to your server. The server
+should then accept web traffic only from Cloudflare, or anyone who finds its IP address can go around it. Once the
+site works through Cloudflare:
+
+1. In Cloudflare, **SSL/TLS → Overview**: set the mode to **Full (strict)** (the server has its own Let's Encrypt
+   certificate, so Cloudflare can check it).
+2. On the server:
+
+   ```
+   sudo plone-cloudflare on
+   ```
+
+   It first checks that the domain points at Cloudflare (otherwise nobody could visit the site, so it stops and
+   says so). Then the firewall lets only Cloudflare's addresses reach ports 80 and 443, and nginx takes each
+   visitor's own address from Cloudflare's `CF-Connecting-IP` header, so Plone's logs and forms see the visitor,
+   not Cloudflare. SSH isn't affected.
+3. Check that the certificate can still renew: `sudo certbot renew --dry-run`. If it fails, turn off **Always Use
+   HTTPS** under **SSL/TLS → Edge Certificates** in Cloudflare, so Let's Encrypt's check on port 80 gets through.
+
+Cloudflare publishes its addresses at [cloudflare.com/ips](https://www.cloudflare.com/ips/) and adds new ones now
+and then; `plone-cloudflare.timer` updates the firewall from that list once a month, and a notice goes out if it
+can't. `sudo plone-cloudflare status` shows whether it's on, and `sudo plone-cloudflare off` opens ports 80 and 443
+to everyone again (do that before turning Cloudflare's proxy off). The log is in `/var/log/plone-cloudflare.log`.
+A site without a domain name can't use it. A server set up before 2.25 gets the command with the
+[same command](#servers-set-up-before-212) as automatic updates.
+
 ## Removing the box
 
 * **Linode**: delete the Linode in Cloud Manager.
