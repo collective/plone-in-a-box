@@ -38,6 +38,15 @@
   (Better Stack's free plan, Papertrail, a log server of your own), with
   what each costs and keeps, and says how to tell whether another service
   works. ("Sending the logs elsewhere" in the setup guide.)
+- **DigitalOcean alerts by default (Terraform)**: a Droplet made with
+  `src/digitalocean` now gets DigitalOcean's free resource alerts: an email
+  when its disk is over 85% full, its memory over 90% for 10 minutes, or its
+  CPU over 90% for 30 minutes, to the account's email (`alert_emails` for
+  others, `alerts = false` for none). `uptime_check = true` adds an outside
+  check of the site that emails when it's down or its certificate is about
+  to expire; it's off by default because DigitalOcean charges $1 a month
+  for each check after the first. Custom-scope tokens need monitoring,
+  uptime and account read too.
 - **GitHub Actions pinned to commit hashes**: the workflows named each
   action by a tag like `v7`, which whoever controls the action can move to
   other code at any time, as happened to `tj-actions/changed-files` in

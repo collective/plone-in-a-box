@@ -246,7 +246,8 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
 ### Terraform deployment (automated, more technical)
 
 1. Install Terraform (see [One-time setup](#one-time-setup) under AWS) and create an API token: in the DigitalOcean control panel, go to **API →
-   Tokens → Generate New Token**, give it **Full Access** (custom scopes need, at least, create/read/delete for droplets, SSH keys, firewalls and tags),
+   Tokens → Generate New Token**, give it **Full Access** (custom scopes need, at least, create/read/delete for droplets, SSH keys, firewalls, tags,
+   monitoring and uptime, and read for account),
    and copy it. It's shown only once.
 2. Deploy:
    ```
@@ -269,8 +270,16 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
    regions that do. Once created, the Droplet stays in its region.
    As on AWS, the Droplet downloads its setup script from the Plone in a Box release in `release`, so to try
    changes, push them to a branch and set `release` to it.
-3. Terraform prints `site_url`, `public_ip`, `region` and `credentials_command`. The Droplet also gets a DigitalOcean Cloud
-   Firewall that allows only ports 22, 80 and 443.
+3. Terraform prints `site_url`, `public_ip`, `region`, `credentials_command` and `alerts_to`. The Droplet also gets a
+   DigitalOcean Cloud Firewall that allows only ports 22, 80 and 443.
+
+   **Alerts**, free and on by default: DigitalOcean emails you when the Droplet's disk is over 85% full, its memory
+   over 90% for 10 minutes, or its CPU over 90% for 30 minutes (**Monitoring → Resource Alerts**). They go to your
+   account's email; `alert_emails = ["you@example.org"]` sends them elsewhere (DigitalOcean only sends to verified
+   members of your team), and `alerts = false` turns them off. `uptime_check = true` also checks the site from four
+   places every few minutes and emails you when it's down, or when its certificate expires within 14 days (with a
+   domain). That costs extra beyond the first: DigitalOcean includes one Uptime check per account, then charges $1 a
+   month each, so it's off by default.
 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
 /var/log/plone-in-a-box.log`), then continue with [After provisioning](#after-provisioning).
@@ -556,7 +565,8 @@ the site's address every minute or so and alert you:
   three regions. A check gets its alerts one at a time: add a **Downtime** alert set to **down in all regions** with
   a wait of 2 minutes (so a network problem near one region doesn't wake you), then use **Add alert** again for an
   **SSL certificate expiry** alert at 14 days, in case renewing the certificate stops working. Alerts only go to
-  email addresses verified in the DigitalOcean account.
+  email addresses verified in the DigitalOcean account. One check per account is included; each further one is $1 a
+  month. (With DigitalOcean's Terraform, `uptime_check = true` sets this up.)
 * **AWS**: a **Route 53 health check** on the site's address, with a CloudWatch alarm that emails you.
 * Or an outside uptime service, many of which have a free plan.
 
@@ -568,7 +578,8 @@ Your provider can also tell you when the server itself is struggling:
 * **DigitalOcean**: install the metrics agent (`curl -sSL https://repos.insights.digitalocean.com/install.sh | sudo
   bash`; the Droplet's **Insights** tab then shows memory and disk use), and create **Monitoring → Resource Alerts**
   for disk use over 85%, memory over 90% for 10 minutes, and CPU over 90% for 30 minutes. Give the Droplets a tag and
-  choose the tag, so a new server gets the same alerts.
+  choose the tag, so a new server gets the same alerts. Both are free, and a Droplet made with Terraform has them
+  already (see [Option C](#terraform-deployment-automated-more-technical-1)).
 * **AWS**: CloudWatch alarms on the instance's CPU and status checks. **Hetzner** Cloud has no alerts of this kind;
   an uptime check covers the most common problems.
 
