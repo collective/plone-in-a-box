@@ -533,8 +533,20 @@ ssh root@<new-server> plone-restore /root/plone-<date>.sql.gz
 
 Then point your domain at the new server, and delete the old one when you're sure.
 
+**Checking the backups**: a backup you've never restored may not restore. Once a month (the first Wednesday,
+around 04:30 server time), `plone-backup-check.timer` loads the newest backup into a separate test database next
+to the site's, has Plone open the site in it and read its newest pages and a file or image, and then deletes the
+test database. The site keeps running and isn't touched. With [copies off the server](#day-to-day-administration),
+it tests the newest copy there instead, downloaded and decrypted the way you would after losing the server, so the
+passphrase and the bucket are checked too, and it warns if the newest copy is more than three days old. If
+anything fails, a notice goes to the notification URL and by email, and the login message shows it until the next
+check passes. `sudo plone-backup-check` runs it now (`sudo plone-backup-check <file>` tests one backup), and the
+result of the last one is in `/var/lib/plone-in-a-box/backup-check`, the log in `/var/log/plone-backup-check.log`.
+It needs free disk space for a second copy of the database while it runs.
+
 A server set up before 2.16 gets the nightly backups with the [same command](#servers-set-up-before-212) as automatic
-updates, and one set up before 2.19 gets `plone-restore` with it too (and before 2.20, `plone-offsite`).
+updates, and one set up before 2.19 gets `plone-restore` with it too (before 2.20, `plone-offsite`, and before 2.25,
+`plone-backup-check`).
 
 **Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
 the site's address every minute or so and alert you:

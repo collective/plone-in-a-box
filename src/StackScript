@@ -1497,6 +1497,160 @@ exit 1
 PLONE_RESTORE_EOF
 chmod 755 /usr/local/bin/plone-restore
 
+# Run inside the backend by plone-backup-check, against the test copy of the
+# database: opens the Plone site, counts its catalog entries, and reads the
+# newest pages and one file or image, so the content itself is known to be
+# there, not just the tables. Add-ons aren't installed for this, so their own
+# kinds of content may not load; those are counted, not failed.
+cat > "$APP_DIR/check_backup.py" <<'EOF'
+from zope.component.hooks import setSite
+
+app = globals()["app"]
+site = app.get("Plone")
+if site is None:
+    print("CHECK_NO_SITE")
+else:
+    setSite(site)
+    catalog = site.portal_catalog
+    # (A catalog search with no query finds nothing, so: everything under the site.)
+    path = "/".join(site.getPhysicalPath())
+    entries = len(catalog.unrestrictedSearchResults(path=path))
+    loaded = failed = 0
+    for brain in catalog.unrestrictedSearchResults(path=path, sort_on="modified", sort_order="descending")[:20]:
+        try:
+            brain._unrestrictedGetObject().Title()
+            loaded += 1
+        except Exception:
+            failed += 1
+    blob = "none"
+    for brain in catalog.unrestrictedSearchResults(path=path, portal_type=["File", "Image"], sort_on="modified", sort_order="descending")[:1]:
+        try:
+            obj = brain._unrestrictedGetObject()
+            field = getattr(obj, "file", None) or getattr(obj, "image", None)
+            with field.open() as f:
+                f.read(1024)
+            blob = "ok"
+        except Exception as e:
+            blob = f"failed:{type(e).__name__}"
+    print(f"CHECK_SITE entries={entries} loaded={loaded} failed={failed} blob={blob}")
+EOF
+
+# Restore test: sudo plone-backup-check, and once a month through
+# plone-backup-check.timer.
+cat > /usr/local/bin/plone-backup-check <<'PLONE_BACKUP_CHECK_EOF'
+#!/bin/bash
+# Checks that a backup can really be restored, without touching the site: loads
+# it into a separate test database next to the site's, opens the Plone site in
+# it and reads some of its pages and files, then deletes the test database.
+# With copies off the server (plone-offsite), it tests the newest copy there,
+# downloaded and decrypted, as you would after losing the server; otherwise
+# the newest backup on the server. A problem is reported like a failed backup.
+# Usage: sudo plone-backup-check          (also run once a month by plone-backup-check.timer)
+#        sudo plone-backup-check FILE     (test FILE, a plone-*.sql.gz backup)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-backup-check" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+BACKUP_DIR=/var/backups/plone
+APP_DIR=/opt/plone
+CHECK_DB=plone_check
+mkdir -p "$STATE_DIR"
+exec 9>"$STATE_DIR/update.lock"
+flock -w 10800 9 || { echo "A backup or update is still running; no check this time" >&2; exit 1; }
+exec > >(tee -a /var/log/plone-backup-check.log) 2>&1
+LOG_TEE_PID=$!
+FETCHED=""
+cleanup() {
+  compose exec -T db psql -q -U plone -d postgres -c "DROP DATABASE IF EXISTS $CHECK_DB WITH (FORCE)" >/dev/null 2>&1
+  [[ -n "$FETCHED" ]] && rm -f "$FETCHED"
+  exec >/dev/null 2>&1
+  wait "$LOG_TEE_PID" 2>/dev/null || true
+}
+trap cleanup EXIT
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+compose() { docker compose --project-directory "$APP_DIR" "$@"; }
+sql() { compose exec -T -e PGOPTIONS='-c client_min_messages=warning' db psql -q -At -U plone -v ON_ERROR_STOP=1 "$@"; }
+site=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+fail() {
+  say "$1"
+  printf '%s: FAILED: %s\n' "$(date '+%F')" "$1" > "$STATE_DIR/backup-check"
+  /usr/local/lib/plone-in-a-box/alert "Plone in a Box: backup check failed ($site)" \
+    "$1. The log is in /var/log/plone-backup-check.log on the server; run the check again with: sudo plone-backup-check" >/dev/null 2>&1
+  exit 1
+}
+
+# Which backup: the one given, the newest copy off the server, or the newest here.
+FILE=${1:-}
+WHERE="on the server"
+if [[ -z "$FILE" && -s "$STATE_DIR/offsite.conf" ]]; then
+  # shellcheck disable=SC1091
+  FOLDER=$(source "$STATE_DIR/offsite.conf"; printf '%s' "$FOLDER")
+  name=$(/usr/local/bin/plone-offsite list 2>/dev/null | awk -v f="$FOLDER/" 'index($3, f) == 1 && $3 ~ /\/plone-[^\/]*\.sql\.gz\.gpg$/ { print $3 }' | sort -r | head -n 1)
+  [[ -n "$name" ]] || fail "No copy of a backup was found off the server, in $FOLDER (sudo plone-offsite list)"
+  say "Downloading the newest copy off the server, $name"
+  /usr/local/bin/plone-offsite fetch "$name" >/dev/null || fail "Downloading or decrypting the copy $name failed"
+  FILE="$BACKUP_DIR/offsite-$(basename "$name" .gpg)"
+  FETCHED=$FILE
+  WHERE="off the server, $name"
+  # The name has the date it was taken; an old newest copy means the copies stopped.
+  taken=$(sed -nE 's/^plone-([0-9]{4}-[0-9]{2}-[0-9]{2})-.*/\1/p' <<<"$(basename "$name")")
+  if [[ -n "$taken" ]] && (( $(date +%s) - $(date -d "$taken" +%s) > 3 * 86400 )); then
+    fail "The newest copy off the server, $name, is from $taken: the nightly copies have stopped"
+  fi
+elif [[ -z "$FILE" ]]; then
+  # shellcheck disable=SC2012
+  FILE=$(ls -1t "$BACKUP_DIR"/plone-*.sql.gz 2>/dev/null | head -n 1)
+  [[ -n "$FILE" ]] || fail "There's no backup on the server to check"
+fi
+[[ -s "$FILE" ]] || fail "No backup at $FILE"
+gzip -t "$FILE" 2>/dev/null || fail "The backup $FILE is damaged: it isn't a complete .sql.gz file"
+
+# Room for a second copy of the database, and some to spare.
+size=$(sql -d plone -c "SELECT pg_database_size('plone')") || fail "The site's database didn't answer"
+avail=$(df --output=avail -B1 /var/lib/docker | tail -n 1)
+(( avail > size * 12 / 10 + 200000000 )) \
+  || fail "Not enough free disk for the check: the database takes $((size / 1048576)) MB, and $((avail / 1048576)) MB are free"
+
+say "Loading $FILE into the test database $CHECK_DB"
+sql -d postgres -c "DROP DATABASE IF EXISTS $CHECK_DB WITH (FORCE)" -c "CREATE DATABASE $CHECK_DB OWNER plone" >/dev/null \
+  || fail "Creating the test database failed"
+zcat "$FILE" | sql -d "$CHECK_DB" >/dev/null || fail "Loading the backup $FILE into a database failed"
+
+# The objects in it, against the site's own (the site may have grown since).
+count() {  # count DB: objects in the database (history-preserving or not)
+  sql -d "$1" -c "SELECT count(*) FROM current_object" 2>/dev/null || sql -d "$1" -c "SELECT count(*) FROM object_state" 2>/dev/null
+}
+restored=$(count "$CHECK_DB") || fail "The backup loaded, but it has no Plone data in it"
+live=$(count plone || echo 0)
+(( restored > 0 )) || fail "The backup loaded, but it's empty"
+(( restored * 2 >= live )) || fail "The backup has $restored objects, under half the site's $live"
+
+# The site itself, opened from the test database by a second Plone process.
+pw=$(sed -nE "s/^POSTGRES_PASSWORD=['\"]?([^'\"]*)['\"]?$/\1/p" "$APP_DIR/.env")
+out=$(compose run --rm --no-deps -T -e ADDONS= \
+  -e RELSTORAGE_DSN="dbname='$CHECK_DB' user='plone' host='db' password='$pw'" \
+  -v "$APP_DIR/check_backup.py:/app/scripts/check_backup.py:ro" \
+  backend run /app/scripts/check_backup.py 2>&1 </dev/null)
+result=$(grep -oE 'CHECK_(SITE|NO_SITE).*' <<<"$out" | tail -n 1)
+case "$result" in
+  CHECK_NO_SITE) fail "The backup loaded, but there's no Plone site in it" ;;
+  CHECK_SITE*) ;;
+  *) printf '%s\n' "$out" | tail -n 20; fail "Plone couldn't open the site in the backup (its messages are in the log)" ;;
+esac
+entries=$(sed -nE 's/.*entries=([0-9]+).*/\1/p' <<<"$result")
+loaded=$(sed -nE 's/.*loaded=([0-9]+).*/\1/p' <<<"$result")
+failed=$(sed -nE 's/.*failed=([0-9]+).*/\1/p' <<<"$result")
+blob=$(sed -nE 's/.*blob=([^ ]+).*/\1/p' <<<"$result")
+(( entries == 0 || loaded > 0 )) || fail "Plone opened the site in the backup, but none of its newest $failed pages could be read"
+[[ "$blob" == failed* ]] && fail "Plone opened the site in the backup, but the newest file or image couldn't be read (${blob#failed:})"
+
+summary="OK: the backup $(basename "$FILE") ($WHERE) restores: $restored database objects, $entries pages and files, the newest $loaded opened"
+[[ "$blob" == ok ]] && summary+=", and a file or image read"
+(( failed > 0 )) && summary+=" ($failed more are add-on content, not checked)"
+say "$summary"
+printf '%s: %s\n' "$(date '+%F')" "$summary" > "$STATE_DIR/backup-check"
+PLONE_BACKUP_CHECK_EOF
+chmod 755 /usr/local/bin/plone-backup-check
+
 # Encrypted copies of the nightly backups in S3-compatible storage (Cloudflare
 # R2, AWS S3, Backblaze B2, DigitalOcean Spaces, Hetzner and others), once
 # the owner runs sudo plone-offsite setup.
@@ -1822,6 +1976,32 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+cat > /etc/systemd/system/plone-backup-check.service <<'EOF'
+[Unit]
+Description=Plone in a Box: check that a backup can be restored
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/plone-backup-check
+TimeoutStartSec=4h
+EOF
+cat > /etc/systemd/system/plone-backup-check.timer <<'EOF'
+[Unit]
+Description=Monthly Plone in a Box restore test
+
+[Timer]
+# The first Wednesday of the month (server time, usually UTC), after the
+# nightly backup and restart, at a random time within an hour.
+OnCalendar=Wed *-*-01..07 04:30:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
 cat > /etc/systemd/system/plone-update.service <<'EOF'
 [Unit]
 Description=Plone in a Box: install Plone, Volto and PostgreSQL patch releases
@@ -2091,7 +2271,7 @@ Description=Plone in a Box: report that %i stopped
 Type=oneshot
 ExecStart=/usr/local/lib/plone-in-a-box/unit-failed %i
 EOF
-for unit in plone-backup plone-update plone-https-ip plone-security-notices plone-reboot; do
+for unit in plone-backup plone-backup-check plone-update plone-https-ip plone-security-notices plone-reboot; do
   install -d -m 755 "/etc/systemd/system/${unit}.service.d"
   printf '[Unit]\nOnFailure=plone-in-a-box-failed@%%n.service\n' > "/etc/systemd/system/${unit}.service.d/report-failure.conf"
 done
@@ -2103,6 +2283,7 @@ cat > /etc/update-motd.d/90-plone-in-a-box <<'EOF'
 dir=/var/lib/plone-in-a-box
 [ -s "$dir/update-status" ] && printf '\nPlone in a Box, last update: %s\n' "$(cat "$dir/update-status")"
 [ -s "$dir/update-notice" ] && cat "$dir/update-notice"
+grep -q FAILED "$dir/backup-check" 2>/dev/null && printf 'Backup check: %s\n' "$(cat "$dir/backup-check")"
 [ -s "$dir/security-notice" ] && [ -n "$(find "$dir/security-notice" -mtime -30)" ] && cat "$dir/security-notice"
 exit 0
 EOF
@@ -2540,6 +2721,8 @@ install -d -m 755 /var/lib/plone-in-a-box
 printf '%s\n' "$SITE_URL" > /var/lib/plone-in-a-box/site-url
 # Nightly database backups and a weekly pack, whatever AUTO_UPDATE says.
 systemctl enable --now plone-backup.timer
+# A restore test of the newest backup once a month.
+systemctl enable --now plone-backup-check.timer
 # Daily security notices; the first check only notes the newest post.
 /usr/local/bin/plone-security-notices >/dev/null 2>&1 || true
 systemctl enable --now plone-security-notices.timer

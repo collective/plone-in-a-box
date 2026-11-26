@@ -1,6 +1,15 @@
 2.25 (unreleased)
 -----------------
 
+- **Backup checks**: once a month, `plone-backup-check.timer` restores the
+  newest backup into a separate test database, has Plone open the site in
+  it and read its newest pages and a file or image, then deletes the test
+  database; the site isn't touched. With copies off the server, it tests the
+  newest copy there, downloaded and decrypted, and says if the copies have
+  stopped. A failure goes to the notification URL and by email, and shows in
+  the login message. `sudo plone-backup-check` runs it now. Older servers
+  get it from `src/add-updates.sh`. ("Checking the backups" in the setup
+  guide.)
 - **The server's own mail**: with the site's mail settings in place, mail
   the server sends to root (Ubuntu's automatic security updates when one
   fails, say) goes to the address for reports, through the same email
