@@ -2111,8 +2111,8 @@ input(type="imfile" File="/var/log/plone-*.log" Tag="plone-in-a-box:" Facility="
 EOF
   cat > "$NGINX_CONF" <<'EOF'
 # Written by plone-syslog: requests and errors to rsyslog too, which sends them on.
-access_log syslog:server=unix:/dev/log,tag=nginx,severity=info combined;
-error_log syslog:server=unix:/dev/log,tag=nginx warn;
+access_log syslog:server=unix:/dev/log,tag=nginx,severity=info,nohostname combined;
+error_log syslog:server=unix:/dev/log,tag=nginx,nohostname warn;
 EOF
   nginx -t -q 2>/dev/null || { rm -f "$NGINX_CONF" "$FILES_CONF"; die "nginx didn't accept the syslog settings; nothing was changed"; }
 
@@ -2147,6 +2147,12 @@ EOF
 $MARK: everything to $host:$port ($protocol${sd:+, with structured data}).
 global(localHostname="$name" $global)
 $template_def
+# Not sent, to keep the volume down (both stay in the server's own logs): the
+# backend's health check every 10 seconds, and the firewall's lines about the
+# connections it blocks, which internet scanners cause all day.
+if (\$programname startswith "plone-backend" and \$msg contains "GET /ok HTTP/1.1") or \$msg contains "[UFW BLOCK]" then {
+  stop
+}
 *.* action(type="omfwd" target="$host" port="$port" protocol="$proto" $tls
            template="$template"
            queue.type="LinkedList" queue.filename="plone-in-a-box-remote" queue.maxDiskSpace="100m"
