@@ -72,6 +72,9 @@ main() {
   say "Plone security announcements are passed on every day (sudo plone-security-notices to check now)"
   systemctl enable --now plone-reboot.timer
   say "The server restarts at night when Ubuntu's security updates need it (sudo systemctl disable --now plone-reboot.timer to stop)"
+  if /usr/local/bin/plone-server-mail >/dev/null 2>&1; then
+    say "Mail the server sends to root (such as failed security updates) now goes to the address for reports, through the site's mail settings"
+  fi
 
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then

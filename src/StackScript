@@ -1085,6 +1085,8 @@ while read -r kind name list url; do
   [[ "$kind" == LISTED ]] && NOTICE+="${NOTICE:+ }${name} is on the blocklist ${list} (${url}): email from it, or with links to it, may land in spam. That page explains how to have it removed."
   [[ "$kind" == UNCHECKED && "$name" == dbl.dq.spamhaus.net ]] && NOTICE+="${NOTICE:+ }Spamhaus didn't answer through the DQS key in /var/lib/plone-in-a-box/spamhaus-key: check the key."
 done < <(/usr/local/lib/plone-in-a-box/blocklists $site_host $(cat "$STATE_DIR/email-domain" 2>/dev/null) || true)
+# The server's own mail, with the site's mail settings as they are now.
+/usr/local/bin/plone-server-mail >/dev/null 2>&1 </dev/null
 # rclone for copies off the server (plone-offsite), if they're set up, and
 # Certbot for the IP address certificate (plone-https-ip), if it's in use.
 [[ -s "$STATE_DIR/offsite.conf" ]] && docker pull -q rclone/rclone:1 >/dev/null 2>&1
@@ -1202,6 +1204,138 @@ else:
     except Exception as e:
         print(f"MAIL_FAILED {e!r}")
 EOF
+
+# Run inside the backend by plone-server-mail: the site's mail settings (Site
+# Setup > Mail), as one line of JSON.
+cat > "$APP_DIR/mail_settings.py" <<'EOF'
+import json
+from plone.registry.interfaces import IRegistry
+from zope.component import getUtility
+from zope.component.hooks import setSite
+
+app = globals()["app"]
+setSite(app["Plone"])
+registry = getUtility(IRegistry)
+print("MAIL_SETTINGS " + json.dumps({
+    "host": registry.get("plone.smtp_host") or "",
+    "port": registry.get("plone.smtp_port") or 25,
+    "user": registry.get("plone.smtp_userid") or "",
+    "password": registry.get("plone.smtp_pass") or "",
+    "from": registry.get("plone.email_from_address") or "",
+}))
+EOF
+
+# The server's own mail (cron, Ubuntu's automatic updates, anything that
+# mails root) through the site's mail settings: sudo plone-server-mail. Setup
+# and add-updates.sh run it, and plone-update every week, so a change in Site
+# Setup > Mail reaches it.
+cat > /usr/local/bin/plone-server-mail <<'PLONE_SERVER_MAIL_EOF'
+#!/bin/bash
+# Mail the server itself sends to root goes to the address for reports, through
+# the site's email service (msmtp, with the settings from Site Setup > Mail).
+# Ubuntu's automatic security updates then email you if they fail.
+# Usage: sudo plone-server-mail        (take the settings from the site again)
+#        sudo plone-server-mail test   (and send a test email)
+# Exit 0: set up; 1: failed; 3: the site has no mail settings.
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-server-mail" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+APP_DIR=/opt/plone
+MARK="# Written by plone-server-mail"
+site=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+
+out=$(docker compose --project-directory "$APP_DIR" run --rm --no-deps -T -e ADDONS= \
+  -v "$APP_DIR/mail_settings.py:/app/scripts/mail_settings.py:ro" backend run /app/scripts/mail_settings.py 2>/dev/null </dev/null)
+settings=$(grep -o '^MAIL_SETTINGS .*' <<<"$out" | tail -n 1)
+settings=${settings#MAIL_SETTINGS }
+[[ -n "$settings" ]] || { echo "Couldn't read the site's mail settings (is the site running?)" >&2; exit 1; }
+if ! python3 -c 'import json, sys; d = json.loads(sys.argv[1]); sys.exit(0 if d["host"] and d["from"] else 1)' "$settings"; then
+  echo "The site has no mail settings (Site Setup > Mail), so the server's own mail isn't set up"
+  exit 3
+fi
+# Another mail program already in charge (postfix, say): leave it be.
+if [[ -e /usr/sbin/sendmail ]] && ! dpkg -S /usr/sbin/sendmail 2>/dev/null | grep -q '^msmtp-mta:'; then
+  echo "This server already has another mail program ($(dpkg -S /usr/sbin/sendmail 2>/dev/null | cut -d: -f1 || echo unknown)); leaving it as it is" >&2
+  exit 1
+fi
+if ! dpkg -s msmtp-mta >/dev/null 2>&1; then
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o DPkg::Lock::Timeout=600 msmtp msmtp-mta >/dev/null \
+    || { echo "Installing msmtp failed" >&2; exit 1; }
+fi
+report=$(cat "$STATE_DIR/report-email" 2>/dev/null)
+# The way to log in: msmtp picks the strongest method the server offers, and
+# some services (SMTP2GO, for one) offer SCRAM but don't accept it. Plone
+# itself logs in with CRAM-MD5, PLAIN or LOGIN, so use one of those too:
+# PLAIN or LOGIN, sent only over TLS, else CRAM-MD5.
+read -r host port < <(python3 -c 'import json, sys; d = json.loads(sys.argv[1]); print(d["host"], int(d["port"]))' "$settings")
+starttls=on; [[ "$port" == 465 ]] && starttls=off
+methods=$(msmtp --serverinfo --host="$host" --port="$port" --tls=on --tls-starttls="$starttls"   --tls-trust-file=/etc/ssl/certs/ca-certificates.crt 2>/dev/null | sed -n '/Supported authentication methods:/{n;p;}')
+auth=on
+for m in PLAIN LOGIN CRAM-MD5; do
+  [[ " $methods " == *" $m "* ]] && { auth=${m,,}; break; }
+done
+override=0
+dpkg --compare-versions "$(dpkg-query -W -f='${Version}' msmtp)" ge 1.8.20 && override=1
+
+# The configuration, written by Python so the password needs no shell quoting.
+new=$(python3 - "$settings" "$report" "$override" "$MARK" "$auth" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+report, override, mark, auth = sys.argv[2] or d["from"], sys.argv[3] == "1", sys.argv[4], sys.argv[5]
+def q(value):
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+port = int(d["port"])
+lines = [mark + " from Site Setup > Mail; it's run again every week.",
+         "defaults", "tls on", "tls_trust_file /etc/ssl/certs/ca-certificates.crt",
+         "syslog LOG_MAIL", "aliases /etc/aliases", "",
+         "account site", f"host {q(d['host'])}", f"port {port}",
+         "tls_starttls " + ("off" if port == 465 else "on")]
+if d["user"]:
+    lines += [f"auth {auth}", f"user {q(d['user'])}", f"password {q(d['password'])}"]
+else:
+    lines += ["auth off"]
+# Every message is sent from the site's address, which the service accepts,
+# whatever From the program sending it gave.
+lines += [f"from {q(d['from'])}", "set_from_header on"]
+if override:
+    lines += ["allow_from_override off"]
+lines += ["", "account default : site"]
+print("\n".join(lines))
+print("#ALIASES " + report)
+PY
+) || { echo "Writing the mail settings failed" >&2; exit 1; }
+aliases_to=$(sed -n 's/^#ALIASES //p' <<<"$new")
+new=$(sed '/^#ALIASES /d' <<<"$new")
+changed=0
+if [[ "$new" != "$(cat /etc/msmtprc 2>/dev/null)" ]]; then
+  (umask 077; printf '%s\n' "$new" > /etc/msmtprc.new) && mv /etc/msmtprc.new /etc/msmtprc
+  changed=1
+fi
+# root, and anyone else on the server, to the address for reports.
+aliases=$(printf '%s: mail for root and the other users on this server goes to the address for reports.\nroot: %s\ndefault: %s' "$MARK" "$aliases_to" "$aliases_to")
+if [[ "$aliases" != "$(cat /etc/aliases 2>/dev/null)" ]]; then
+  [[ -s /etc/aliases ]] && ! grep -qF "$MARK" /etc/aliases && cp -n /etc/aliases /etc/aliases.before-plone-in-a-box
+  printf '%s\n' "$aliases" > /etc/aliases
+  changed=1
+fi
+# Ubuntu's automatic security updates: an email when one fails.
+printf '%s\nUnattended-Upgrade::Mail "root";\nUnattended-Upgrade::MailReport "only-on-error";\n' "// ${MARK#\# }" \
+  > /etc/apt/apt.conf.d/51plone-in-a-box-mail
+(( changed )) && echo "The server's own mail now goes to $aliases_to, through $(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["host"])' "$settings")"
+
+if [[ "${1:-}" == test ]]; then
+  if printf 'To: root\nSubject: Plone in a Box: a test of the server'"'"'s own mail (%s)\nDate: %s\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\n\n%s\n' \
+       "$site" "$(date -R)" "This test email shows that $site can email you about the server itself: failed security updates, and anything else that mails root." \
+       | /usr/sbin/sendmail -t -oi; then
+    echo "Sent a test email to $aliases_to"
+  else
+    echo "Sending the test email failed: see sudo journalctl -t msmtp" >&2
+    exit 1
+  fi
+fi
+exit 0
+PLONE_SERVER_MAIL_EOF
+chmod 755 /usr/local/bin/plone-server-mail
 
 # Nightly database backup, and a weekly pack: sudo plone-backup, and every
 # night through plone-backup.timer.
@@ -2786,6 +2920,13 @@ if [[ -n "$SMTP_HOST" && "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
       if [[ "$mail_out" == *MAIL_SENT* ]]; then
         log "Sent a test email to ${REPORT_EMAIL}"
         MAIL_LINE="Email:     sent through ${SMTP_HOST} from ${EMAIL_FROM}; a test email went to ${REPORT_EMAIL}"
+        # The server's own mail (failed security updates, say) the same way.
+        if /usr/local/bin/plone-server-mail >/dev/null 2>&1; then
+          log "The server's own mail goes to ${REPORT_EMAIL} too"
+          MAIL_LINE+=", and the server's own mail (such as failed security updates) goes there too"
+        else
+          log "Setting up the server's own mail failed; try again with: sudo plone-server-mail test"
+        fi
       else
         reason=$(grep -o 'MAIL_FAILED.*' <<<"$mail_out" | head -1 | cut -c13-200 || true)
         log "Sending a test email failed: ${reason:-see above}"

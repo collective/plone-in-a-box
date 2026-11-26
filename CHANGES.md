@@ -17,6 +17,14 @@
   checks first that the domain points at Cloudflare. `plone-cloudflare.timer`
   updates Cloudflare's address list once a month; `sudo plone-cloudflare
   off` opens the ports again. ("Behind Cloudflare" in the setup guide.)
+- **The server's own mail**: with the site's mail settings in place, mail
+  the server sends to root (Ubuntu's automatic security updates when one
+  fails, say) goes to the address for reports, through the same email
+  service, from the site's From address. `plone-server-mail` configures
+  msmtp from **Site Setup → Mail**; setup runs it, and the weekly update
+  runs it again so changes there reach the server. `sudo plone-server-mail
+  test` sends a test email. Older servers get it from `src/add-updates.sh`.
+  ("The server's own mail" in the setup guide.)
 
 2.24 (2026-11-26)
 -----------------
