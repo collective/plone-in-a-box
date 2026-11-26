@@ -58,7 +58,7 @@ section.dense code { font-size: 0.85em; }
 <h1 id="plone-in-a-box%E2%84%A2">Plone in a Box™</h1>
 <p>Your own Plone 6 website on a cloud server,<br />
 without needing a command line.</p>
-<p><small>Release 2.23 · November 2026</small></p>
+<p><small>Release 2.24 · November 2026</small></p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="2" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -281,8 +281,9 @@ section.dense code { font-size: 0.85em; }
 <li>The admin password is <strong>the one you choose</strong>, or a generated one.</li>
 <li><strong>HTTPS for every site,</strong> also without a domain name: a certificate for the server's IP address, renewed by itself.</li>
 <li>Only the <strong>website</strong> (HTTP, HTTPS) and <strong>SSH</strong> are reachable from the internet. The database and Plone's own ports are closed.</li>
+<li><strong>SSH keys only</strong> when the server has one, and addresses that keep failing to log in are blocked.</li>
 <li><strong>Security headers</strong> on every page, and nginx doesn't reveal its version.</li>
-<li><strong>All Ubuntu updates</strong> are installed during setup, and security updates keep coming automatically.</li>
+<li><strong>All Ubuntu updates</strong> are installed during setup, and security updates keep coming automatically. The server <strong>restarts at night</strong> when one needs it.</li>
 <li><strong>Plone security fixes</strong> install the same day they come out, and you hear about them, often a week ahead.</li>
 <li>Servers made with <strong>Terraform</strong> or AWS's <strong>Launch Stack</strong> can't be deleted or rebuilt by mistake.</li>
 <li>Forgot the password? One command in your provider's <strong>browser console</strong> resets it.</li>
@@ -541,7 +542,8 @@ section.dense code { font-size: 0.85em; }
 <li><strong>Every week,</strong> a pack: the database's old history is cleared, so it doesn't keep growing.</li>
 <li><strong><code>sudo plone-restore</code></strong> puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also <strong>moves a site</strong> to a new server.</li>
 <li><strong>Encrypted copies off the server:</strong> each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted on the server first.</li>
-<li>Your provider's <strong>server backups</strong> can be turned on too, for the whole disk.</li>
+<li>Your provider's <strong>server backups</strong> can be turned on too, for the whole disk: on AWS too, with Terraform's <code>backups</code> setting.</li>
+<li>A notice when the <strong>disk is getting full</strong>, before backups stop, and when a backup or update is cut off.</li>
 </ul>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="10" data-paginate="true" data-theme="default" data-style=":root {
@@ -707,7 +709,7 @@ section.dense code { font-size: 0.85em; }
 <li>Fill in the service's settings <strong>when you create the server</strong>.</li>
 <li>Setup puts them into <strong>Site Setup → Mail</strong>, and sends you a <strong>test email</strong>.</li>
 <li>The weekly update reports go to your inbox too.</li>
-<li>Setup checks your domains and the server's address against the <strong>blocklists</strong> mail services use, and the weekly report says if a domain gets listed.</li>
+<li>Setup checks your domains and the server's address against the <strong>blocklists</strong> mail services use, and the weekly report says if a domain gets listed. A free <strong>Spamhaus key</strong> makes the check work on any provider.</li>
 </ul>
 <p>The setup guide compares the services, and explains the DNS records your domain needs.</p>
 </section>

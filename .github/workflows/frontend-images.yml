@@ -4,7 +4,7 @@ name: Frontend images
 # packages) from frontend-image/Dockerfile, and publishes them to ghcr.io/<owner>/plone-in-a-box-frontend: the real images
 # from collective/plone-in-a-box, test images from forks. Pull requests only
 # build. A failed build publishes nothing, so the previous image stays.
-# Afterwards, old builds are deleted (scripts/cleanup-frontend-images.py): each
+# Afterwards, old builds are deleted (scripts/cleanup-images.py): each
 # image keeps its newest 26 builds, and test images go after 7 days.
 
 on:
@@ -99,4 +99,4 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
           DRY_RUN: ${{ inputs.cleanup_dry_run }}
-        run: python3 scripts/cleanup-frontend-images.py
+        run: python3 scripts/cleanup-images.py

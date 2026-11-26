@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Delete old builds of the ready-made frontend images.
+"""Delete old builds of the ready-made frontend and backend images.
 
-Run by .github/workflows/frontend-images.yml after the builds. Every build is
-one package version in ghcr.io/<owner>/plone-in-a-box-frontend, tagged
-<image>, <image>-<date> and <image>-<commit> (for example 19-vlt,
-19-vlt-2026-11-22, 19-vlt-a1b2c3d), plus untagged child versions (the image
-itself and its provenance attestation) that the tagged one points to.
+Run by .github/workflows/frontend-images.yml and backend-images.yml after the
+builds. Every build is one package version in ghcr.io/<owner>/<PACKAGE>
+(plone-in-a-box-frontend or plone-in-a-box-backend), tagged <image>,
+<image>-<date> and <image>-<commit> (for example 19-vlt, 19-vlt-2026-11-22,
+19-vlt-a1b2c3d; a build replaced later the same day keeps only its commit tag), plus untagged child versions (the image for each platform,
+and their provenance attestations) that the tagged one points to.
 
 What it deletes:
   - builds of an image in addons.yml, beyond the newest KEEP_BUILDS
@@ -19,8 +20,12 @@ What it deletes:
 It never deletes untagged versions on their own, nor builds of images that
 are no longer in the list but aren't test images: servers may still use them.
 
-Environment: GITHUB_TOKEN (packages: write), OWNER, CATALOG (addons.yml, the
-list of images), DRY_RUN=1 to only report, and optionally
+The images in addons.yml are, for the frontend package, the entries with
+packages (built from it), and for the backend package, the backend_image tags
+of entries that name ghcr.io/<anyone>/plone-in-a-box-backend.
+
+Environment: GITHUB_TOKEN (packages: write), OWNER, PACKAGE (default
+plone-in-a-box-frontend), CATALOG (addons.yml, the list of images), DRY_RUN=1 to only report, and optionally
 KEEP_BUILDS and TEST_DAYS. With VERSIONS_FILE (a JSON list of versions as the
 API returns them), it only reports what it would delete, for testing.
 """
@@ -32,9 +37,11 @@ import sys
 import urllib.error
 import urllib.request
 
-PACKAGE = "plone-in-a-box-frontend"
+PACKAGE = os.environ.get("PACKAGE") or "plone-in-a-box-frontend"
 API = "https://api.github.com"
 DATED = re.compile(r"^(?P<image>.+)-(?P<date>\d{4}-\d{2}-\d{2})$")
+# A build that another one replaced on the same day keeps only its commit tag.
+COMMIT = re.compile(r"^(?P<image>.+)-[0-9a-f]{7}$")
 INDEX_TYPES = ", ".join([
     "application/vnd.oci.image.index.v1+json",
     "application/vnd.docker.distribution.manifest.list.v2+json",
@@ -57,11 +64,19 @@ def request(url, token=None, method="GET", accept="application/vnd.github+json")
         return json.loads(body) if body else None
 
 
-def images_in_catalog(path):
-    """The <volto>-<id> names of the images built from addons.yml."""
+def images_in_catalog(path, package=PACKAGE):
+    """The tags of this package's images that addons.yml uses."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import catalog
-    return [f"{e['volto']}-{e['id']}" for e in catalog.read(path) if catalog.has_image(e)]
+    entries = catalog.read(path)
+    if package == "plone-in-a-box-frontend":
+        return [f"{e['volto']}-{e['id']}" for e in entries if catalog.has_image(e)]
+    found = []
+    for e in entries:
+        m = re.fullmatch(rf"ghcr\.io/[^/]+/{re.escape(package)}:(.+)", e["backend_image"])
+        if m:
+            found.append(m.group(1))
+    return found
 
 
 def owner_path(owner, token):
@@ -99,11 +114,10 @@ def plan(versions, images, keep_builds, test_days, now):
     builds = {}
     for version in versions:
         tags = version.get("metadata", {}).get("container", {}).get("tags", [])
-        for tag in tags:
-            match = DATED.match(tag)
-            if match:
-                builds.setdefault(match["image"], []).append(version)
-                break
+        match = next((m for m in map(DATED.match, tags) if m), None) \
+            or next((m for m in map(COMMIT.match, tags) if m), None)
+        if match:
+            builds.setdefault(match["image"], []).append(version)
     delete, keep = [], []
     for image, found in builds.items():
         found.sort(key=lambda v: v["created_at"], reverse=True)
@@ -126,7 +140,7 @@ def main():
     keep_builds = int(os.environ.get("KEEP_BUILDS") or 26)
     test_days = int(os.environ.get("TEST_DAYS") or 7)
     now = datetime.datetime.now(datetime.timezone.utc)
-    say(f"Images in addons.yml: {', '.join(images)}; keeping {keep_builds} builds of each, "
+    say(f"{PACKAGE} images in addons.yml: {', '.join(images) or 'none'}; keeping {keep_builds} builds of each, "
         f"test images for {test_days} days")
 
     if os.environ.get("VERSIONS_FILE"):

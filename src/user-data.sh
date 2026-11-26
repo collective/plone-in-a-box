@@ -93,11 +93,15 @@ export SMTP_USER=''
 export SMTP_PASSWORD=''
 export EMAIL_FROM=''
 export REPORT_EMAIL=''
+# Spamhaus DQS key, optional: a free key from spamhaus.com (Data Query Service),
+# so the blocklist checks can ask Spamhaus, whose public servers refuse many
+# cloud providers' DNS. Keep it private.
+export SPAMHAUS_KEY=''
 
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.
-PIAB_RELEASE='2.23'
+PIAB_RELEASE='2.24'
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 set -uo pipefail

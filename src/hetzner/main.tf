@@ -29,11 +29,11 @@ terraform {
 variable "release" {
   description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
   type        = string
-  default     = "2.23"
+  default     = "2.24"
 
   validation {
     condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
-    error_message = "release: a release, branch or commit, such as 2.23."
+    error_message = "release: a release, branch or commit, such as 2.24."
   }
 }
 
@@ -227,6 +227,13 @@ variable "report_email" {
   default     = ""
 }
 
+variable "spamhaus_key" {
+  description = "Optional: a free Spamhaus Data Query Service key from spamhaus.com, so the blocklist checks can ask Spamhaus about the server's IP address and the site's domains."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "auto_update" {
   description = "Install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back."
   type        = bool
@@ -327,6 +334,7 @@ resource "hcloud_server" "plone" {
     "export SMTP_PASSWORD=\"$(echo ${base64encode(var.smtp_password)} | base64 -d)\"",
     "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
     "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
+    "export SPAMHAUS_KEY=\"$(echo ${base64encode(var.spamhaus_key)} | base64 -d)\"",
     "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
     "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
     "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",
