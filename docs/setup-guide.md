@@ -408,8 +408,14 @@ For updates, see [Updates](#updates).
 counting those taken before updates, and each one is the whole site, files and images included. Once a week it
 also packs the database: it removes the history of changes older than a week, which would otherwise make the
 database grow forever. `sudo plone-backup` runs both now (`sudo plone-backup pack` packs as well), and the log is in
-`/var/log/plone-backup.log`. If a backup fails, a notice goes to the notification URL, and if backups stop without
-failing (a stopped timer, say), the weekly update report says the newest backup is more than two days old.
+`/var/log/plone-backup.log`. If a backup fails, a notice goes to the notification URL and by email, and if backups
+stop without failing (a stopped timer, say), the weekly update report says the newest backup is more than two days
+old. The nightly backup also checks the disk: once it's over 85% full, you get a notice (and another at every 5
+points more), and the weekly report says so until there's room again.
+
+**When a tool stops**: the backups, updates, security notices and nightly restarts report the problems they find
+themselves. If one of them is stopped instead (it ran out of time or memory, or crashed), a notice says so, with its
+last log lines.
 
 Next to each database backup, `plone-<date>.config.tar.gz` holds the server's own settings: `/opt/plone/.env`
 (versions, images, add-ons), `/opt/plone/docker-compose.yml` and the nginx site. The site doesn't need them to
@@ -508,9 +514,18 @@ many of which have a free plan.
 A box has two kinds of software, and each one updates differently.
 
 **Ubuntu, nginx and Docker** come from Ubuntu's packages. Setup installs all updates and restarts the server once
-if they need it. After that, Ubuntu installs security updates automatically, nginx's included, but doesn't restart by
-itself, and it leaves out Docker, which comes from Docker's own repository. Every month or so, and whenever the
-login message says `*** System restart required ***`, run:
+if they need it. After that, Ubuntu installs security updates automatically every day, nginx's included. Some of
+them, such as a new Linux kernel, only take effect after a restart, which Ubuntu doesn't do by itself, so the server
+restarts at night when one is waiting: at 03:30 server time (usually UTC), after the nightly backup, and only once no
+backup or update is running. The site is down for a minute or two, and Plone starts again by itself. Each restart is
+logged in `/var/log/plone-reboot.log`; `sudo plone-reboot` restarts now if updates are waiting for it. To restart by
+hand instead (the weekly report tells you when updates have waited more than two days):
+
+```
+sudo systemctl disable --now plone-reboot.timer
+```
+
+Ubuntu's automatic updates leave out Docker, which comes from Docker's own repository. Every month or so, run:
 
 ```
 sudo apt update && sudo apt full-upgrade -y
