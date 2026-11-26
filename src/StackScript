@@ -1993,8 +1993,9 @@ CONF=/etc/rsyslog.d/60-plone-in-a-box-remote.conf
 FILES_CONF=/etc/rsyslog.d/59-plone-in-a-box-files.conf
 NGINX_CONF=/etc/nginx/conf.d/plone-syslog.conf
 OVERRIDE=$APP_DIR/docker-compose.override.yml
-# (Readable by rsyslog, which runs as the syslog user.)
-CA_COPY=/etc/ssl/plone-in-a-box-syslog-ca.pem
+# (Where rsyslog may read it: it runs as the syslog user, and Ubuntu's AppArmor
+# profile for it allows /etc/rsyslog.d; only *.conf files there are settings.)
+CA_COPY=/etc/rsyslog.d/plone-in-a-box-ca.pem
 MARK="# Written by plone-syslog"
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 die() { echo "$*" >&2; exit 1; }
