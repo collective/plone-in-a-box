@@ -574,7 +574,7 @@ Your provider can also tell you when the server itself is struggling:
 
 **Sending the logs elsewhere**: the logs stay on the server, which is enough to look into a problem, but they're
 gone with it, and with several servers you'd log in to each. `plone-syslog` sends them to a syslog server or service
-as well (Papertrail, Better Stack, Graylog, or an rsyslog server of your own): Plone, Volto and PostgreSQL, nginx's
+as well (see [Where to send them](#where-to-send-the-logs) below): Plone, Volto and PostgreSQL, nginx's
 requests and errors, the Plone in a Box tools' logs (backups, updates and the others), and the system's own, such
 as SSH logins and security updates.
 
@@ -587,24 +587,37 @@ private network). For a log server with a certificate of its own making, add `--
 authority. Some services want a token in every message, as a structured-data element: give it with `--sd -`,
 which asks for it without showing it, and keeps it where only root can read it.
 
-**How much, and what it costs**: most of the volume is one line per web request (nginx's, and Plone's own). The
-rest (errors, Plone, backups, updates, SSH) is a few hundred KB a day. A small site with its requests sends roughly
+**How much a site sends**: most of the volume is one line per web request (nginx's, and Plone's own). The rest
+(errors, Plone, backups, updates, SSH) is a few hundred KB a day. A small site with its requests sends roughly
 10–300 MB a month, depending on its traffic and the bots that visit it; with `--no-access-log`, which leaves out the
-line per request (errors still go), it's more like 10 MB. Services, as of November 2026:
+line per request (errors still go), it's more like 10 MB.
 
-* **Better Stack**: free for 3 GB a month, kept for 3 days; paid plans from about $25 a month. Create a source
-  (platform **Syslog**); it shows an ingesting host and a source token. Use port 6514, and give
-  `[logtail@11993 source_token="<token>"]` when `--sd -` asks.
-* **Papertrail** (now SolarWinds Observability): no free plan beyond a trial; about $91 a year for each GB a month,
-  kept 15 days. It shows a host such as `syslog.collector.na-01.cloud.solarwinds.com` and an ingestion token under
-  **Setup logging**: port 6514, and `[<token>@41058]` for `--sd -`.
-* **Your own log server**: rsyslog on a small server of your own (about $5 a month), with `--ca` if its certificate
-  is one of your own making. No limits, and you keep the logs as long as you like.
+<a id="where-to-send-the-logs"></a>**Where to send them**: the two services have been tried with `plone-syslog`, and a log server of your own
+with a test one (prices as of November 2026; check the service's own page):
+
+| | Free | Kept | Paid | `plone-syslog on …` |
+|---|---|---|---|---|
+| [Better Stack](https://betterstack.com/logs) | 3 GB a month | 3 days | from about $25 a month | `<ingesting host>:6514 --sd -`, then `[logtail@11993 source_token="<token>"]` |
+| [Papertrail](https://www.papertrail.com) (SolarWinds Observability) | trial only | 15 days | about $91 a year per GB a month | `syslog.collector.na-01.cloud.solarwinds.com:6514 --sd -`, then `[<token>@41058]` |
+| Your own log server (rsyslog) | — | as long as you like | the server, about $5 a month | `<your server>:6514`, with `--ca <file>` if its certificate is your own |
+
+* **Most sites**: Better Stack's free plan with `--no-access-log`. Three days is enough to see what just happened,
+  and the volume stays far below the limit.
+* **Logs kept for weeks**: Papertrail, or a log server of your own. Papertrail is the least work; your own server
+  costs the least once you have several sites, but you look after it.
+* For Better Stack, create a source with the platform **RSyslog** (not the Better Stack collector); it shows the
+  ingesting host and the source token. For Papertrail, **Setup logging** shows the host and an ingestion token.
+  `--sd -` asks for the token's part without showing it, and keeps it where only root can read it.
+
+**Another service** works if it accepts **syslog over TLS on TCP** (RFC 5424, usually port 6514) and tells
+accounts apart by the port it gives you, or by a token in each message, which `--sd` adds. Services that only take
+data from their own agent on the server (Grafana Cloud, Datadog, New Relic and others) don't work with
+`plone-syslog`.
 
 For example:
 
 ```
-sudo plone-syslog on syslog.collector.na-01.cloud.solarwinds.com:6514 --sd - --no-access-log
+sudo plone-syslog on s1234567.us-east-9.betterstackdata.com:6514 --sd - --no-access-log
 ```
 
 Each message carries the site's name (its domain, or its IP address), so you can tell servers apart. The backend's
