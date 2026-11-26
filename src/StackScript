@@ -1434,7 +1434,7 @@ cleanup() {
 trap cleanup EXIT
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 compose() { docker compose --project-directory "$APP_DIR" "$@"; }
-sql() { compose exec -T db psql -q -At -U plone -v ON_ERROR_STOP=1 "$@"; }
+sql() { compose exec -T -e PGOPTIONS='-c client_min_messages=warning' db psql -q -At -U plone -v ON_ERROR_STOP=1 "$@"; }
 site=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
 fail() {
   say "$1"
