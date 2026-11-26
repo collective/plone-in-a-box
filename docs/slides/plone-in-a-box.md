@@ -146,8 +146,19 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It p
 - **Every week,** a pack: the database's old history is cleared, so it doesn't keep growing.
 - **`sudo plone-restore`** puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also **moves a site** to a new server.
 - **Encrypted copies off the server:** each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted on the server first.
+- **Once a month, a restore test:** the newest backup (or its copy off the server) is restored into a test database and opened, without touching the site.
 - Your provider's **server backups** can be turned on too, for the whole disk: on AWS too, with Terraform's `backups` setting.
-- A notice when the **disk is getting full**, before backups stop, and when a backup or update is cut off.
+
+---
+
+<!-- _class: dense -->
+
+## Keeping an eye on it
+
+- **Problems come to you:** a failed backup, update or restore test, a disk getting full, or a tool cut off sends a notice and an email.
+- **From outside:** the setup guide shows how to get an email when the site is down. DigitalOcean's **free alerts** for disk, memory and CPU come with its Terraform setup.
+- **Logs in one place:** `plone-syslog` sends the server's logs to a log service too, such as Better Stack's free plan, Papertrail or your own log server.
+- **Behind Cloudflare:** `plone-cloudflare` lets only Cloudflare reach the site, so nobody can go around it.
 
 ---
 
@@ -184,6 +195,8 @@ Plone sends email for password resets, forms and update reports. Cloud servers c
 - Setup puts them into **Site Setup → Mail**, and sends you a **test email**.
 - The weekly update reports go to your inbox too.
 - Setup checks your domains and the server's address against the **blocklists** mail services use, and the weekly report says if a domain gets listed. A free **Spamhaus key** makes the check work on any provider.
+
+- Mail the **server itself** sends, such as a failed security update, reaches you the same way.
 
 The setup guide compares the services, and explains the DNS records your domain needs.
 
@@ -228,8 +241,9 @@ Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's new fron
 
 ## What's next
 
+- **Metrics with OpenTelemetry:** graphs of memory, disk and slow pages over time, sent to a service such as Grafana Cloud.
+- **Logs and metrics in the launch forms,** so a new server sends them from its first minute.
 - **Plone distributions to try:** kitconcept's intranet and website, and PortalBrasil.
-- **Aurora** kept up with its releases.
 - **More add-ons** in the catalog, each with its own Try It page.
 
 ---

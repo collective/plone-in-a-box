@@ -1,5 +1,16 @@
-2.25 (unreleased)
+2.25 (2026-11-26)
 -----------------
+
+Once a month, your server now checks that its newest backup can really be
+restored, without touching the site, and tells you if it can't. Mail the
+server itself sends, such as a failed security update, now reaches you
+through the site's email settings. Two new commands are there when you want
+them: `plone-syslog` sends the server's logs to a log service as well (the
+setup guide compares a few, including a free one), and `plone-cloudflare`
+lets only Cloudflare reach a site that's behind it. A Droplet made with
+DigitalOcean's Terraform now gets DigitalOcean's free alerts for a full
+disk, low memory or a busy CPU. And the project's own build workflows are
+safer against a hijacked GitHub Action.
 
 - **Backup checks**: once a month, `plone-backup-check.timer` restores the
   newest backup into a separate test database, has Plone open the site in
@@ -26,8 +37,8 @@
   test` sends a test email. Older servers get it from `src/add-updates.sh`.
   ("The server's own mail" in the setup guide.)
 - **Logs to a syslog server**: `sudo plone-syslog on HOST:PORT` sends the
-  server's logs to a syslog server or service as well (Papertrail, Better
-  Stack, Graylog, your own rsyslog): Plone, Volto and PostgreSQL, nginx's
+  server's logs to a syslog server or service as well (Better Stack,
+  Papertrail, your own rsyslog): Plone, Volto and PostgreSQL, nginx's
   requests and errors, the Plone in a Box tools' logs and the system's own.
   TLS by default (`--ca` for a private certificate authority), and up to
   100 MB wait on the server while the log server is away. The containers
