@@ -41,7 +41,7 @@ printf '\n%s\n\n' "$NOTICE" > /etc/motd
 # The latest release, or this one if GitHub can't be asked.
 PIAB_RELEASE=$(curl -fsS -m 20 https://api.github.com/repos/tkimnguyen/plone-in-a-box/releases/latest 2>/dev/null \
   | sed -n 's/^  "tag_name": "\([0-9][0-9.]*\)",$/\1/p')
-PIAB_RELEASE=${PIAB_RELEASE:-2.24}
+PIAB_RELEASE=${PIAB_RELEASE:-2.25}
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_PASSWORD DEMO_ROLES SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY

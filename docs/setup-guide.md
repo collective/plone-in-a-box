@@ -230,7 +230,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -313,7 +313,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -761,7 +761,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -769,7 +769,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,

@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 without needing a command line.
 
-<small>Release 2.24 · November 2026</small>
+<small>Release 2.25 · November 2026</small>
 
 ---
 
