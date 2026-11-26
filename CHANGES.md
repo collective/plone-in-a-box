@@ -16,6 +16,14 @@
   the newest 7 kept, as `backups` does on DigitalOcean and Hetzner. For
   Launch Stack servers, the setup guide gives the steps to make the same
   policy in the AWS console. ("Backups" in the setup guide.)
+- **Spamhaus from any cloud provider**: the new optional **Spamhaus DQS
+  key** setting, in every route (Linode form, Launch Stack `SpamhausKey`,
+  Terraform `spamhaus_key`, the launcher's `SPAMHAUS_KEY`), makes the
+  blocklist checks ask Spamhaus through its free Data Query Service, which
+  answers from any network: without it, Spamhaus refuses Hetzner's and
+  DigitalOcean's DNS resolvers, and those checks were skipped. Only root can
+  read the key on the server; the credentials file and the weekly report say
+  if it doesn't work. ("Blocklists" in the setup guide.)
 
 2.23 (2026-11-25)
 -----------------

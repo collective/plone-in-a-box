@@ -195,6 +195,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # smtp_password     = "..."
 # email_from        = "plone@example.org"
 # report_email      = "you@example.org"
+# spamhaus_key      = "..."  # optional: see Blocklists
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -982,6 +983,19 @@ removed. (A listed IP address doesn't affect email sent through an email service
 judge; you may still prefer a new server.) The weekly [update](#updates) looks up the domains again, and the report
 says if one has been listed since. Some lists don't answer queries through the big DNS resolvers that cloud
 providers use; those are skipped, and the setup log says which.
+
+**Spamhaus from any provider:** Spamhaus answers through Linode's resolvers, but not through Hetzner's or
+DigitalOcean's, for example. A free [Data Query Service key](https://www.spamhaus.com/data-access/free-data-query-service/)
+(for non-commercial, low-volume use: register, then copy the key from section "1.0 Datafeed Query Service" of your
+account) lets the checks ask Spamhaus from anywhere. Give it as the **Spamhaus DQS key** when you create the server
+(`SpamhausKey` in the Launch Stack form, `spamhaus_key` in Terraform, `export SPAMHAUS_KEY='...'` in the launcher).
+Only root can read it on the server, in `/var/lib/plone-in-a-box/spamhaus-key`; to add or change it later:
+
+```
+sudo sh -c 'umask 077; echo YOUR-KEY > /var/lib/plone-in-a-box/spamhaus-key'
+```
+
+If the key doesn't work, the credentials file says so, and the checks skip Spamhaus.
 
 ## HTTPS
 

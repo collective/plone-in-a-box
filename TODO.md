@@ -86,7 +86,8 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
   controls the domain's reputation (DMARC reports, Google Postmaster Tools). Cloud providers reuse IP addresses, so
   a new server may inherit a blocklisted one. Idea: check the server's IP and the sending domain against public
   blocklists (Spamhaus and others) at setup and in `plone-update`, and say so in the update report.
-  Done in 2.23: blocklist checks at setup (domains and IP address) and weekly (domains).
+  Done in 2.23: blocklist checks at setup (domains and IP address) and weekly (domains). A Spamhaus DQS key setting (2.24) lets
+  them ask Spamhaus from providers whose DNS resolvers it refuses (Hetzner, DigitalOcean).
 - [x] **Tell site owners about Plone releases and security fixes** (2.18: security posts from the Plone forum,
   daily; patch releases and new versions were already in the weekly update report). Still open: end-of-support
   notices, once there's a reliable source for the dates.

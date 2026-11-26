@@ -93,6 +93,10 @@ export SMTP_USER=''
 export SMTP_PASSWORD=''
 export EMAIL_FROM=''
 export REPORT_EMAIL=''
+# Spamhaus DQS key, optional: a free key from spamhaus.com (Data Query Service),
+# so the blocklist checks can ask Spamhaus, whose public servers refuse many
+# cloud providers' DNS. Keep it private.
+export SPAMHAUS_KEY=''
 
 # --- No need to edit below this line -----------------------------------------
 

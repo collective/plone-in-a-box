@@ -32,6 +32,7 @@
 # <UDF name="SMTP_PASSWORD" label="Email: SMTP password" default="" />
 # <UDF name="EMAIL_FROM" label="Email: the site's From address, at a domain the email service has verified, for example plone@example.org" default="" />
 # <UDF name="REPORT_EMAIL" label="Email: your address for a test email and the update reports. Empty: the From address" default="" />
+# <UDF name="SPAMHAUS_KEY" label="Spamhaus DQS key, optional: a free key from spamhaus.com, so the blocklist checks can ask Spamhaus from any cloud provider" default="" />
 
 NOTICE="This server was created with an obsolete copy of the Plone in a Box StackScript (692002). Next time, use StackScript 931893: https://cloud.linode.com/stackscripts/931893"
 echo "[plone-in-a-box] $NOTICE" >> /var/log/plone-in-a-box.log
@@ -43,7 +44,7 @@ PIAB_RELEASE=$(curl -fsS -m 20 https://api.github.com/repos/tkimnguyen/plone-in-
 PIAB_RELEASE=${PIAB_RELEASE:-2.23}
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
-export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_PASSWORD DEMO_ROLES SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL
+export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_PASSWORD DEMO_ROLES SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY
 set -uo pipefail
 SCRIPT=$(mktemp)
 if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \
