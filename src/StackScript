@@ -1263,14 +1263,25 @@ if ! dpkg -s msmtp-mta >/dev/null 2>&1; then
     || { echo "Installing msmtp failed" >&2; exit 1; }
 fi
 report=$(cat "$STATE_DIR/report-email" 2>/dev/null)
+# The way to log in: msmtp picks the strongest method the server offers, and
+# some services (SMTP2GO, for one) offer SCRAM but don't accept it. Plone
+# itself logs in with CRAM-MD5, PLAIN or LOGIN, so use one of those too:
+# PLAIN or LOGIN, sent only over TLS, else CRAM-MD5.
+read -r host port < <(python3 -c 'import json, sys; d = json.loads(sys.argv[1]); print(d["host"], int(d["port"]))' "$settings")
+starttls=on; [[ "$port" == 465 ]] && starttls=off
+methods=$(msmtp --serverinfo --host="$host" --port="$port" --tls=on --tls-starttls="$starttls"   --tls-trust-file=/etc/ssl/certs/ca-certificates.crt 2>/dev/null | sed -n '/Supported authentication methods:/{n;p;}')
+auth=on
+for m in PLAIN LOGIN CRAM-MD5; do
+  [[ " $methods " == *" $m "* ]] && { auth=${m,,}; break; }
+done
 override=0
 dpkg --compare-versions "$(dpkg-query -W -f='${Version}' msmtp)" ge 1.8.20 && override=1
 
 # The configuration, written by Python so the password needs no shell quoting.
-new=$(python3 - "$settings" "$report" "$override" "$MARK" <<'PY'
+new=$(python3 - "$settings" "$report" "$override" "$MARK" "$auth" <<'PY'
 import json, sys
 d = json.loads(sys.argv[1])
-report, override, mark = sys.argv[2] or d["from"], sys.argv[3] == "1", sys.argv[4]
+report, override, mark, auth = sys.argv[2] or d["from"], sys.argv[3] == "1", sys.argv[4], sys.argv[5]
 def q(value):
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 port = int(d["port"])
@@ -1280,7 +1291,7 @@ lines = [mark + " from Site Setup > Mail; it's run again every week.",
          "account site", f"host {q(d['host'])}", f"port {port}",
          "tls_starttls " + ("off" if port == 465 else "on")]
 if d["user"]:
-    lines += ["auth on", f"user {q(d['user'])}", f"password {q(d['password'])}"]
+    lines += [f"auth {auth}", f"user {q(d['user'])}", f"password {q(d['password'])}"]
 else:
     lines += ["auth off"]
 # Every message is sent from the site's address, which the service accepts,
