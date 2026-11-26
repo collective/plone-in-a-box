@@ -1,6 +1,15 @@
 2.25 (unreleased)
 -----------------
 
+- **Backup checks**: once a month, `plone-backup-check.timer` restores the
+  newest backup into a separate test database, has Plone open the site in
+  it and read its newest pages and a file or image, then deletes the test
+  database; the site isn't touched. With copies off the server, it tests the
+  newest copy there, downloaded and decrypted, and says if the copies have
+  stopped. A failure goes to the notification URL and by email, and shows in
+  the login message. `sudo plone-backup-check` runs it now. Older servers
+  get it from `src/add-updates.sh`. ("Checking the backups" in the setup
+  guide.)
 - **GitHub Actions pinned to commit hashes**: the workflows name each action
   by the commit it runs (with its version in a comment), not by a tag like
   `v7` that its owner can move, so a hijacked action can't slip into the
