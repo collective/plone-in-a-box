@@ -450,7 +450,10 @@ resource "digitalocean_uptime_alert" "down" {
   check_id = digitalocean_uptime_check.plone[0].id
   name     = "Site down"
   type     = "down_global"
-  period   = "2m"
+  # DigitalOcean's own values for a down alert, so a later plan shows no change.
+  comparison = "less_than"
+  threshold  = 1
+  period     = "2m"
   notifications {
     email = local.alert_emails
   }
