@@ -585,16 +585,30 @@ sudo plone-syslog on logs.example.org:6514
 It uses TLS, checked against the server's name, unless you add `--tcp` or `--udp` (unencrypted: only within a
 private network). For a log server with a certificate of its own making, add `--ca <file>` with its certificate
 authority. Some services want a token in every message, as a structured-data element: give it with `--sd -`,
-which asks for it without showing it. For example, **Papertrail** (now part of SolarWinds Observability) shows a
-host such as `syslog.collector.na-01.cloud.solarwinds.com` and an ingestion token under **Setup logging → Syslog**:
+which asks for it without showing it, and keeps it where only root can read it.
+
+**How much, and what it costs**: most of the volume is one line per web request (nginx's, and Plone's own). The
+rest (errors, Plone, backups, updates, SSH) is a few hundred KB a day. A small site with its requests sends roughly
+10–300 MB a month, depending on its traffic and the bots that visit it; with `--no-access-log`, which leaves out the
+line per request (errors still go), it's more like 10 MB. Services, as of November 2026:
+
+* **Better Stack**: free for 3 GB a month, kept for 3 days; paid plans from about $25 a month. Create a source
+  (platform **Syslog**); it shows an ingesting host and a source token. Use port 6514, and give
+  `[logtail@11993 source_token="<token>"]` when `--sd -` asks.
+* **Papertrail** (now SolarWinds Observability): no free plan beyond a trial; about $91 a year for each GB a month,
+  kept 15 days. It shows a host such as `syslog.collector.na-01.cloud.solarwinds.com` and an ingestion token under
+  **Setup logging**: port 6514, and `[<token>@41058]` for `--sd -`.
+* **Your own log server**: rsyslog on a small server of your own (about $5 a month), with `--ca` if its certificate
+  is one of your own making. No limits, and you keep the logs as long as you like.
+
+For example:
 
 ```
-sudo plone-syslog on syslog.collector.na-01.cloud.solarwinds.com:6514 --sd -
+sudo plone-syslog on syslog.collector.na-01.cloud.solarwinds.com:6514 --sd - --no-access-log
 ```
 
-and paste `[<token>@41058]` when it asks. **Better Stack** shows an ingesting host and a source token: use port 6514
-and `[logtail@11993 source_token="<token>"]`. The token is kept where only root can read it.
-Each message carries the site's name (its domain, or its IP address), so you can tell servers apart.
+Each message carries the site's name (its domain, or its IP address), so you can tell servers apart. The backend's
+health check every 10 seconds and the firewall's lines about blocked connections stay on the server.
 The site's containers restart once, so the site is away for a minute or two. If the log server can't be
 reached, up to 100 MB of logs wait on the server and go out once it's back. `sudo plone-syslog test` sends a test
 message, `status` shows where they go, and `off` keeps the logs on the server only again. A server set up before

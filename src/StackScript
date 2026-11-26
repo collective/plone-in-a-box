@@ -1979,11 +1979,13 @@ cat > /usr/local/bin/plone-syslog <<'PLONE_SYSLOG_EOF'
 # Stack, your own rsyslog, ...): Plone, Volto and PostgreSQL, nginx's requests
 # and errors, the Plone in a Box tools (backups, updates, ...), and the
 # system's own (SSH logins, security updates). They also stay on the server.
-# Usage: sudo plone-syslog on HOST:PORT [--tcp|--udp] [--ca FILE] [--sd ELEMENT|-]
+# Usage: sudo plone-syslog on HOST:PORT [--tcp|--udp] [--ca FILE] [--sd ELEMENT|-] [--no-access-log]
 #          TLS unless --tcp or --udp (unencrypted); --ca: the certificate
 #          authority of a log server with a certificate of its own making;
 #          --sd: a structured-data element some services want in every
-#          message, with your token (- reads it, unshown, from the terminal)
+#          message, with your token (- reads it, unshown, from the terminal);
+#          --no-access-log: not one line per web request, which is most of
+#          the volume (errors and everything else still go)
 #        sudo plone-syslog off
 #        sudo plone-syslog status
 #        sudo plone-syslog test     (send a test message)
@@ -2044,7 +2046,7 @@ on)
   [[ "$target" =~ ^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):([0-9]{1,5})$ ]] || die "Give the log server as HOST:PORT, for example logs.example.org:6514"
   host=${BASH_REMATCH[1]} port=${BASH_REMATCH[2]}
   host=${host#[}; host=${host%]}
-  protocol=tls ca="" sd=""
+  protocol=tls ca="" sd="" requests=yes
   shift 2
   while (( $# )); do
     case "$1" in
@@ -2052,6 +2054,7 @@ on)
       --udp) protocol=udp ;;
       --ca) ca=${2:-}; shift ;;
       --sd) sd=${2:-}; shift ;;
+      --no-access-log) requests=no ;;
       *) die "Unknown option $1" ;;
     esac
     shift
@@ -2110,11 +2113,10 @@ module(load="imfile")
 # (freshStartTail: from now on, not the files' whole history.)
 input(type="imfile" File="/var/log/plone-*.log" Tag="plone-in-a-box:" Facility="local0" freshStartTail="on")
 EOF
-  cat > "$NGINX_CONF" <<'EOF'
-# Written by plone-syslog: requests and errors to rsyslog too, which sends them on.
-access_log syslog:server=unix:/dev/log,tag=nginx,severity=info,nohostname combined;
-error_log syslog:server=unix:/dev/log,tag=nginx,nohostname warn;
-EOF
+  { what="errors"; [[ "$requests" == yes ]] && what="requests and errors"
+    echo "# Written by plone-syslog: $what to rsyslog too, which sends them on."
+    [[ "$requests" == yes ]] && echo "access_log syslog:server=unix:/dev/log,tag=nginx,severity=info,nohostname combined;"
+    echo "error_log syslog:server=unix:/dev/log,tag=nginx,nohostname warn;"; } > "$NGINX_CONF"
   nginx -t -q 2>/dev/null || { rm -f "$NGINX_CONF" "$FILES_CONF"; die "nginx didn't accept the syslog settings; nothing was changed"; }
 
   # Forwarding, with a queue on disk for when the log server is away.
@@ -2135,6 +2137,14 @@ EOF
   # (often just "localhost" on a cloud server).
   name=$(sed -E 's#^https?://##; s#[:/].*##' "$STATE_DIR/site-url" 2>/dev/null)
   [[ "$name" =~ ^[A-Za-z0-9.-]+$ ]] || name=$(hostname)
+  # --no-access-log: the containers' own line per request too (Plone logs
+  # one for each, as nginx does).
+  request_filter=""
+  # (rsyslog's own variables, not the shell's.)
+  # shellcheck disable=SC2016
+  [[ "$requests" == no ]] && request_filter='if $programname startswith "plone-" and re_match($msg, "\"(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) [^ ]* HTTP/[0-9.]+\" [0-9]{3}") then {
+  stop
+}'
   # RFC 5424, with the structured-data element if one was given (escaped for
   # an rsyslog string: backslashes, quotes and percent signs).
   template=RSYSLOG_SyslogProtocol23Format template_def=""
@@ -2154,6 +2164,7 @@ $template_def
 if (\$programname startswith "plone-backend" and \$msg contains "GET /ok HTTP/1.1") or \$msg contains "[UFW BLOCK]" then {
   stop
 }
+$request_filter
 *.* action(type="omfwd" target="$host" port="$port" protocol="$proto" $tls
            template="$template"
            queue.type="LinkedList" queue.filename="plone-in-a-box-remote" queue.maxDiskSpace="100m"
@@ -2166,7 +2177,7 @@ EOF
     rm -f "$CONF" "$FILES_CONF" "$NGINX_CONF"
     die "rsyslog didn't accept the settings (above); nothing was changed"
   fi
-  printf '%s %s\n' "$protocol" "$host:$port" > "$STATE_DIR/syslog"
+  printf '%s %s %s\n' "$protocol" "$host:$port" "$requests" > "$STATE_DIR/syslog"
   systemctl restart rsyslog
   systemctl reload nginx
   containers journald
@@ -2186,8 +2197,8 @@ off)
   ;;
 status)
   if [[ -s "$STATE_DIR/syslog" ]]; then
-    read -r protocol target < "$STATE_DIR/syslog"
-    echo "On: the server's logs go to $target ($protocol)."
+    read -r protocol target requests < "$STATE_DIR/syslog"
+    echo "On: the server's logs go to $target ($protocol)$( [[ "$requests" == no ]] && echo ", without a line per web request")."
     queued=$(find /var/spool/rsyslog -name 'plone-in-a-box-remote.0*' -printf '%s\n' 2>/dev/null | awk '{ n += $1 } END { if (n) printf "%.1f MB", n / 1048576 }')
     [[ -n "$queued" ]] && echo "Waiting to be sent, because the log server didn't answer: $queued (see sudo journalctl -u rsyslog)"
   else
@@ -2200,7 +2211,7 @@ test)
   echo "Sent a test message (tag plone-in-a-box); check that it arrived at $(cut -d' ' -f2 "$STATE_DIR/syslog")"
   ;;
 *)
-  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
   ;;
 esac

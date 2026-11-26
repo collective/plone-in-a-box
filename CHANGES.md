@@ -32,7 +32,9 @@
   TLS by default (`--ca` for a private certificate authority), and up to
   100 MB wait on the server while the log server is away. The containers
   log through journald for this; `docker compose logs` still works.
-  ("Sending the logs elsewhere" in the setup guide.)
+  `--sd` adds the token some services want in each message (Papertrail,
+  Better Stack), and `--no-access-log` leaves out the line per web request,
+  most of the volume. ("Sending the logs elsewhere" in the setup guide.)
 - **GitHub Actions pinned to commit hashes**: the workflows named each
   action by a tag like `v7`, which whoever controls the action can move to
   other code at any time, as happened to `tj-actions/changed-files` in
