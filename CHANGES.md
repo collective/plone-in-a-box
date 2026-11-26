@@ -10,6 +10,13 @@
   the login message. `sudo plone-backup-check` runs it now. Older servers
   get it from `src/add-updates.sh`. ("Checking the backups" in the setup
   guide.)
+- **Behind Cloudflare**: `sudo plone-cloudflare on`, for a site whose
+  domain is proxied by Cloudflare, lets only Cloudflare's addresses reach
+  ports 80 and 443, so nobody can go around Cloudflare to the server, and
+  has nginx take each visitor's own address from Cloudflare's header. It
+  checks first that the domain points at Cloudflare. `plone-cloudflare.timer`
+  updates Cloudflare's address list once a month; `sudo plone-cloudflare
+  off` opens the ports again. ("Behind Cloudflare" in the setup guide.)
 - **The server's own mail**: with the site's mail settings in place, mail
   the server sends to root (Ubuntu's automatic security updates when one
   fails, say) goes to the address for reports, through the same email
