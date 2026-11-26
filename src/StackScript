@@ -2107,7 +2107,8 @@ on)
   cat > "$FILES_CONF" <<'EOF'
 # Written by plone-syslog: the Plone in a Box tools' log files.
 module(load="imfile")
-input(type="imfile" File="/var/log/plone-*.log" Tag="plone-in-a-box:" Facility="local0")
+# (freshStartTail: from now on, not the files' whole history.)
+input(type="imfile" File="/var/log/plone-*.log" Tag="plone-in-a-box:" Facility="local0" freshStartTail="on")
 EOF
   cat > "$NGINX_CONF" <<'EOF'
 # Written by plone-syslog: requests and errors to rsyslog too, which sends them on.
