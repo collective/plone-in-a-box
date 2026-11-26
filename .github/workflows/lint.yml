@@ -9,7 +9,7 @@ jobs:
   shellcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: ShellCheck
         run: shellcheck src/StackScript src/user-data.sh src/add-updates.sh scripts/test-deploy.sh scripts/test-notify.sh scripts/linode-obsolete-stackscript.sh scripts/linode-addon-stackscript.sh scripts/update-public-stackscripts.sh
       # The scripts setup writes to the server (plone-update, notify, ...) are
@@ -54,8 +54,8 @@ jobs:
       run:
         working-directory: src/${{ matrix.provider }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: hashicorp/setup-terraform@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
       - name: terraform fmt
         run: terraform fmt -check -diff
       - name: terraform validate
@@ -66,8 +66,8 @@ jobs:
   cloudformation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
       - name: cfn-lint

@@ -1,6 +1,7 @@
-# Keeps the GitHub Actions in .github/workflows up to date. The Dockerfiles in
-# backend-image/ and frontend-image/ take their base image tags from build
-# arguments, which Dependabot can't update, so they're left out.
+# Keeps the GitHub Actions in .github/workflows up to date. They're pinned to
+# commit hashes, with the version in a comment, and Dependabot updates both.
+# The Dockerfiles in backend-image/ and frontend-image/ take their base image
+# tags from build arguments, which Dependabot can't update, so they're left out.
 version: 2
 updates:
   - package-ecosystem: github-actions

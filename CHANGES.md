@@ -1,3 +1,12 @@
+2.25 (unreleased)
+-----------------
+
+- **GitHub Actions pinned to commit hashes**: the workflows name each action
+  by the commit it runs (with its version in a comment), not by a tag like
+  `v7` that its owner can move, so a hijacked action can't slip into the
+  image builds or the template upload. Dependabot keeps the hashes up to
+  date.
+
 2.24 (2026-11-26)
 -----------------
 
