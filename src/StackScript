@@ -1993,7 +1993,8 @@ CONF=/etc/rsyslog.d/60-plone-in-a-box-remote.conf
 FILES_CONF=/etc/rsyslog.d/59-plone-in-a-box-files.conf
 NGINX_CONF=/etc/nginx/conf.d/plone-syslog.conf
 OVERRIDE=$APP_DIR/docker-compose.override.yml
-CA_COPY=$STATE_DIR/syslog-ca.pem
+# (Readable by rsyslog, which runs as the syslog user.)
+CA_COPY=/etc/ssl/plone-in-a-box-syslog-ca.pem
 MARK="# Written by plone-syslog"
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 die() { echo "$*" >&2; exit 1; }
@@ -2061,8 +2062,8 @@ on)
   [[ "$protocol" == tls ]] && packages+=(rsyslog-gnutls)
   for p in "${packages[@]}"; do
     dpkg -s "$p" >/dev/null 2>&1 && continue
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o DPkg::Lock::Timeout=600 "${packages[@]}" >/dev/null \
-      || die "Installing ${packages[*]} failed"
+    DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1 apt-get install -y -qq -o DPkg::Lock::Timeout=600 \
+      "${packages[@]}" >/dev/null 2>&1 || die "Installing ${packages[*]} failed"
     break
   done
   # Reachable at all? (UDP can't tell.)
