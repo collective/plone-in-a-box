@@ -584,7 +584,17 @@ sudo plone-syslog on logs.example.org:6514
 
 It uses TLS, checked against the server's name, unless you add `--tcp` or `--udp` (unencrypted: only within a
 private network). For a log server with a certificate of its own making, add `--ca <file>` with its certificate
-authority. Each message carries the site's name (its domain, or its IP address), so you can tell servers apart.
+authority. Some services want a token in every message, as a structured-data element: give it with `--sd -`,
+which asks for it without showing it. For example, **Papertrail** (now part of SolarWinds Observability) shows a
+host such as `syslog.collector.na-01.cloud.solarwinds.com` and an ingestion token under **Setup logging → Syslog**:
+
+```
+sudo plone-syslog on syslog.collector.na-01.cloud.solarwinds.com:6514 --sd -
+```
+
+and paste `[<token>@41058]` when it asks. **Better Stack** shows an ingesting host and a source token: use port 6514
+and `[logtail@11993 source_token="<token>"]`. The token is kept where only root can read it.
+Each message carries the site's name (its domain, or its IP address), so you can tell servers apart.
 The site's containers restart once, so the site is away for a minute or two. If the log server can't be
 reached, up to 100 MB of logs wait on the server and go out once it's back. `sudo plone-syslog test` sends a test
 message, `status` shows where they go, and `off` keeps the logs on the server only again. A server set up before

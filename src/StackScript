@@ -1979,9 +1979,11 @@ cat > /usr/local/bin/plone-syslog <<'PLONE_SYSLOG_EOF'
 # Stack, your own rsyslog, ...): Plone, Volto and PostgreSQL, nginx's requests
 # and errors, the Plone in a Box tools (backups, updates, ...), and the
 # system's own (SSH logins, security updates). They also stay on the server.
-# Usage: sudo plone-syslog on HOST:PORT [--tcp|--udp] [--ca FILE]
+# Usage: sudo plone-syslog on HOST:PORT [--tcp|--udp] [--ca FILE] [--sd ELEMENT|-]
 #          TLS unless --tcp or --udp (unencrypted); --ca: the certificate
-#          authority of a log server with a certificate of its own making
+#          authority of a log server with a certificate of its own making;
+#          --sd: a structured-data element some services want in every
+#          message, with your token (- reads it, unshown, from the terminal)
 #        sudo plone-syslog off
 #        sudo plone-syslog status
 #        sudo plone-syslog test     (send a test message)
@@ -2042,17 +2044,30 @@ on)
   [[ "$target" =~ ^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):([0-9]{1,5})$ ]] || die "Give the log server as HOST:PORT, for example logs.example.org:6514"
   host=${BASH_REMATCH[1]} port=${BASH_REMATCH[2]}
   host=${host#[}; host=${host%]}
-  protocol=tls ca=""
+  protocol=tls ca="" sd=""
   shift 2
   while (( $# )); do
     case "$1" in
       --tcp) protocol=tcp ;;
       --udp) protocol=udp ;;
       --ca) ca=${2:-}; shift ;;
+      --sd) sd=${2:-}; shift ;;
       *) die "Unknown option $1" ;;
     esac
     shift
   done
+  if [[ "$sd" == - ]]; then
+    if [[ -t 0 ]]; then
+      read -r -s -p "Structured-data element (not shown): " sd; echo
+    else
+      read -r sd
+    fi
+  fi
+  # An RFC 5424 structured-data element, such as [TOKEN@41058] or
+  # [logtail@11993 source_token="TOKEN"]: one line, in brackets.
+  if [[ -n "$sd" && ! "$sd" =~ ^\[[^][:cntrl:]]+(\]\[[^][:cntrl:]]+)*\]$ ]]; then
+    die "--sd takes a structured-data element in brackets, such as [TOKEN@41058], as your log service gives it"
+  fi
   if [[ -n "$ca" ]]; then
     [[ "$protocol" == tls ]] || die "--ca is for TLS only"
     openssl x509 -in "$ca" -noout 2>/dev/null || die "$ca isn't a PEM certificate"
@@ -2104,7 +2119,12 @@ EOF
   # Forwarding, with a queue on disk for when the log server is away.
   case "$protocol" in
     tls)
-      tls="StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"x509/name\" StreamDriverPermittedPeers=\"$host\""
+      # The name checked in the certificate: the host's, or the wildcard a
+      # service's certificate may have instead (*.example.com for
+      # logs.example.com).
+      peers=$host
+      [[ "$host" == *.*.* ]] && peers+=",*.${host#*.}"
+      tls="StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"x509/name\" StreamDriverPermittedPeers=\"$peers\""
       global="DefaultNetstreamDriverCAFile=\"$cafile\""
       proto=tcp ;;
     tcp) tls="" global="" proto=tcp ;;
@@ -2114,14 +2134,25 @@ EOF
   # (often just "localhost" on a cloud server).
   name=$(sed -E 's#^https?://##; s#[:/].*##' "$STATE_DIR/site-url" 2>/dev/null)
   [[ "$name" =~ ^[A-Za-z0-9.-]+$ ]] || name=$(hostname)
-  cat > "$CONF.new" <<EOF
-$MARK: everything to $host:$port ($protocol).
+  # RFC 5424, with the structured-data element if one was given (escaped for
+  # an rsyslog string: backslashes, quotes and percent signs).
+  template=RSYSLOG_SyslogProtocol23Format template_def=""
+  if [[ -n "$sd" ]]; then
+    esc=${sd//\\/\\\\}; esc=${esc//\"/\\\"}; esc=${esc//%/\\%}
+    template=PloneInABoxRemote
+    template_def="template(name=\"PloneInABoxRemote\" type=\"string\" string=\"<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% %PROCID% %MSGID% $esc%msg:::sp-if-no-1st-sp%%msg%\")"
+  fi
+  # Only root can read it: the structured data can hold a token.
+  (umask 077; cat > "$CONF.new" <<EOF
+$MARK: everything to $host:$port ($protocol${sd:+, with structured data}).
 global(localHostname="$name" $global)
+$template_def
 *.* action(type="omfwd" target="$host" port="$port" protocol="$proto" $tls
-           template="RSYSLOG_SyslogProtocol23Format"
+           template="$template"
            queue.type="LinkedList" queue.filename="plone-in-a-box-remote" queue.maxDiskSpace="100m"
            queue.saveOnShutdown="on" action.resumeRetryCount="-1" action.resumeInterval="30")
 EOF
+  )
   mv "$CONF.new" "$CONF"
   if ! rsyslogd -N1 >/dev/null 2>&1; then
     rsyslogd -N1 2>&1 | tail -n 5
@@ -2162,7 +2193,7 @@ test)
   echo "Sent a test message (tag plone-in-a-box); check that it arrived at $(cut -d' ' -f2 "$STATE_DIR/syslog")"
   ;;
 *)
-  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
   ;;
 esac
