@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 without needing a command line.
 
-<small>Release 2.23 · November 2026</small>
+<small>Release 2.24 · November 2026</small>
 
 ---
 
@@ -88,8 +88,9 @@ The site's **language**, versions, add-ons, themes and sample pages are settings
 - The admin password is **the one you choose**, or a generated one.
 - **HTTPS for every site,** also without a domain name: a certificate for the server's IP address, renewed by itself.
 - Only the **website** (HTTP, HTTPS) and **SSH** are reachable from the internet. The database and Plone's own ports are closed.
+- **SSH keys only** when the server has one, and addresses that keep failing to log in are blocked.
 - **Security headers** on every page, and nginx doesn't reveal its version.
-- **All Ubuntu updates** are installed during setup, and security updates keep coming automatically.
+- **All Ubuntu updates** are installed during setup, and security updates keep coming automatically. The server **restarts at night** when one needs it.
 - **Plone security fixes** install the same day they come out, and you hear about them, often a week ahead.
 - Servers made with **Terraform** or AWS's **Launch Stack** can't be deleted or rebuilt by mistake.
 - Forgot the password? One command in your provider's **browser console** resets it.
@@ -145,7 +146,8 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It p
 - **Every week,** a pack: the database's old history is cleared, so it doesn't keep growing.
 - **`sudo plone-restore`** puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also **moves a site** to a new server.
 - **Encrypted copies off the server:** each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted on the server first.
-- Your provider's **server backups** can be turned on too, for the whole disk.
+- Your provider's **server backups** can be turned on too, for the whole disk: on AWS too, with Terraform's `backups` setting.
+- A notice when the **disk is getting full**, before backups stop, and when a backup or update is cut off.
 
 ---
 
@@ -181,7 +183,7 @@ Plone sends email for password resets, forms and update reports. Cloud servers c
 - Fill in the service's settings **when you create the server**.
 - Setup puts them into **Site Setup → Mail**, and sends you a **test email**.
 - The weekly update reports go to your inbox too.
-- Setup checks your domains and the server's address against the **blocklists** mail services use, and the weekly report says if a domain gets listed.
+- Setup checks your domains and the server's address against the **blocklists** mail services use, and the weekly report says if a domain gets listed. A free **Spamhaus key** makes the check work on any provider.
 
 The setup guide compares the services, and explains the DNS records your domain needs.
 

@@ -1,6 +1,55 @@
-2.24 (unreleased)
+2.24 (2026-11-26)
 -----------------
 
+Your server now restarts by itself at night when Ubuntu's security updates
+need it, such as a new Linux kernel, after any backup or update that's
+running. It tells you when its disk is getting full, before backups stop,
+and when one of its tools is cut off by a time limit, a lack of memory or a
+crash; backup problems now come by email too. SSH is safer: when the server
+has an SSH key, password logins are turned off, root's included, and
+fail2ban blocks addresses that keep failing to log in. On AWS, Terraform can
+now turn on daily snapshots of the server's disk, and the blocklist checks
+can ask Spamhaus from any cloud provider with a free key. The setup guide
+explains how to be told when the site is down, and which outgoing ports to
+allow if a firewall in front of the server limits them.
+
+- **Nightly restarts**: Ubuntu installs security updates every day but
+  never restarts, so a new kernel waited for someone to run `sudo reboot`.
+  `plone-reboot.timer` runs `plone-reboot` at 03:30 server time; it does
+  nothing unless updates are waiting for a restart, and waits for any backup
+  or update that's running. Logged in `/var/log/plone-reboot.log`; `sudo
+  plone-reboot` restarts now if needed. Off with `sudo systemctl disable
+  --now plone-reboot.timer`; the weekly report then says when updates have
+  waited more than two days. ("Updates" in the setup guide.)
+- **Disk warnings**: the nightly backup sends a notice once the disk is over
+  85% full, and again at every 5 points more, and the weekly report says so
+  until there's room again.
+- **Backup problems by email**: they went only to the notification URL;
+  now they're emailed too, with the site's mail settings.
+- **When a tool stops**: if a backup, update, security-notice check, HTTPS
+  renewal or nightly restart is stopped before finishing (a time limit,
+  running out of memory, a crash), a notice says so, with its last log
+  lines. The problems the tools find themselves are reported as before, not
+  twice.
+- These four come to older servers too, with the same `add-updates.sh`
+  command ("Servers set up before 2.12" in the setup guide).
+- **SSH keys only**: when root or the default user (`ubuntu` on AWS) has an
+  SSH key, setup turns password logins off, root's included
+  (`/etc/ssh/sshd_config.d/00-plone-in-a-box.conf`, read before the
+  provider's own settings). A server created with only a password keeps
+  password logins, so nobody is locked out, and the credentials file says
+  how to turn them off. Provider browser consoles keep working. New servers
+  only. ("SSH" in the setup guide.)
+- **fail2ban**: an address that fails to log in over SSH 5 times in 10
+  minutes is blocked for an hour, longer each time it comes back.
+- **Setup guide**: "Knowing when the site is down" explains a DigitalOcean
+  Uptime check (it works for a site on any provider) with a downtime alert
+  and a certificate-expiry alert, AWS's Route 53 health check, and the
+  resource alerts each provider has. The new "Outgoing connections" lists
+  the ports the box needs if a firewall in front of it limits outbound
+  traffic (time sync and email were silently blocked on a real server), and
+  "Sending email" says DigitalOcean's support can open port 587.
+- **Dependabot** keeps the GitHub Actions in the workflows up to date.
 - **Catalog checks for ready-made images**: CI checks that each ready-made
   image in `addons.yml` can be pulled without logging in, is built for
   `linux/amd64` (and `linux/arm64` with `arm: yes`), and exposes the ports
@@ -24,6 +73,7 @@
   DigitalOcean's DNS resolvers, and those checks were skipped. Only root can
   read the key on the server; the credentials file and the weekly report say
   if it doesn't work. ("Blocklists" in the setup guide.)
+
 
 2.23 (2026-11-25)
 -----------------

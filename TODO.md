@@ -76,12 +76,9 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
 
 ## To investigate
 
-- [ ] **Easy HTTPS without your own domain.** Sites without a domain are plain HTTP, so passwords (including Try It
-  demo logins) cross the network unencrypted. Idea: an automatic `<ip-with-dashes>.sslip.io` hostname with a Let's
-  Encrypt certificate. Check Let's Encrypt's limit of about 50 new certificates a week per registered domain: unless
-  sslip.io is on the Public Suffix List, all its users share one quota. A Plone in a Box subdomain service would
-  share one too, unless its parent domain is on that list. Alternatives: a rate-limit increase, another ACME CA
-  (ZeroSSL, Google Trust Services), Cloudflare Tunnel.
+- [x] **Easy HTTPS without your own domain** (2.21): a Let's Encrypt certificate for the server's IP address, so
+  the site is at `https://<ip>`, renewed twice a day by `plone-https-ip.timer`. (The sslip.io idea wasn't needed:
+  its users would have shared one Let's Encrypt quota.)
 - [x] **Email reputation.** Through a relay, receivers judge the relay's IP, which the relay watches; the site owner
   controls the domain's reputation (DMARC reports, Google Postmaster Tools). Cloud providers reuse IP addresses, so
   a new server may inherit a blocklisted one. Idea: check the server's IP and the sending domain against public
@@ -99,7 +96,10 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
 - [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where
   the data would go on a single small server.
 - [ ] **Other Plone best practices.** Review the box against current Plone deployment recommendations
-  (backups, monitoring, security headers, upgrades) and note any gaps.
+  (backups, monitoring, security headers, upgrades) and note any gaps. Partly done in 2.24, from running three
+  production sites: restarts after security updates, disk warnings, notices when a tool is cut off, backup problems
+  by email, SSH keys only and fail2ban, and the guide's uptime checks and outgoing ports. Still open: review the
+  security headers against current recommendations, and moving to a new Plone version (6.3) still takes a person.
 - [ ] **More add-ons in the catalog.** Suggest Plone and Volto add-ons that work on a box, and invite their
   authors to add a Try It page (`addons.yml`, see docs/try-it-buttons.md), for example starting from
   [Awesome Volto](https://github.com/collective/awesome-volto). As of November 2026 it is still maintained but
