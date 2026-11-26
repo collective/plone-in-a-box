@@ -542,7 +542,7 @@ section.dense code { font-size: 0.85em; }
 <li><strong>Every week,</strong> a pack: the database's old history is cleared, so it doesn't keep growing.</li>
 <li><strong><code>sudo plone-restore</code></strong> puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also <strong>moves a site</strong> to a new server.</li>
 <li><strong>Encrypted copies off the server:</strong> each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted on the server first.</li>
-<li>Your provider's <strong>server backups</strong> can be turned on too, for the whole disk.</li>
+<li>Your provider's <strong>server backups</strong> can be turned on too, for the whole disk: on AWS too, with Terraform's <code>backups</code> setting.</li>
 <li>A notice when the <strong>disk is getting full</strong>, before backups stop, and when a backup or update is cut off.</li>
 </ul>
 </section>
@@ -709,7 +709,7 @@ section.dense code { font-size: 0.85em; }
 <li>Fill in the service's settings <strong>when you create the server</strong>.</li>
 <li>Setup puts them into <strong>Site Setup → Mail</strong>, and sends you a <strong>test email</strong>.</li>
 <li>The weekly update reports go to your inbox too.</li>
-<li>Setup checks your domains and the server's address against the <strong>blocklists</strong> mail services use, and the weekly report says if a domain gets listed.</li>
+<li>Setup checks your domains and the server's address against the <strong>blocklists</strong> mail services use, and the weekly report says if a domain gets listed. A free <strong>Spamhaus key</strong> makes the check work on any provider.</li>
 </ul>
 <p>The setup guide compares the services, and explains the DNS records your domain needs.</p>
 </section>
