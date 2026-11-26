@@ -1970,6 +1970,254 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# The server's logs to a syslog server or service of your own: sudo
+# plone-syslog on HOST:PORT. rsyslog collects them here and forwards them,
+# keeping up to 100 MB while the log server can't be reached.
+cat > /usr/local/bin/plone-syslog <<'PLONE_SYSLOG_EOF'
+#!/bin/bash
+# Sends the server's logs to a syslog server or service (Papertrail, Better
+# Stack, your own rsyslog, ...): Plone, Volto and PostgreSQL, nginx's requests
+# and errors, the Plone in a Box tools (backups, updates, ...), and the
+# system's own (SSH logins, security updates). They also stay on the server.
+# Usage: sudo plone-syslog on HOST:PORT [--tcp|--udp] [--ca FILE] [--sd ELEMENT|-] [--no-access-log]
+#          TLS unless --tcp or --udp (unencrypted); --ca: the certificate
+#          authority of a log server with a certificate of its own making;
+#          --sd: a structured-data element some services want in every
+#          message, with your token (- reads it, unshown, from the terminal);
+#          --no-access-log: not one line per web request, which is most of
+#          the volume (errors and everything else still go)
+#        sudo plone-syslog off
+#        sudo plone-syslog status
+#        sudo plone-syslog test     (send a test message)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-syslog ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+APP_DIR=/opt/plone
+CONF=/etc/rsyslog.d/60-plone-in-a-box-remote.conf
+FILES_CONF=/etc/rsyslog.d/59-plone-in-a-box-files.conf
+APPARMOR=/etc/apparmor.d/rsyslog.d/plone-in-a-box
+NGINX_CONF=/etc/nginx/conf.d/plone-syslog.conf
+OVERRIDE=$APP_DIR/docker-compose.override.yml
+# (Where rsyslog may read it: it runs as the syslog user, and Ubuntu's AppArmor
+# profile for it allows /etc/rsyslog.d; only *.conf files there are settings.)
+CA_COPY=/etc/rsyslog.d/plone-in-a-box-ca.pem
+MARK="# Written by plone-syslog"
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+die() { echo "$*" >&2; exit 1; }
+compose() { docker compose --project-directory "$APP_DIR" "$@"; }
+
+# The site's containers log to journald (rsyslog reads it from there), or
+# back to their own files. docker compose logs works either way. Recreating
+# them restarts the site for a moment, so not while a backup or update runs.
+containers() {  # containers journald|files
+  local want=$1
+  if [[ "$want" == journald ]]; then
+    [[ -s "$OVERRIDE" ]] && grep -qF "$MARK" "$OVERRIDE" && return 0
+    cat > "$OVERRIDE" <<'EOF'
+# Written by plone-syslog: the containers log to journald, so their logs can
+# be sent on to the log server (docker compose logs still works).
+x-logging: &journald
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+services:
+  frontend:
+    logging: *journald
+  backend:
+    logging: *journald
+  db:
+    logging: *journald
+EOF
+  else
+    [[ -e "$OVERRIDE" ]] || return 0
+    grep -qF "$MARK" "$OVERRIDE" || die "$OVERRIDE wasn't written by plone-syslog; leaving the containers as they are"
+    rm -f "$OVERRIDE"
+  fi
+  exec 9>"$STATE_DIR/update.lock"
+  flock -w 3600 9 || die "A backup or update is still running; try again later"
+  say "Restarting the site's containers so they log $( [[ "$want" == journald ]] && echo "to journald" || echo "to their own files again"); the site is back in a minute or two"
+  compose up -d --wait --wait-timeout 600 >/dev/null 2>&1 || say "The site is taking long to come back: check sudo docker compose --project-directory $APP_DIR ps"
+  flock -u 9
+}
+
+case "${1:-}" in
+on)
+  target=${2:-}
+  [[ "$target" =~ ^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):([0-9]{1,5})$ ]] || die "Give the log server as HOST:PORT, for example logs.example.org:6514"
+  host=${BASH_REMATCH[1]} port=${BASH_REMATCH[2]}
+  host=${host#[}; host=${host%]}
+  protocol=tls ca="" sd="" requests=yes
+  shift 2
+  while (( $# )); do
+    case "$1" in
+      --tcp) protocol=tcp ;;
+      --udp) protocol=udp ;;
+      --ca) ca=${2:-}; shift ;;
+      --sd) sd=${2:-}; shift ;;
+      --no-access-log) requests=no ;;
+      *) die "Unknown option $1" ;;
+    esac
+    shift
+  done
+  if [[ "$sd" == - ]]; then
+    if [[ -t 0 ]]; then
+      read -r -s -p "Structured-data element (not shown): " sd; echo
+    else
+      read -r sd
+    fi
+  fi
+  # An RFC 5424 structured-data element, such as [TOKEN@41058] or
+  # [logtail@11993 source_token="TOKEN"]: one line, in brackets.
+  if [[ -n "$sd" && ! "$sd" =~ ^\[[^][:cntrl:]]+(\]\[[^][:cntrl:]]+)*\]$ ]]; then
+    die "--sd takes a structured-data element in brackets, such as [TOKEN@41058], as your log service gives it"
+  fi
+  if [[ -n "$ca" ]]; then
+    [[ "$protocol" == tls ]] || die "--ca is for TLS only"
+    openssl x509 -in "$ca" -noout 2>/dev/null || die "$ca isn't a PEM certificate"
+    install -m 644 "$ca" "$CA_COPY.new" && mv "$CA_COPY.new" "$CA_COPY"
+  else
+    rm -f "$CA_COPY"
+  fi
+  packages=(rsyslog)
+  [[ "$protocol" == tls ]] && packages+=(rsyslog-gnutls)
+  for p in "${packages[@]}"; do
+    dpkg -s "$p" >/dev/null 2>&1 && continue
+    DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1 apt-get install -y -qq -o DPkg::Lock::Timeout=600 \
+      "${packages[@]}" >/dev/null 2>&1 || die "Installing ${packages[*]} failed"
+    break
+  done
+  # Reachable at all? (UDP can't tell.) With TLS: a certificate for that name,
+  # from a known authority, or rsyslog would refuse it later without a word here.
+  if [[ "$protocol" != udp ]] && ! timeout 10 bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null; then
+    die "Can't connect to $host on port $port: check the address, and that a firewall in front of this server allows it out"
+  fi
+  if [[ "$protocol" == tls ]]; then
+    cafile=/etc/ssl/certs/ca-certificates.crt
+    [[ -s "$CA_COPY" ]] && cafile=$CA_COPY
+    if ! timeout 20 openssl s_client -connect "$host:$port" -servername "$host" -verify_hostname "$host" \
+         -CAfile "$cafile" -verify_return_error </dev/null >/dev/null 2>&1; then
+      die "$host:$port doesn't have a valid TLS certificate for the name $host (for a log server with a certificate of its own making, give its authority with --ca FILE; to send unencrypted, --tcp)"
+    fi
+  fi
+
+  # The Plone in a Box tools' own log files, and nginx's requests and errors,
+  # through rsyslog too. Finding the tools' files means listing /var/log,
+  # which Ubuntu's AppArmor profile for rsyslog doesn't allow by itself.
+  if [[ -d /etc/apparmor.d/rsyslog.d ]]; then
+    printf '%s\n/var/log/ r,\n' "$MARK: imfile finds /var/log/plone-*.log." > "$APPARMOR"
+    apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd 2>/dev/null || true
+  fi
+  cat > "$FILES_CONF" <<'EOF'
+# Written by plone-syslog: the Plone in a Box tools' log files.
+module(load="imfile")
+# (freshStartTail: from now on, not the files' whole history.)
+input(type="imfile" File="/var/log/plone-*.log" Tag="plone-in-a-box:" Facility="local0" freshStartTail="on")
+EOF
+  { what="errors"; [[ "$requests" == yes ]] && what="requests and errors"
+    echo "# Written by plone-syslog: $what to rsyslog too, which sends them on."
+    [[ "$requests" == yes ]] && echo "access_log syslog:server=unix:/dev/log,tag=nginx,severity=info,nohostname combined;"
+    echo "error_log syslog:server=unix:/dev/log,tag=nginx,nohostname warn;"; } > "$NGINX_CONF"
+  nginx -t -q 2>/dev/null || { rm -f "$NGINX_CONF" "$FILES_CONF"; die "nginx didn't accept the syslog settings; nothing was changed"; }
+
+  # Forwarding, with a queue on disk for when the log server is away.
+  case "$protocol" in
+    tls)
+      # The name checked in the certificate: the host's, or the wildcard a
+      # service's certificate may have instead (*.example.com for
+      # logs.example.com).
+      peers=$host
+      [[ "$host" == *.*.* ]] && peers+=",*.${host#*.}"
+      tls="StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"x509/name\" StreamDriverPermittedPeers=\"$peers\""
+      global="DefaultNetstreamDriverCAFile=\"$cafile\""
+      proto=tcp ;;
+    tcp) tls="" global="" proto=tcp ;;
+    udp) tls="" global="" proto=udp ;;
+  esac
+  # The name the messages carry: the site's, rather than the server's own
+  # (often just "localhost" on a cloud server).
+  name=$(sed -E 's#^https?://##; s#[:/].*##' "$STATE_DIR/site-url" 2>/dev/null)
+  [[ "$name" =~ ^[A-Za-z0-9.-]+$ ]] || name=$(hostname)
+  # --no-access-log: the containers' own line per request too (Plone logs
+  # one for each, as nginx does).
+  request_filter=""
+  # (rsyslog's own variables, not the shell's.)
+  # shellcheck disable=SC2016
+  [[ "$requests" == no ]] && request_filter='if $programname startswith "plone-" and re_match($msg, "\"(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) [^ ]* HTTP/[0-9.]+\" [0-9]{3}") then {
+  stop
+}'
+  # RFC 5424, with the structured-data element if one was given (escaped for
+  # an rsyslog string: backslashes, quotes and percent signs).
+  template=RSYSLOG_SyslogProtocol23Format template_def=""
+  if [[ -n "$sd" ]]; then
+    esc=${sd//\\/\\\\}; esc=${esc//\"/\\\"}; esc=${esc//%/\\%}
+    template=PloneInABoxRemote
+    template_def="template(name=\"PloneInABoxRemote\" type=\"string\" string=\"<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% %PROCID% %MSGID% $esc%msg:::sp-if-no-1st-sp%%msg%\")"
+  fi
+  # Only root can read it: the structured data can hold a token.
+  (umask 077; cat > "$CONF.new" <<EOF
+$MARK: everything to $host:$port ($protocol${sd:+, with structured data}).
+global(localHostname="$name" $global)
+$template_def
+# Not sent, to keep the volume down (both stay in the server's own logs): the
+# backend's health check every 10 seconds, and the firewall's lines about the
+# connections it blocks, which internet scanners cause all day.
+if (\$programname startswith "plone-backend" and \$msg contains "GET /ok HTTP/1.1") or \$msg contains "[UFW BLOCK]" then {
+  stop
+}
+$request_filter
+*.* action(type="omfwd" target="$host" port="$port" protocol="$proto" $tls
+           template="$template"
+           queue.type="LinkedList" queue.filename="plone-in-a-box-remote" queue.maxDiskSpace="100m"
+           queue.saveOnShutdown="on" action.resumeRetryCount="-1" action.resumeInterval="30")
+EOF
+  )
+  mv "$CONF.new" "$CONF"
+  if ! rsyslogd -N1 >/dev/null 2>&1; then
+    rsyslogd -N1 2>&1 | tail -n 5
+    rm -f "$CONF" "$FILES_CONF" "$NGINX_CONF"
+    die "rsyslog didn't accept the settings (above); nothing was changed"
+  fi
+  printf '%s %s %s\n' "$protocol" "$host:$port" "$requests" > "$STATE_DIR/syslog"
+  systemctl restart rsyslog
+  systemctl reload nginx
+  containers journald
+  logger -t plone-in-a-box "plone-syslog: $(cat "$STATE_DIR/site-url" 2>/dev/null || hostname) now sends its logs here"
+  say "On: the server's logs go to $host:$port ($protocol). A first message was sent; check that it arrived. Off again with: sudo plone-syslog off"
+  ;;
+off)
+  rm -f "$CONF" "$FILES_CONF" "$NGINX_CONF" "$CA_COPY" "$STATE_DIR/syslog"
+  if [[ -e "$APPARMOR" ]]; then
+    rm -f "$APPARMOR"
+    apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd 2>/dev/null || true
+  fi
+  nginx -t -q && systemctl reload nginx
+  systemctl restart rsyslog 2>/dev/null
+  containers files
+  say "Off: the logs stay on the server only"
+  ;;
+status)
+  if [[ -s "$STATE_DIR/syslog" ]]; then
+    read -r protocol target requests < "$STATE_DIR/syslog"
+    echo "On: the server's logs go to $target ($protocol)$( [[ "$requests" == no ]] && echo ", without a line per web request")."
+    queued=$(find /var/spool/rsyslog -name 'plone-in-a-box-remote.0*' -printf '%s\n' 2>/dev/null | awk '{ n += $1 } END { if (n) printf "%.1f MB", n / 1048576 }')
+    [[ -n "$queued" ]] && echo "Waiting to be sent, because the log server didn't answer: $queued (see sudo journalctl -u rsyslog)"
+  else
+    echo "Off: the logs stay on the server. Turn it on with: sudo plone-syslog on HOST:PORT"
+  fi
+  ;;
+test)
+  [[ -s "$STATE_DIR/syslog" ]] || die "Sending logs isn't on. Turn it on with: sudo plone-syslog on HOST:PORT"
+  logger -t plone-in-a-box "plone-syslog test message from $(cat "$STATE_DIR/site-url" 2>/dev/null || hostname) at $(date '+%F %T %Z')"
+  echo "Sent a test message (tag plone-in-a-box); check that it arrived at $(cut -d' ' -f2 "$STATE_DIR/syslog")"
+  ;;
+*)
+  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+  ;;
+esac
+PLONE_SYSLOG_EOF
+chmod 755 /usr/local/bin/plone-syslog
+
 # HTTPS for a site without a domain name: a Let's Encrypt certificate for the
 # server's IP address. Setup runs it; plone-https-ip.timer renews it.
 cat > /usr/local/bin/plone-https-ip <<'PLONE_HTTPS_IP_EOF'

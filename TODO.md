@@ -15,6 +15,20 @@
   updated it. Check for any others, in our accounts or made by add-on authors, and tell those authors. Until then
   they keep working without the field (they download the latest release, and the field is optional).
 
+## OpenTelemetry, and launch fields for logs (next release after 2.25)
+
+- An optional OTLP endpoint and key: when set, an OpenTelemetry Collector
+  container sends the server's metrics (CPU, memory, disk, network), each
+  container's, PostgreSQL's and nginx's, and optionally the containers' logs.
+  Nothing changes in Plone or Volto. Guide: Grafana Cloud's free tier, with a
+  dashboard.
+- Then, opt-in: traces for Volto (Node auto-instrumentation through
+  `NODE_OPTIONS`), and for the backend if wrapping its WSGI app stays stable
+  across image updates.
+- Launch fields for the syslog server (`plone-syslog`, 2.25) and the OTLP
+  endpoint together, in one optional "Logs and metrics" section, so the
+  launchers and the Try It StackScripts change once.
+
 ## Retire the duplicate Linode StackScript
 
 - [x] Asked Linode support (ticket 27858783) to remove the public StackScript 692002, a duplicate of

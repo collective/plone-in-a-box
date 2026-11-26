@@ -25,6 +25,16 @@
   runs it again so changes there reach the server. `sudo plone-server-mail
   test` sends a test email. Older servers get it from `src/add-updates.sh`.
   ("The server's own mail" in the setup guide.)
+- **Logs to a syslog server**: `sudo plone-syslog on HOST:PORT` sends the
+  server's logs to a syslog server or service as well (Papertrail, Better
+  Stack, Graylog, your own rsyslog): Plone, Volto and PostgreSQL, nginx's
+  requests and errors, the Plone in a Box tools' logs and the system's own.
+  TLS by default (`--ca` for a private certificate authority), and up to
+  100 MB wait on the server while the log server is away. The containers
+  log through journald for this; `docker compose logs` still works.
+  `--sd` adds the token some services want in each message (Papertrail,
+  Better Stack), and `--no-access-log` leaves out the line per web request,
+  most of the volume. ("Sending the logs elsewhere" in the setup guide.)
 - **DigitalOcean alerts by default (Terraform)**: a Droplet made with
   `src/digitalocean` now gets DigitalOcean's free resource alerts: an email
   when its disk is over 85% full, its memory over 90% for 10 minutes, or its
