@@ -1683,6 +1683,159 @@ esac
 PLONE_OFFSITE_EOF
 chmod 755 /usr/local/bin/plone-offsite
 
+# A site behind Cloudflare's proxy: sudo plone-cloudflare on. Only Cloudflare
+# can then reach the web ports, and the site sees visitors' own addresses.
+# plone-cloudflare.timer keeps Cloudflare's address list up to date.
+cat > /usr/local/bin/plone-cloudflare <<'PLONE_CLOUDFLARE_EOF'
+#!/bin/bash
+# For a site whose domain is proxied by Cloudflare (the orange cloud): the
+# firewall lets only Cloudflare's addresses reach ports 80 and 443, so nobody
+# can go around Cloudflare to the server, and nginx takes each visitor's own
+# address from Cloudflare's CF-Connecting-IP header. SSH isn't affected.
+# Usage: sudo plone-cloudflare on [--force]  (--force: even if the domain doesn't point at Cloudflare yet)
+#        sudo plone-cloudflare off           (open ports 80 and 443 to everyone again)
+#        sudo plone-cloudflare status
+#        sudo plone-cloudflare refresh       (update Cloudflare's addresses; done once a month)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-cloudflare ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+RANGES=$STATE_DIR/cloudflare-ranges
+CONF=/etc/nginx/conf.d/plone-cloudflare.conf
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-cloudflare.log; }
+die() { say "$*" >&2; exit 1; }
+site=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+
+# Cloudflare's published address ranges, one per line, or nothing.
+fetch() {
+  local v4 v6
+  v4=$(curl -fsS -m 30 --retry 3 https://www.cloudflare.com/ips-v4) || return 1
+  v6=$(curl -fsS -m 30 --retry 3 https://www.cloudflare.com/ips-v6) || return 1
+  python3 - "$v4" "$v6" <<'PY'
+import ipaddress, sys
+v4 = [ipaddress.ip_network(x.strip()) for x in sys.argv[1].split() if x.strip()]
+v6 = [ipaddress.ip_network(x.strip()) for x in sys.argv[2].split() if x.strip()]
+if len(v4) < 5 or len(v6) < 3 or any(n.version != 4 for n in v4) or any(n.version != 6 for n in v6):
+    sys.exit(1)
+print("\n".join(str(n) for n in sorted(v4) + sorted(v6, key=str)))
+PY
+}
+
+rule() {  # rule allow|delete RANGE
+  if [[ "$1" == allow ]]; then
+    ufw allow proto tcp from "$2" to any port 80,443 comment Cloudflare >/dev/null
+  else
+    ufw delete allow proto tcp from "$2" to any port 80,443 >/dev/null
+  fi
+}
+
+# apply LIST: nginx's real-address settings and the firewall rules for LIST,
+# replacing the ones for the previous list.
+apply() {
+  local list=$1 old="" r
+  [[ -s "$RANGES" ]] && old=$(cat "$RANGES")
+  { echo "# Written by plone-cloudflare: visitors' own addresses, from Cloudflare's header."
+    while read -r r; do echo "set_real_ip_from $r;"; done <<<"$list"
+    echo "real_ip_header CF-Connecting-IP;"; } > "$CONF.new"
+  mv "$CONF.new" "$CONF"
+  if ! nginx -t -q 2>/dev/null; then
+    rm -f "$CONF"
+    die "nginx didn't accept the Cloudflare settings; nothing was changed"
+  fi
+  # New ranges first, so the site is never closed to Cloudflare.
+  while read -r r; do grep -qxF "$r" <<<"$old" || rule allow "$r" || die "Adding the firewall rule for $r failed"; done <<<"$list"
+  while read -r r; do [[ -z "$r" ]] || grep -qxF "$r" <<<"$list" || rule delete "$r"; done <<<"$old"
+  printf '%s\n' "$list" > "$RANGES"
+  systemctl reload nginx
+}
+
+case "${1:-}" in
+on)
+  domain=$(awk '$1 == "server_name" { sub(/;$/, "", $2); print $2; exit }' /etc/nginx/sites-available/plone)
+  [[ -n "$domain" && "$domain" != _ ]] \
+    || die "This site has no domain name. Cloudflare needs one: see \"Adding a domain later\" in the setup guide"
+  list=$(fetch) || die "Couldn't get Cloudflare's address list from www.cloudflare.com; nothing was changed"
+  # The domain has to point at Cloudflare already, or visitors are shut out.
+  addresses=$(getent ahosts "$domain" | awk '{print $1}' | sort -u)
+  if ! python3 - "$list" "$addresses" <<'PY'
+import ipaddress, sys
+nets = [ipaddress.ip_network(x) for x in sys.argv[1].split()]
+addrs = [ipaddress.ip_address(x) for x in sys.argv[2].split()]
+sys.exit(0 if addrs and all(any(a in n for n in nets) for a in addrs) else 1)
+PY
+  then
+    if [[ "${2:-}" != --force ]]; then
+      die "$domain doesn't point at Cloudflare (it's ${addresses//$'\n'/ }): turn on the proxy (the orange cloud) for it in Cloudflare's DNS settings first, wait a few minutes, and try again. Otherwise only Cloudflare could reach the site, and nobody could visit it."
+    fi
+    say "$domain doesn't point at Cloudflare yet; going ahead, as --force asks"
+  fi
+  apply "$list"
+  ufw delete allow 'Nginx Full' >/dev/null 2>&1
+  systemctl enable --now plone-cloudflare.timer 2>/dev/null
+  say "On: only Cloudflare's $(wc -l <<<"$list") address ranges can reach ports 80 and 443, and the site sees visitors' own addresses. Back to open with: sudo plone-cloudflare off"
+  ;;
+refresh)
+  [[ -s "$RANGES" ]] || exit 0
+  if ! list=$(fetch); then
+    say "Couldn't get Cloudflare's address list; the current one stays"
+    /usr/local/lib/plone-in-a-box/alert "Plone in a Box: Cloudflare's addresses not updated ($site)" \
+      "Getting Cloudflare's current address list from www.cloudflare.com failed, so the firewall keeps the list from $(date -r "$RANGES" '+%F'). If Cloudflare has added addresses since, some visitors may not reach the site. It's tried again next month, or now with: sudo plone-cloudflare refresh" >/dev/null 2>&1
+    exit 1
+  fi
+  if [[ "$list" == "$(cat "$RANGES")" ]]; then
+    touch "$RANGES"
+    say "Cloudflare's addresses haven't changed"
+  else
+    apply "$list"
+    say "Updated Cloudflare's addresses: $(wc -l <<<"$list") ranges"
+  fi
+  ;;
+off)
+  ufw allow 'Nginx Full' >/dev/null
+  if [[ -s "$RANGES" ]]; then
+    while read -r r; do [[ -z "$r" ]] || rule delete "$r"; done < "$RANGES"
+  fi
+  rm -f "$RANGES" "$CONF"
+  nginx -t -q && systemctl reload nginx
+  systemctl disable --now plone-cloudflare.timer 2>/dev/null
+  say "Off: ports 80 and 443 are open to everyone again"
+  ;;
+status)
+  if [[ -s "$RANGES" ]]; then
+    echo "On: only Cloudflare's $(wc -l < "$RANGES") address ranges can reach ports 80 and 443 (list from $(date -r "$RANGES" '+%F'))."
+  else
+    echo "Off: ports 80 and 443 are open to everyone. Turn it on with: sudo plone-cloudflare on"
+  fi
+  ;;
+*)
+  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+  ;;
+esac
+PLONE_CLOUDFLARE_EOF
+chmod 755 /usr/local/bin/plone-cloudflare
+cat > /etc/systemd/system/plone-cloudflare.service <<'EOF'
+[Unit]
+Description=Plone in a Box: update Cloudflare's addresses in the firewall
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/plone-cloudflare refresh
+EOF
+cat > /etc/systemd/system/plone-cloudflare.timer <<'EOF'
+[Unit]
+Description=Update Cloudflare's addresses once a month
+
+[Timer]
+OnCalendar=*-*-03 05:00:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
 # HTTPS for a site without a domain name: a Let's Encrypt certificate for the
 # server's IP address. Setup runs it; plone-https-ip.timer renews it.
 cat > /usr/local/bin/plone-https-ip <<'PLONE_HTTPS_IP_EOF'
@@ -2137,7 +2290,7 @@ Description=Plone in a Box: report that %i stopped
 Type=oneshot
 ExecStart=/usr/local/lib/plone-in-a-box/unit-failed %i
 EOF
-for unit in plone-backup plone-backup-check plone-update plone-https-ip plone-security-notices plone-reboot; do
+for unit in plone-backup plone-backup-check plone-update plone-https-ip plone-cloudflare plone-security-notices plone-reboot; do
   install -d -m 755 "/etc/systemd/system/${unit}.service.d"
   printf '[Unit]\nOnFailure=plone-in-a-box-failed@%%n.service\n' > "/etc/systemd/system/${unit}.service.d/report-failure.conf"
 done
