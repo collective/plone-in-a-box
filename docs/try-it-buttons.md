@@ -72,7 +72,8 @@ or a role your add-on defines for looking without administering. People who get 
 roles allow on that site. Without `demo_roles`, it's a Site Administrator. Manager isn't allowed.
 
 CI checks each entry (exact versions, allowed roles) and builds the image before anyone merges it, and
-`python3 scripts/catalog.py check` does the same on your computer.
+`python3 scripts/catalog.py check` does the same on your computer. For ready-made images, it also checks that they
+can be pulled without logging in and are built for the right platforms (`python3 scripts/catalog.py images`).
 
 **On Linode**, the page links to the main Plone in a Box StackScript and says which values to paste into it, since
 Linode can't fill in a form from a link. For one click instead, make a public StackScript for your add-on (see
