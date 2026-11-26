@@ -25,6 +25,15 @@
   runs it again so changes there reach the server. `sudo plone-server-mail
   test` sends a test email. Older servers get it from `src/add-updates.sh`.
   ("The server's own mail" in the setup guide.)
+- **GitHub Actions pinned to commit hashes**: the workflows named each
+  action by a tag like `v7`, which whoever controls the action can move to
+  other code at any time, as happened to `tj-actions/changed-files` in
+  March 2025. Those workflows push the frontend and backend images that
+  servers install every week, and upload the Launch Stack template with AWS
+  credentials, so a hijacked action could have shipped a tampered image or
+  template. Each action is now named by its commit (with its version in a
+  comment), which can't change, and Dependabot proposes updates weekly as
+  pull requests to review.
 
 2.24 (2026-11-26)
 -----------------
