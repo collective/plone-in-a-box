@@ -241,6 +241,24 @@ variable "auto_update" {
   default     = true
 }
 
+variable "alerts" {
+  description = "Email when the server is struggling: disk over 85% full, memory over 90% for 10 minutes, CPU over 90% for 30 minutes (DigitalOcean's resource alerts, free)."
+  type        = bool
+  default     = true
+}
+
+variable "alert_emails" {
+  description = "Where alerts go: addresses of members of your DigitalOcean team (DigitalOcean only sends alerts to verified addresses). Empty: your account's email."
+  type        = list(string)
+  default     = []
+}
+
+variable "uptime_check" {
+  description = "Check the site from outside every few minutes and email when it's down, or its certificate is about to expire (DigitalOcean Uptime: one check per account free, then $1 a month each)."
+  type        = bool
+  default     = false
+}
+
 # Reads the API token from the DIGITALOCEAN_TOKEN environment variable.
 provider "digitalocean" {}
 
@@ -389,6 +407,68 @@ resource "digitalocean_firewall" "plone" {
   }
 }
 
+# Alerts, to the account's email unless alert_emails names others.
+data "digitalocean_account" "current" {
+  count = (var.alerts || var.uptime_check) && length(var.alert_emails) == 0 ? 1 : 0
+}
+
+locals {
+  alert_emails = length(var.alert_emails) > 0 ? var.alert_emails : [for a in data.digitalocean_account.current : a.email]
+  site_url     = var.domain != "" ? "https://${var.domain}" : "http://${digitalocean_droplet.plone.ipv4_address}"
+  resource_alerts = {
+    disk   = { type = "v1/insights/droplet/disk_utilization_percent", value = 85, window = "5m", what = "Disk over 85% full" }
+    memory = { type = "v1/insights/droplet/memory_utilization_percent", value = 90, window = "10m", what = "Memory over 90% for 10 minutes" }
+    cpu    = { type = "v1/insights/droplet/cpu", value = 90, window = "30m", what = "CPU over 90% for 30 minutes" }
+  }
+}
+
+resource "digitalocean_monitor_alert" "plone" {
+  for_each    = var.alerts ? local.resource_alerts : {}
+  type        = each.value.type
+  compare     = "GreaterThan"
+  value       = each.value.value
+  window      = each.value.window
+  entities    = [digitalocean_droplet.plone.id]
+  description = "Plone in a Box (${digitalocean_droplet.plone.ipv4_address}): ${each.value.what}"
+  enabled     = true
+  alerts {
+    email = local.alert_emails
+  }
+}
+
+resource "digitalocean_uptime_check" "plone" {
+  count   = var.uptime_check ? 1 : 0
+  name    = "Plone in a Box ${var.domain != "" ? var.domain : digitalocean_droplet.plone.ipv4_address}"
+  target  = local.site_url
+  type    = var.domain != "" ? "https" : "http"
+  regions = ["us_east", "us_west", "eu_west", "se_asia"]
+  enabled = true
+}
+
+resource "digitalocean_uptime_alert" "down" {
+  count    = var.uptime_check ? 1 : 0
+  check_id = digitalocean_uptime_check.plone[0].id
+  name     = "Site down"
+  type     = "down_global"
+  period   = "2m"
+  notifications {
+    email = local.alert_emails
+  }
+}
+
+resource "digitalocean_uptime_alert" "certificate" {
+  count      = var.uptime_check && var.domain != "" ? 1 : 0
+  check_id   = digitalocean_uptime_check.plone[0].id
+  name       = "Certificate expires within 14 days"
+  type       = "ssl_expiry"
+  comparison = "less_than"
+  threshold  = 14
+  period     = "2m"
+  notifications {
+    email = local.alert_emails
+  }
+}
+
 output "region" {
   value = digitalocean_droplet.plone.region
 }
@@ -398,7 +478,11 @@ output "public_ip" {
 }
 
 output "site_url" {
-  value = var.domain != "" ? "https://${var.domain}" : "http://${digitalocean_droplet.plone.ipv4_address}"
+  value = local.site_url
+}
+
+output "alerts_to" {
+  value = var.alerts || var.uptime_check ? join(", ", local.alert_emails) : "(alerts off)"
 }
 
 # Only needed when admin_password was left empty.
