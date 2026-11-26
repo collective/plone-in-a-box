@@ -25,6 +25,14 @@
   runs it again so changes there reach the server. `sudo plone-server-mail
   test` sends a test email. Older servers get it from `src/add-updates.sh`.
   ("The server's own mail" in the setup guide.)
+- **Logs to a syslog server**: `sudo plone-syslog on HOST:PORT` sends the
+  server's logs to a syslog server or service as well (Papertrail, Better
+  Stack, Graylog, your own rsyslog): Plone, Volto and PostgreSQL, nginx's
+  requests and errors, the Plone in a Box tools' logs and the system's own.
+  TLS by default (`--ca` for a private certificate authority), and up to
+  100 MB wait on the server while the log server is away. The containers
+  log through journald for this; `docker compose logs` still works.
+  ("Sending the logs elsewhere" in the setup guide.)
 - **GitHub Actions pinned to commit hashes**: the workflows named each
   action by a tag like `v7`, which whoever controls the action can move to
   other code at any time, as happened to `tj-actions/changed-files` in

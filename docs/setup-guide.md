@@ -572,6 +572,23 @@ Your provider can also tell you when the server itself is struggling:
 * **AWS**: CloudWatch alarms on the instance's CPU and status checks. **Hetzner** Cloud has no alerts of this kind;
   an uptime check covers the most common problems.
 
+**Sending the logs elsewhere**: the logs stay on the server, which is enough to look into a problem, but they're
+gone with it, and with several servers you'd log in to each. `plone-syslog` sends them to a syslog server or service
+as well (Papertrail, Better Stack, Graylog, or an rsyslog server of your own): Plone, Volto and PostgreSQL, nginx's
+requests and errors, the Plone in a Box tools' logs (backups, updates and the others), and the system's own, such
+as SSH logins and security updates.
+
+```
+sudo plone-syslog on logs.example.org:6514
+```
+
+It uses TLS, checked against the server's name, unless you add `--tcp` or `--udp` (unencrypted: only within a
+private network). For a log server with a certificate of its own making, add `--ca <file>` with its certificate
+authority. The site's containers restart once, so the site is away for a minute or two. If the log server can't be
+reached, up to 100 MB of logs wait on the server and go out once it's back. `sudo plone-syslog test` sends a test
+message, `status` shows where they go, and `off` keeps the logs on the server only again. A server set up before
+2.25 gets the command with the [same command](#servers-set-up-before-212) as automatic updates.
+
 **Outgoing connections**: setup doesn't limit what the server connects to. If you add a firewall in front of it that
 does (a Linode Cloud Firewall with outbound policy **Drop**, say), allow these, or parts of the box stop working
 without saying why:
@@ -582,6 +599,7 @@ without saying why:
 | UDP and TCP 53 | DNS, unless the provider's resolver is inside its network |
 | UDP 123 | the clock (NTP); without it the clock drifts, and HTTPS and logins can start failing |
 | TCP 587 or 2525 | email, if the site sends it (see [Sending email](#sending-email)) |
+| The log server's port | logs, if you send them elsewhere (see **Sending the logs elsewhere** above) |
 
 ## Updates
 

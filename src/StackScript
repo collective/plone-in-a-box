@@ -1970,6 +1970,182 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# The server's logs to a syslog server or service of your own: sudo
+# plone-syslog on HOST:PORT. rsyslog collects them here and forwards them,
+# keeping up to 100 MB while the log server can't be reached.
+cat > /usr/local/bin/plone-syslog <<'PLONE_SYSLOG_EOF'
+#!/bin/bash
+# Sends the server's logs to a syslog server or service (Papertrail, Better
+# Stack, your own rsyslog, ...): Plone, Volto and PostgreSQL, nginx's requests
+# and errors, the Plone in a Box tools (backups, updates, ...), and the
+# system's own (SSH logins, security updates). They also stay on the server.
+# Usage: sudo plone-syslog on HOST:PORT [--tcp|--udp] [--ca FILE]
+#          TLS unless --tcp or --udp (unencrypted); --ca: the certificate
+#          authority of a log server with a certificate of its own making
+#        sudo plone-syslog off
+#        sudo plone-syslog status
+#        sudo plone-syslog test     (send a test message)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-syslog ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+APP_DIR=/opt/plone
+CONF=/etc/rsyslog.d/60-plone-in-a-box-remote.conf
+FILES_CONF=/etc/rsyslog.d/59-plone-in-a-box-files.conf
+NGINX_CONF=/etc/nginx/conf.d/plone-syslog.conf
+OVERRIDE=$APP_DIR/docker-compose.override.yml
+CA_COPY=$STATE_DIR/syslog-ca.pem
+MARK="# Written by plone-syslog"
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+die() { echo "$*" >&2; exit 1; }
+compose() { docker compose --project-directory "$APP_DIR" "$@"; }
+
+# The site's containers log to journald (rsyslog reads it from there), or
+# back to their own files. docker compose logs works either way. Recreating
+# them restarts the site for a moment, so not while a backup or update runs.
+containers() {  # containers journald|files
+  local want=$1
+  if [[ "$want" == journald ]]; then
+    [[ -s "$OVERRIDE" ]] && grep -qF "$MARK" "$OVERRIDE" && return 0
+    cat > "$OVERRIDE" <<'EOF'
+# Written by plone-syslog: the containers log to journald, so their logs can
+# be sent on to the log server (docker compose logs still works).
+x-logging: &journald
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+services:
+  frontend:
+    logging: *journald
+  backend:
+    logging: *journald
+  db:
+    logging: *journald
+EOF
+  else
+    [[ -e "$OVERRIDE" ]] || return 0
+    grep -qF "$MARK" "$OVERRIDE" || die "$OVERRIDE wasn't written by plone-syslog; leaving the containers as they are"
+    rm -f "$OVERRIDE"
+  fi
+  exec 9>"$STATE_DIR/update.lock"
+  flock -w 3600 9 || die "A backup or update is still running; try again later"
+  say "Restarting the site's containers so they log $( [[ "$want" == journald ]] && echo "to journald" || echo "to their own files again"); the site is back in a minute or two"
+  compose up -d --wait --wait-timeout 600 >/dev/null 2>&1 || say "The site is taking long to come back: check sudo docker compose --project-directory $APP_DIR ps"
+  flock -u 9
+}
+
+case "${1:-}" in
+on)
+  target=${2:-}
+  [[ "$target" =~ ^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):([0-9]{1,5})$ ]] || die "Give the log server as HOST:PORT, for example logs.example.org:6514"
+  host=${BASH_REMATCH[1]} port=${BASH_REMATCH[2]}
+  host=${host#[}; host=${host%]}
+  protocol=tls ca=""
+  shift 2
+  while (( $# )); do
+    case "$1" in
+      --tcp) protocol=tcp ;;
+      --udp) protocol=udp ;;
+      --ca) ca=${2:-}; shift ;;
+      *) die "Unknown option $1" ;;
+    esac
+    shift
+  done
+  if [[ -n "$ca" ]]; then
+    [[ "$protocol" == tls ]] || die "--ca is for TLS only"
+    openssl x509 -in "$ca" -noout 2>/dev/null || die "$ca isn't a PEM certificate"
+    install -m 644 "$ca" "$CA_COPY.new" && mv "$CA_COPY.new" "$CA_COPY"
+  else
+    rm -f "$CA_COPY"
+  fi
+  packages=(rsyslog)
+  [[ "$protocol" == tls ]] && packages+=(rsyslog-gnutls)
+  for p in "${packages[@]}"; do
+    dpkg -s "$p" >/dev/null 2>&1 && continue
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o DPkg::Lock::Timeout=600 "${packages[@]}" >/dev/null \
+      || die "Installing ${packages[*]} failed"
+    break
+  done
+  # Reachable at all? (UDP can't tell.)
+  if [[ "$protocol" != udp ]] && ! timeout 10 bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null; then
+    die "Can't connect to $host on port $port: check the address, and that a firewall in front of this server allows it out"
+  fi
+
+  # The Plone in a Box tools' own log files, and nginx's requests and errors,
+  # through rsyslog too.
+  cat > "$FILES_CONF" <<'EOF'
+# Written by plone-syslog: the Plone in a Box tools' log files.
+module(load="imfile")
+input(type="imfile" File="/var/log/plone-*.log" Tag="plone-in-a-box:" Facility="local0")
+EOF
+  cat > "$NGINX_CONF" <<'EOF'
+# Written by plone-syslog: requests and errors to rsyslog too, which sends them on.
+access_log syslog:server=unix:/dev/log,tag=nginx,severity=info combined;
+error_log syslog:server=unix:/dev/log,tag=nginx warn;
+EOF
+  nginx -t -q 2>/dev/null || { rm -f "$NGINX_CONF" "$FILES_CONF"; die "nginx didn't accept the syslog settings; nothing was changed"; }
+
+  # Forwarding, with a queue on disk for when the log server is away.
+  case "$protocol" in
+    tls)
+      cafile=/etc/ssl/certs/ca-certificates.crt
+      [[ -s "$CA_COPY" ]] && cafile=$CA_COPY
+      tls="StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"x509/name\" StreamDriverPermittedPeers=\"$host\""
+      global="global(DefaultNetstreamDriverCAFile=\"$cafile\")"
+      proto=tcp ;;
+    tcp) tls="" global="" proto=tcp ;;
+    udp) tls="" global="" proto=udp ;;
+  esac
+  cat > "$CONF.new" <<EOF
+$MARK: everything to $host:$port ($protocol).
+$global
+*.* action(type="omfwd" target="$host" port="$port" protocol="$proto" $tls
+           template="RSYSLOG_SyslogProtocol23Format"
+           queue.type="LinkedList" queue.filename="plone-in-a-box-remote" queue.maxDiskSpace="100m"
+           queue.saveOnShutdown="on" action.resumeRetryCount="-1" action.resumeInterval="30")
+EOF
+  mv "$CONF.new" "$CONF"
+  if ! rsyslogd -N1 >/dev/null 2>&1; then
+    rsyslogd -N1 2>&1 | tail -n 5
+    rm -f "$CONF" "$FILES_CONF" "$NGINX_CONF"
+    die "rsyslog didn't accept the settings (above); nothing was changed"
+  fi
+  printf '%s %s\n' "$protocol" "$host:$port" > "$STATE_DIR/syslog"
+  systemctl restart rsyslog
+  systemctl reload nginx
+  containers journald
+  logger -t plone-in-a-box "plone-syslog: $(cat "$STATE_DIR/site-url" 2>/dev/null || hostname) now sends its logs here"
+  say "On: the server's logs go to $host:$port ($protocol). A first message was sent; check that it arrived. Off again with: sudo plone-syslog off"
+  ;;
+off)
+  rm -f "$CONF" "$FILES_CONF" "$NGINX_CONF" "$CA_COPY" "$STATE_DIR/syslog"
+  nginx -t -q && systemctl reload nginx
+  systemctl restart rsyslog 2>/dev/null
+  containers files
+  say "Off: the logs stay on the server only"
+  ;;
+status)
+  if [[ -s "$STATE_DIR/syslog" ]]; then
+    read -r protocol target < "$STATE_DIR/syslog"
+    echo "On: the server's logs go to $target ($protocol)."
+    queued=$(du -sh /var/spool/rsyslog 2>/dev/null | cut -f1)
+    [[ -n "$(ls -A /var/spool/rsyslog 2>/dev/null)" ]] && echo "Waiting to be sent, because the log server didn't answer: $queued (see sudo journalctl -u rsyslog)"
+  else
+    echo "Off: the logs stay on the server. Turn it on with: sudo plone-syslog on HOST:PORT"
+  fi
+  ;;
+test)
+  [[ -s "$STATE_DIR/syslog" ]] || die "Sending logs isn't on. Turn it on with: sudo plone-syslog on HOST:PORT"
+  logger -t plone-in-a-box "plone-syslog test message from $(cat "$STATE_DIR/site-url" 2>/dev/null || hostname) at $(date '+%F %T %Z')"
+  echo "Sent a test message (tag plone-in-a-box); check that it arrived at $(cut -d' ' -f2 "$STATE_DIR/syslog")"
+  ;;
+*)
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+  ;;
+esac
+PLONE_SYSLOG_EOF
+chmod 755 /usr/local/bin/plone-syslog
+
 # HTTPS for a site without a domain name: a Let's Encrypt certificate for the
 # server's IP address. Setup runs it; plone-https-ip.timer renews it.
 cat > /usr/local/bin/plone-https-ip <<'PLONE_HTTPS_IP_EOF'
