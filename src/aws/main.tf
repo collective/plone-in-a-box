@@ -200,6 +200,13 @@ variable "report_email" {
   default     = ""
 }
 
+variable "spamhaus_key" {
+  description = "Optional: a free Spamhaus Data Query Service key from spamhaus.com, so the blocklist checks can ask Spamhaus about the server's IP address and the site's domains."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "auto_update" {
   description = "Install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back."
   type        = bool
@@ -221,6 +228,12 @@ variable "volume_size_gb" {
   description = "Size of the root disk in GB."
   type        = number
   default     = 20
+}
+
+variable "backups" {
+  description = "Daily snapshots of the server's disk through AWS Data Lifecycle Manager, the newest 7 kept (extra cost)."
+  type        = bool
+  default     = false
 }
 
 provider "aws" {
@@ -303,6 +316,15 @@ resource "aws_instance" "app_server" {
     encrypted   = true
   }
 
+  # The plone-in-a-box tag is what the snapshot policy below looks for (when
+  # backups is on). The key pair's generated name is unique to this
+  # deployment, so another server's policy in the same account doesn't
+  # snapshot this one too.
+  tags = {
+    Name             = "Plone in a Box"
+    "plone-in-a-box" = aws_key_pair.deployer.key_name
+  }
+
   metadata_options {
     http_tokens = "required" # IMDSv2 only
   }
@@ -336,6 +358,7 @@ resource "aws_instance" "app_server" {
     "export SMTP_PASSWORD=\"$(echo ${base64encode(var.smtp_password)} | base64 -d)\"",
     "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
     "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
+    "export SPAMHAUS_KEY=\"$(echo ${base64encode(var.spamhaus_key)} | base64 -d)\"",
     "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
     "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
     "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",
@@ -346,9 +369,6 @@ resource "aws_instance" "app_server" {
   user_data_replace_on_change = false
   disable_api_termination     = var.deletion_protection
 
-  tags = {
-    Name = "Plone in a Box"
-  }
 
   lifecycle {
     # Terraform never deletes or replaces the server, which would delete the
@@ -362,6 +382,61 @@ resource "aws_instance" "app_server" {
     # the server; plone-update keeps it current.
     ignore_changes = [ami, user_data, user_data_base64, key_name]
   }
+}
+
+# Daily snapshots of the disk (backups = true): AWS Data Lifecycle Manager,
+# with the role it needs. The newest 7 are kept; see EC2 > Snapshots. Turning
+# backups off removes the policy, and leaves the snapshots taken.
+resource "aws_iam_role" "snapshots" {
+  count       = var.backups ? 1 : 0
+  name_prefix = "plone-in-a-box-snapshots-"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "dlm.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "snapshots" {
+  count      = var.backups ? 1 : 0
+  role       = aws_iam_role.snapshots[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSDataLifecycleManagerServiceRole"
+}
+
+resource "aws_dlm_lifecycle_policy" "snapshots" {
+  count              = var.backups ? 1 : 0
+  description        = "Plone in a Box daily snapshots ${aws_key_pair.deployer.key_name}"
+  execution_role_arn = aws_iam_role.snapshots[0].arn
+  state              = "ENABLED"
+
+  policy_details {
+    resource_types = ["INSTANCE"]
+    target_tags = {
+      "plone-in-a-box" = aws_key_pair.deployer.key_name
+    }
+
+    schedule {
+      name      = "Daily newest 7 kept"
+      copy_tags = true
+
+      # After the nightly database backup (00:15 server time), so a snapshot
+      # holds it too.
+      create_rule {
+        interval      = 24
+        interval_unit = "HOURS"
+        times         = ["03:00"]
+      }
+
+      retain_rule {
+        count = 7
+      }
+    }
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.snapshots]
 }
 
 output "public_ip" {

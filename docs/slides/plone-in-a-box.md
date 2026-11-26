@@ -146,7 +146,7 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It p
 - **Every week,** a pack: the database's old history is cleared, so it doesn't keep growing.
 - **`sudo plone-restore`** puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also **moves a site** to a new server.
 - **Encrypted copies off the server:** each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted on the server first.
-- Your provider's **server backups** can be turned on too, for the whole disk.
+- Your provider's **server backups** can be turned on too, for the whole disk: on AWS too, with Terraform's `backups` setting.
 - A notice when the **disk is getting full**, before backups stop, and when a backup or update is cut off.
 
 ---
@@ -183,7 +183,7 @@ Plone sends email for password resets, forms and update reports. Cloud servers c
 - Fill in the service's settings **when you create the server**.
 - Setup puts them into **Site Setup → Mail**, and sends you a **test email**.
 - The weekly update reports go to your inbox too.
-- Setup checks your domains and the server's address against the **blocklists** mail services use, and the weekly report says if a domain gets listed.
+- Setup checks your domains and the server's address against the **blocklists** mail services use, and the weekly report says if a domain gets listed. A free **Spamhaus key** makes the check work on any provider.
 
 The setup guide compares the services, and explains the DNS records your domain needs.
 

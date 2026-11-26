@@ -184,6 +184,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # site_timezone     = "America/Chicago"
 # site_language     = "de"
 # starter_content   = false
+# backups           = true  # daily disk snapshots, the newest 7 kept (extra cost); see Backups
 # addons            = "collective.easyform"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
 # demo_user         = "demo"   # demo_roles = "Editor"; by default the image's suggestion, or Site Administrator
@@ -194,6 +195,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # smtp_password     = "..."
 # email_from        = "plone@example.org"
 # report_email      = "you@example.org"
+# spamhaus_key      = "..."  # optional: see Blocklists
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -350,7 +352,7 @@ This applies to AWS, DigitalOcean and Hetzner. Most owners never run Terraform a
 current with `plone-update` (see [Updates](#updates)), and everything else is done on the server. You might come
 back to the same `src/<provider>/` folder to:
 
-* **Change who can use SSH** (`ssh_allowed_cidrs`), **turn the provider's backups on or off** (`backups`, on DigitalOcean and Hetzner), or
+* **Change who can use SSH** (`ssh_allowed_cidrs`), **turn the provider's backups on or off** (`backups`), or
   **resize the server** (`instance_type` and `volume_size_gb` on AWS, `size` on DigitalOcean, `server_type` on
   Hetzner). Run `terraform apply` with the new value; Terraform changes these on the existing server (resizing
   restarts it).
@@ -445,6 +447,21 @@ scp root@<server>:/var/backups/plone/plone-<date>.sql.gz .
 ```
 
 (On AWS, log in as `ubuntu` instead of `root`, and copy the file to your home directory with `sudo cp` first.)
+
+**Server backups on AWS**: with Terraform, `backups = true` turns on daily snapshots of the server's disk through
+AWS Data Lifecycle Manager, and keeps the newest 7. A server made with **Launch Stack** gets them with a policy you
+make once in the AWS console:
+
+1. **EC2 → Lifecycle Manager → Create lifecycle policy**, then **EBS snapshot policy**.
+2. **Target resource types**: **Instance**. **Target resource tags**: key `Name`, value your stack's name (such as
+   `plone-in-a-box`). **IAM role**: **Default role** (the console makes it if it doesn't exist yet).
+3. **Schedule**: **Daily**, every **24 hours**, starting at `03:00` UTC (after the nightly database backup), with
+   retention by **Count**, `7`. Leave the rest, and **Create policy**.
+
+Snapshots are charged for the space they take (about US$0.05 a GB a month; after the first, each holds only what
+changed), and appear in **EC2 → Snapshots**. To get a server back from one, see AWS's
+[Restore from a snapshot](https://docs.aws.amazon.com/ebs/latest/userguide/ebs-restoring-volume.html). Deleting the
+policy stops new snapshots and leaves the ones taken.
 
 **Copies off the server**: every night's backup can also go to S3-compatible storage, such as Cloudflare R2, AWS S3,
 Backblaze B2, DigitalOcean Spaces or Hetzner Object Storage, encrypted on the server first, so a leaked bucket or key
@@ -966,6 +983,19 @@ removed. (A listed IP address doesn't affect email sent through an email service
 judge; you may still prefer a new server.) The weekly [update](#updates) looks up the domains again, and the report
 says if one has been listed since. Some lists don't answer queries through the big DNS resolvers that cloud
 providers use; those are skipped, and the setup log says which.
+
+**Spamhaus from any provider:** Spamhaus answers through Linode's resolvers, but not through Hetzner's or
+DigitalOcean's, for example. A free [Data Query Service key](https://www.spamhaus.com/data-access/free-data-query-service/)
+(for non-commercial, low-volume use: register, then copy the key from section "1.0 Datafeed Query Service" of your
+account) lets the checks ask Spamhaus from anywhere. Give it as the **Spamhaus DQS key** when you create the server
+(`SpamhausKey` in the Launch Stack form, `spamhaus_key` in Terraform, `export SPAMHAUS_KEY='...'` in the launcher).
+Only root can read it on the server, in `/var/lib/plone-in-a-box/spamhaus-key`; to add or change it later:
+
+```
+sudo sh -c 'umask 077; echo YOUR-KEY > /var/lib/plone-in-a-box/spamhaus-key'
+```
+
+If the key doesn't work, the credentials file says so, and the checks skip Spamhaus.
 
 ## HTTPS
 

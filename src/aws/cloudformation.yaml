@@ -62,6 +62,7 @@ Metadata:
           - SmtpPassword
           - EmailFrom
           - ReportEmail
+          - SpamhausKey
       - Label:
           default: Advanced (leave as is)
         Parameters:
@@ -122,6 +123,8 @@ Metadata:
         default: From address
       ReportEmail:
         default: Email for reports
+      SpamhausKey:
+        default: Spamhaus DQS key
       PloneVersion:
         default: Plone backend image tag
       VoltoVersion:
@@ -321,6 +324,15 @@ Parameters:
     Description: >-
       Your address: setup sends a test email here, and the update reports go here too. Empty: the From
       address.
+  SpamhausKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    AllowedPattern: '^[A-Za-z0-9]*$'
+    ConstraintDescription: Letters and digits only.
+    Description: >-
+      Optional: a free Data Query Service key from spamhaus.com, so the blocklist checks can ask Spamhaus
+      about the server's IP address and the site's domains.
   PloneVersion:
     Type: String
     Default: "6.2"
@@ -447,8 +459,9 @@ Resources:
             SMTP_PASSWORD="$(d '${SmtpPasswordB64}')"
             EMAIL_FROM="$(d '${EmailFromB64}')"
             REPORT_EMAIL="$(d '${ReportEmailB64}')"
+            SPAMHAUS_KEY='${SpamhausKey}'
             export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL
-            export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL
+            export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)
             if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \

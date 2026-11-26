@@ -4,3 +4,4 @@ terraform.tfvars
 *.tfstate.backup
 .idea/
 .terraform.lock.hcl
+__pycache__/

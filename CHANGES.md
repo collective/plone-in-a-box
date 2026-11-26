@@ -1,4 +1,4 @@
-2.24 (2026-11-25)
+2.24 (2026-11-26)
 -----------------
 
 Your server now restarts by itself at night when Ubuntu's security updates
@@ -7,7 +7,9 @@ running. It tells you when its disk is getting full, before backups stop,
 and when one of its tools is cut off by a time limit, a lack of memory or a
 crash; backup problems now come by email too. SSH is safer: when the server
 has an SSH key, password logins are turned off, root's included, and
-fail2ban blocks addresses that keep failing to log in. The setup guide now
+fail2ban blocks addresses that keep failing to log in. On AWS, Terraform can
+now turn on daily snapshots of the server's disk, and the blocklist checks
+can ask Spamhaus from any cloud provider with a free key. The setup guide
 explains how to be told when the site is down, and which outgoing ports to
 allow if a firewall in front of the server limits them.
 
@@ -48,6 +50,30 @@ allow if a firewall in front of the server limits them.
   traffic (time sync and email were silently blocked on a real server), and
   "Sending email" says DigitalOcean's support can open port 587.
 - **Dependabot** keeps the GitHub Actions in the workflows up to date.
+- **Catalog checks for ready-made images**: CI checks that each ready-made
+  image in `addons.yml` can be pulled without logging in, is built for
+  `linux/amd64` (and `linux/arm64` with `arm: yes`), and exposes the ports
+  the official images do; it suggests `arm: yes` when every image has Arm
+  builds. (`python3 scripts/catalog.py images`.)
+- **Old backend image builds are deleted** like the frontend ones: each
+  backend image keeps its newest 26 weekly builds. Builds replaced later the
+  same day, which keep only their commit tag, now count too.
+  (`scripts/cleanup-images.py`, which replaces
+  `scripts/cleanup-frontend-images.py`.)
+- **Server backups on AWS**: Terraform's new `backups` setting turns on
+  daily snapshots of the server's disk through AWS Data Lifecycle Manager,
+  the newest 7 kept, as `backups` does on DigitalOcean and Hetzner. For
+  Launch Stack servers, the setup guide gives the steps to make the same
+  policy in the AWS console. ("Backups" in the setup guide.)
+- **Spamhaus from any cloud provider**: the new optional **Spamhaus DQS
+  key** setting, in every route (Linode form, Launch Stack `SpamhausKey`,
+  Terraform `spamhaus_key`, the launcher's `SPAMHAUS_KEY`), makes the
+  blocklist checks ask Spamhaus through its free Data Query Service, which
+  answers from any network: without it, Spamhaus refuses Hetzner's and
+  DigitalOcean's DNS resolvers, and those checks were skipped. Only root can
+  read the key on the server; the credentials file and the weekly report say
+  if it doesn't work. ("Blocklists" in the setup guide.)
+
 
 2.23 (2026-11-25)
 -----------------

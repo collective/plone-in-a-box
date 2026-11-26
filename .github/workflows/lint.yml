@@ -41,6 +41,8 @@ jobs:
 
       - name: The add-on catalog, and the Try It pages made from it
         run: python3 scripts/catalog.py check
+      - name: The ready-made images in the catalog are public, and built for the right platforms
+        run: python3 scripts/catalog.py images
 
   terraform:
     runs-on: ubuntu-latest

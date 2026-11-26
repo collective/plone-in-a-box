@@ -4,18 +4,25 @@ name: Backend images
 # and Arm servers, and publishes them to ghcr.io/<owner>/plone-in-a-box-backend: the real images
 # from collective/plone-in-a-box, test images from forks (run it by hand on a
 # branch). Pull requests only build. A failed build publishes nothing, so the
-# previous image stays.
+# previous image stays. Afterwards, old builds are deleted
+# (scripts/cleanup-images.py): each image that addons.yml uses keeps its newest
+# 26 builds, and test images go after 7 days.
 
 on:
   push:
     branches: [main]
-    paths: [backend-image/**, .github/workflows/backend-images.yml]
+    paths: [backend-image/**, scripts/cleanup-images.py, .github/workflows/backend-images.yml]
   pull_request:
-    paths: [backend-image/**, .github/workflows/backend-images.yml]
+    paths: [backend-image/**, scripts/cleanup-images.py, .github/workflows/backend-images.yml]
   schedule:
     # Weekly, to pick up Plone patch releases in plone/plone-backend.
     - cron: "47 4 * * 1"
   workflow_dispatch:
+    inputs:
+      cleanup_dry_run:
+        description: "Only report which old builds the cleanup would delete"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -77,3 +84,21 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Plone in a Box backend: plone/plone-backend ${{ matrix.plone }} with ${{ matrix.description }}
+
+  cleanup:
+    needs: build
+    # After the builds, even if one failed; never for pull requests.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Delete old builds
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE: plone-in-a-box-backend
+          DRY_RUN: ${{ inputs.cleanup_dry_run }}
+        run: python3 scripts/cleanup-images.py
