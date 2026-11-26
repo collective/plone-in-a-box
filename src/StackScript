@@ -1991,6 +1991,7 @@ STATE_DIR=/var/lib/plone-in-a-box
 APP_DIR=/opt/plone
 CONF=/etc/rsyslog.d/60-plone-in-a-box-remote.conf
 FILES_CONF=/etc/rsyslog.d/59-plone-in-a-box-files.conf
+APPARMOR=/etc/apparmor.d/rsyslog.d/plone-in-a-box
 NGINX_CONF=/etc/nginx/conf.d/plone-syslog.conf
 OVERRIDE=$APP_DIR/docker-compose.override.yml
 # (Where rsyslog may read it: it runs as the syslog user, and Ubuntu's AppArmor
@@ -2067,13 +2068,27 @@ on)
       "${packages[@]}" >/dev/null 2>&1 || die "Installing ${packages[*]} failed"
     break
   done
-  # Reachable at all? (UDP can't tell.)
+  # Reachable at all? (UDP can't tell.) With TLS: a certificate for that name,
+  # from a known authority, or rsyslog would refuse it later without a word here.
   if [[ "$protocol" != udp ]] && ! timeout 10 bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null; then
     die "Can't connect to $host on port $port: check the address, and that a firewall in front of this server allows it out"
   fi
+  if [[ "$protocol" == tls ]]; then
+    cafile=/etc/ssl/certs/ca-certificates.crt
+    [[ -s "$CA_COPY" ]] && cafile=$CA_COPY
+    if ! timeout 20 openssl s_client -connect "$host:$port" -servername "$host" -verify_hostname "$host" \
+         -CAfile "$cafile" -verify_return_error </dev/null >/dev/null 2>&1; then
+      die "$host:$port doesn't have a valid TLS certificate for the name $host (for a log server with a certificate of its own making, give its authority with --ca FILE; to send unencrypted, --tcp)"
+    fi
+  fi
 
   # The Plone in a Box tools' own log files, and nginx's requests and errors,
-  # through rsyslog too.
+  # through rsyslog too. Finding the tools' files means listing /var/log,
+  # which Ubuntu's AppArmor profile for rsyslog doesn't allow by itself.
+  if [[ -d /etc/apparmor.d/rsyslog.d ]]; then
+    printf '%s\n/var/log/ r,\n' "$MARK: imfile finds /var/log/plone-*.log." > "$APPARMOR"
+    apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd 2>/dev/null || true
+  fi
   cat > "$FILES_CONF" <<'EOF'
 # Written by plone-syslog: the Plone in a Box tools' log files.
 module(load="imfile")
@@ -2089,17 +2104,19 @@ EOF
   # Forwarding, with a queue on disk for when the log server is away.
   case "$protocol" in
     tls)
-      cafile=/etc/ssl/certs/ca-certificates.crt
-      [[ -s "$CA_COPY" ]] && cafile=$CA_COPY
       tls="StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"x509/name\" StreamDriverPermittedPeers=\"$host\""
-      global="global(DefaultNetstreamDriverCAFile=\"$cafile\")"
+      global="DefaultNetstreamDriverCAFile=\"$cafile\""
       proto=tcp ;;
     tcp) tls="" global="" proto=tcp ;;
     udp) tls="" global="" proto=udp ;;
   esac
+  # The name the messages carry: the site's, rather than the server's own
+  # (often just "localhost" on a cloud server).
+  name=$(sed -E 's#^https?://##; s#[:/].*##' "$STATE_DIR/site-url" 2>/dev/null)
+  [[ "$name" =~ ^[A-Za-z0-9.-]+$ ]] || name=$(hostname)
   cat > "$CONF.new" <<EOF
 $MARK: everything to $host:$port ($protocol).
-$global
+global(localHostname="$name" $global)
 *.* action(type="omfwd" target="$host" port="$port" protocol="$proto" $tls
            template="RSYSLOG_SyslogProtocol23Format"
            queue.type="LinkedList" queue.filename="plone-in-a-box-remote" queue.maxDiskSpace="100m"
@@ -2120,6 +2137,10 @@ EOF
   ;;
 off)
   rm -f "$CONF" "$FILES_CONF" "$NGINX_CONF" "$CA_COPY" "$STATE_DIR/syslog"
+  if [[ -e "$APPARMOR" ]]; then
+    rm -f "$APPARMOR"
+    apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd 2>/dev/null || true
+  fi
   nginx -t -q && systemctl reload nginx
   systemctl restart rsyslog 2>/dev/null
   containers files
@@ -2129,8 +2150,8 @@ status)
   if [[ -s "$STATE_DIR/syslog" ]]; then
     read -r protocol target < "$STATE_DIR/syslog"
     echo "On: the server's logs go to $target ($protocol)."
-    queued=$(du -sh /var/spool/rsyslog 2>/dev/null | cut -f1)
-    [[ -n "$(ls -A /var/spool/rsyslog 2>/dev/null)" ]] && echo "Waiting to be sent, because the log server didn't answer: $queued (see sudo journalctl -u rsyslog)"
+    queued=$(find /var/spool/rsyslog -name 'plone-in-a-box-remote.0*' -printf '%s\n' 2>/dev/null | awk '{ n += $1 } END { if (n) printf "%.1f MB", n / 1048576 }')
+    [[ -n "$queued" ]] && echo "Waiting to be sent, because the log server didn't answer: $queued (see sudo journalctl -u rsyslog)"
   else
     echo "Off: the logs stay on the server. Turn it on with: sudo plone-syslog on HOST:PORT"
   fi
