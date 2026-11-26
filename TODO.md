@@ -38,8 +38,9 @@ still deploy with no build step. Add optional settings for people who need more:
   (`ghcr.io/kitconcept/kitconcept-intranet-backend` and `-frontend`). Private images: a registry username and token
   (2.23).
   - [x] Try It for ready-made images (2.22): catalog keys `frontend_image:` and `backend_image:` instead of
-    `packages`, documented in docs/try-it-buttons.md. Still to do: CI pulling them to check they're public and
-    amd64, and match the Volto/Plone version.
+    `packages`, documented in docs/try-it-buttons.md. CI checks that they're public and built for amd64 (and arm64
+    with `arm: yes`), and that they expose the official images' ports (2.24). Not checked: which Plone and Volto
+    versions they run, which the images don't say in a standard way.
   - [x] **Fall back when a backend image can't create the site** (2.22): on a new server, the official backend on
     a fresh database.
   - **Plone distributions in the catalog** (2026-11-23), each as its own entry, ideally added by its makers:
@@ -53,8 +54,8 @@ still deploy with no build step. Add optional settings for people who need more:
   - [x] **Plone Aurora in the catalog** (2.22): `plone/aurora` pinned to one alpha release, with
     `ghcr.io/collective/plone-in-a-box-backend:6.2-aurora` (backend-image/, built weekly). Still to do: move the
     pinned Aurora release on after trying the next one; drop the newer `plone.restapi` and `plone.volto` from the
-    backend image once a Plone 6.2 release ships them (6.2.4?), keeping the profile; old builds of the backend
-    image aren't deleted yet (scripts/cleanup-frontend-images.py only knows the frontend one). Arm: the backend image
+    backend image once a Plone 6.2 release ships them (6.2.4?), keeping the profile. Old builds of the backend
+    image are deleted like the frontend ones (2.24, scripts/cleanup-images.py). Arm: the backend image
     is built for arm64 too (2.23).
   - Add-ons with a Volto part need this, for example [juizi.dashboard](https://github.com/juizi-com/juizi.dashboard):
     its backend package hides it from Site Setup → Add-ons unless the frontend includes `volto-juizi-dashboard`,
