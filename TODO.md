@@ -7,6 +7,14 @@
 - [ ] Renew the Linode token when it expires (1 month; the DigitalOcean token made on 2026-11-22 doesn't expire),
   and rotate the AWS access key.
 
+## Per-add-on StackScripts after 2.24
+
+- [ ] 2.24 added a form field, **Spamhaus key** (`SPAMHAUS_KEY`), so per-add-on "Try It" StackScripts made with
+  `scripts/linode-addon-stackscript.sh` should be printed again and pasted over the old ones in Cloud Manager
+  (RELEASING.md, "Per-add-on StackScripts"). The Juizi Dashboard one (2318969) is done: `update-public-stackscripts.sh`
+  updated it. Check for any others, in our accounts or made by add-on authors, and tell those authors. Until then
+  they keep working without the field (they download the latest release, and the field is optional).
+
 ## Retire the duplicate Linode StackScript
 
 - [x] Asked Linode support (ticket 27858783) to remove the public StackScript 692002, a duplicate of
