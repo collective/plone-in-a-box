@@ -14,7 +14,9 @@
   errors too: plone.observability's filters are added to the image's
   `zope.ini` at each start, and Docker's health check moves to its health
   server, which also checks the database. A ready-made Grafana dashboard is
-  in `docs/grafana/`. `status` shows what was sent and what failed; `off` removes it
+  in `docs/grafana/`. Thanks to Jean Jordaan (@jean), a longtime Plonista
+  with a gift for finding great software tools and methods, for the idea of
+  adding OpenTelemetry to Plone in a Box. `status` shows what was sent and what failed; `off` removes it
   all. Older servers get it from `src/add-updates.sh`. ("Graphs of your
   server and site" in the setup guide.)
 - `plone-syslog` and `plone-otel` share one helper that writes
