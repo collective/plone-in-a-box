@@ -134,7 +134,7 @@ Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetz
 
 Start with the three steps, then add only what your site needs:
 
-- **Just trying Plone:** nothing more; the sample pages are there to explore.
+- **Just trying Plone:** nothing more; a welcome page shows you where to start.
 - **Your organization's site:** your domain name, email & notifications, then offsite backups.
 - **An intranet:** kitconcept's intranet, ready to use.
 - **Letting others try it:** a demo login, with the roles you choose.

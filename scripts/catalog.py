@@ -630,7 +630,7 @@ with your admin password (at least 12 characters), keeping the quotes:</p>
 <h2 id="make-it-yours">Make it yours</h2>
 <p>Know what the site is for? Fill in just these fields when you create the server:</p>
 <table>
-<tr><th>Just trying Plone</th><td>Nothing more: the sample pages are there to explore.</td></tr>
+<tr><th>Just trying Plone</th><td>Nothing more: your site opens on a welcome page that shows you where to start.</td></tr>
 <tr><th>A site for your organization</th><td><strong>Domain name</strong>, the <strong>Email</strong> fields and a
 <strong>Notification URL</strong>; then <a href="{GUIDE}#day-to-day-administration">offsite backups</a>.</td></tr>
 <tr><th>An intranet</th><td><strong>Backend image</strong> and <strong>Frontend image</strong>:
