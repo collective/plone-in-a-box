@@ -308,3 +308,11 @@ contribute there, bring it into this repo first with `git pull collective main`.
 
 Pushing needs an SSH key added to GitHub (`ssh -T git@github.com` should greet you by name). HTTPS pushes with a
 password are rejected.
+
+## 5. Announce it on the Plone forum
+
+Once the Discord notice is out, post the release in the forum thread
+[github/collective/plone-in-a-box: an easy way to deploy a secure cloud server](https://community.plone.org/t/github-collective-plone-in-a-box-an-easy-way-to-deploy-a-secure-cloud-server/23310),
+so people who aren't on Discord hear about it too. Use the summary for site owners from `CHANGES.md`, with links to
+the GitHub release and the slides (https://collective.github.io/plone-in-a-box/slides/), and thank anyone who
+contributed, with their forum handle.
