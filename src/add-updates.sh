@@ -82,6 +82,28 @@ main() {
   fi
   say "To graph the server's and the site's numbers in a service such as Grafana Cloud: sudo plone-otel on ENDPOINT (see the setup guide)"
 
+  # This release's security headers, on servers whose nginx setup has the
+  # snippets (2.x); put back as they were if nginx doesn't take them.
+  local headers=/etc/nginx/snippets/plone-headers.conf site_conf=/etc/nginx/snippets/plone-site.conf
+  if [[ -f "$headers" && -f "$site_conf" ]] && ! grep -q 'Permissions-Policy' "$headers"; then
+    cp -p "$headers" "$headers.before-2.27"
+    cp -p "$site_conf" "$site_conf.before-2.27"
+    grep -q 'Referrer-Policy' "$headers" \
+      || echo 'add_header Referrer-Policy strict-origin-when-cross-origin always;' >> "$headers"
+    grep -q 'Content-Security-Policy' "$headers" \
+      || echo "add_header Content-Security-Policy \"frame-ancestors 'self'; base-uri 'self'; object-src 'none'\" always;" >> "$headers"
+    echo 'add_header Permissions-Policy "camera=(), microphone=(), payment=(), usb=()" always;' >> "$headers"
+    grep -q 'X-Powered-By' "$site_conf" || printf '\nproxy_hide_header X-Powered-By;\n' >> "$site_conf"
+    if nginx -t >/dev/null 2>&1 && systemctl reload nginx; then
+      rm -f "$headers.before-2.27" "$site_conf.before-2.27"
+      say "Added this release's security headers (Referrer-Policy, Content-Security-Policy, Permissions-Policy)"
+    else
+      mv "$headers.before-2.27" "$headers"
+      mv "$site_conf.before-2.27" "$site_conf"
+      say "nginx didn't take the new security headers, so they were left out"
+    fi
+  fi
+
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then
     # The address setup showed: the domain from the nginx configuration

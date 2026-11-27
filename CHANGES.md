@@ -10,6 +10,15 @@
   add-on). `scripts/catalog.py pages` writes it with the Try It pages, so it
   always names the current release. The README starts with the same three
   steps, and the slides have a "Choose your path" slide.
+- **Security headers**, reviewed against OWASP's current recommendations:
+  `Referrer-Policy` (what browsers do by default, now said), a
+  `Content-Security-Policy` with only the parts that can't break a Plone site
+  (`frame-ancestors 'self'; base-uri 'self'; object-src 'none'`; Volto's
+  pages have inline scripts, so a full one can't), a `Permissions-Policy`
+  turning off camera, microphone, payment and USB, and no `X-Powered-By`
+  from Volto's server. "Adding a domain later" in the setup guide now adds
+  `Strict-Transport-Security`, as setup does for a domain. Older servers get
+  the headers from `src/add-updates.sh`.
 - **Starter content** now says what it is in every form and in the guide:
   Plone's welcome page (or a Plone distribution's own sample content), not
   "sample pages", which a standard Plone 6.2 site doesn't have.
