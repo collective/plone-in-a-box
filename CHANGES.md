@@ -1,16 +1,23 @@
 2.25 (2026-11-26)
 -----------------
 
-Once a month, your server now checks that its newest backup can really be
-restored, without touching the site, and tells you if it can't. Mail the
-server itself sends, such as a failed security update, now reaches you
-through the site's email settings. Two new commands are there when you want
-them: `plone-syslog` sends the server's logs to a log service as well (the
-setup guide compares a few, including a free one), and `plone-cloudflare`
-lets only Cloudflare reach a site that's behind it. A Droplet made with
-DigitalOcean's Terraform now gets DigitalOcean's free alerts for a full
-disk, low memory or a busy CPU. And the project's own build workflows are
-safer against a hijacked GitHub Action.
+Know your backups work, and stay in the loop:
+
+- **Monthly restore test:** your server checks that its newest backup (on
+  the server or offsite) can really be restored, without affecting your
+  site, and tells you if it can't.
+- **Server warnings reach you:** the server's own messages, such as a
+  failed security update, now arrive through your site's email settings.
+- **View server logs centrally:** optional `plone-syslog` sends your logs to
+  a log service, including Better Stack's free plan, or your own log server.
+- **Secured by Cloudflare:** optional `plone-cloudflare` lets only
+  Cloudflare reach your site, to help block bots and DDoS attacks.
+- **Free DigitalOcean alerts** for disk, memory and CPU spikes on Droplets
+  made with the Terraform plan.
+- **Safer builds:** the project's GitHub workflows are protected against a
+  hijacked GitHub Action.
+
+In detail:
 
 - **Backup checks**: once a month, `plone-backup-check.timer` restores the
   newest backup into a separate test database, has Plone open the site in
