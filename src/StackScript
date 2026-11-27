@@ -1970,6 +1970,94 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# The site's docker-compose.override.yml, made from what's turned on:
+# plone-syslog (the containers log to journald) and plone-otel (metrics: the
+# backend gets plone.observability, PostgreSQL a port on 127.0.0.1, and an
+# OpenTelemetry Collector runs next to them). Both tools call it.
+cat > /usr/local/lib/plone-in-a-box/compose-override <<'COMPOSE_OVERRIDE_EOF'
+#!/bin/bash
+# Writes /opt/plone/docker-compose.override.yml for what's on, and recreates
+# the containers when it changed (not while a backup or update runs).
+set -uo pipefail
+STATE_DIR=/var/lib/plone-in-a-box
+APP_DIR=/opt/plone
+OVERRIDE=$APP_DIR/docker-compose.override.yml
+# The OpenTelemetry Collector's image (plone-otel).
+OTELCOL_IMAGE=otel/opentelemetry-collector-contrib:0.165.0
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+if [[ -e "$OVERRIDE" ]] && ! grep -qE '^# Written by (Plone in a Box|plone-syslog)' "$OVERRIDE"; then
+  echo "$OVERRIDE wasn't written by Plone in a Box; leaving the containers as they are" >&2
+  exit 1
+fi
+syslog=no otel=no
+[[ -s "$STATE_DIR/syslog" ]] && syslog=yes
+[[ -s "$STATE_DIR/otel" ]] && otel=yes
+new=""
+if [[ "$syslog" == yes || "$otel" == yes ]]; then
+  new=$(
+    echo "# Written by Plone in a Box for plone-syslog and plone-otel; they rewrite it"
+    echo "# when turned on or off, so changes here don't last."
+    if [[ "$syslog" == yes ]]; then
+      echo "# plone-syslog: the containers log to journald, so their logs can be sent on"
+      echo "# to the log server (docker compose logs still works)."
+      printf 'x-logging-site: &site-logging\n  driver: journald\n  options:\n    tag: "{{.Name}}"\n'
+    else
+      printf 'x-logging-site: &site-logging\n  driver: json-file\n  options:\n    max-size: "10m"\n    max-file: "3"\n'
+    fi
+    echo "services:"
+    [[ "$syslog" == yes ]] && printf '  frontend:\n    logging: *site-logging\n'
+    echo "  backend:"
+    [[ "$syslog" == yes ]] && echo "    logging: *site-logging"
+    if [[ "$otel" == yes ]]; then
+      cat <<'EOF'
+    environment:
+      # plone-otel: Plone's own numbers at /@@metrics, which only the server
+      # itself can reach (nginx sends visitors to the site, not Zope's root).
+      ADDONS: "${ADDONS:-} plone.observability<2"
+      PLONE_OBSERVABILITY_HEALTH_PORT: "0"
+EOF
+    fi
+    echo "  db:"
+    [[ "$syslog" == yes ]] && echo "    logging: *site-logging"
+    if [[ "$otel" == yes ]]; then
+      cat <<EOF
+    # plone-otel: for the Collector's PostgreSQL numbers; on the server only.
+    ports:
+      - "127.0.0.1:5432:5432"
+  otel-collector:
+    image: $OTELCOL_IMAGE
+    command: ["--config=/etc/otelcol/config.yaml"]
+    # The server's own network and processes, and its disks read-only, for
+    # the server's numbers; it only sends, and listens on 127.0.0.1 only.
+    network_mode: host
+    pid: host
+    env_file: $STATE_DIR/otel.env
+    volumes:
+      - $STATE_DIR/otelcol.yaml:/etc/otelcol/config.yaml:ro
+      - /:/hostfs:ro
+    mem_limit: 200m
+    logging: *site-logging
+    restart: unless-stopped
+EOF
+    fi
+  )
+fi
+old=$(cat "$OVERRIDE" 2>/dev/null)
+[[ "$new" == "$old" ]] && exit 0
+if [[ -n "$new" ]]; then
+  printf '%s\n' "$new" > "$OVERRIDE.new" && mv "$OVERRIDE.new" "$OVERRIDE"
+else
+  rm -f "$OVERRIDE"
+fi
+[[ "${1:-}" == --no-restart ]] && exit 0
+exec 9>"$STATE_DIR/update.lock"
+flock -w 3600 9 || { echo "A backup or update is still running; the containers change at its end or with: sudo docker compose --project-directory $APP_DIR up -d" >&2; exit 1; }
+say "Restarting the site's containers with the new settings; the site is back in a minute or two"
+docker compose --project-directory "$APP_DIR" up -d --remove-orphans --wait --wait-timeout 600 >/dev/null 2>&1 ||
+  say "The site is taking long to come back: check sudo docker compose --project-directory $APP_DIR ps"
+COMPOSE_OVERRIDE_EOF
+chmod 755 /usr/local/lib/plone-in-a-box/compose-override
+
 # The server's logs to a syslog server or service of your own: sudo
 # plone-syslog on HOST:PORT. rsyslog collects them here and forwards them,
 # keeping up to 100 MB while the log server can't be reached.
@@ -1992,52 +2080,23 @@ cat > /usr/local/bin/plone-syslog <<'PLONE_SYSLOG_EOF'
 set -uo pipefail
 [[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-syslog ${1:-}" >&2; exit 1; }
 STATE_DIR=/var/lib/plone-in-a-box
-APP_DIR=/opt/plone
 CONF=/etc/rsyslog.d/60-plone-in-a-box-remote.conf
 FILES_CONF=/etc/rsyslog.d/59-plone-in-a-box-files.conf
 APPARMOR=/etc/apparmor.d/rsyslog.d/plone-in-a-box
 NGINX_CONF=/etc/nginx/conf.d/plone-syslog.conf
-OVERRIDE=$APP_DIR/docker-compose.override.yml
 # (Where rsyslog may read it: it runs as the syslog user, and Ubuntu's AppArmor
 # profile for it allows /etc/rsyslog.d; only *.conf files there are settings.)
 CA_COPY=/etc/rsyslog.d/plone-in-a-box-ca.pem
 MARK="# Written by plone-syslog"
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 die() { echo "$*" >&2; exit 1; }
-compose() { docker compose --project-directory "$APP_DIR" "$@"; }
 
 # The site's containers log to journald (rsyslog reads it from there), or
-# back to their own files. docker compose logs works either way. Recreating
-# them restarts the site for a moment, so not while a backup or update runs.
-containers() {  # containers journald|files
-  local want=$1
-  if [[ "$want" == journald ]]; then
-    [[ -s "$OVERRIDE" ]] && grep -qF "$MARK" "$OVERRIDE" && return 0
-    cat > "$OVERRIDE" <<'EOF'
-# Written by plone-syslog: the containers log to journald, so their logs can
-# be sent on to the log server (docker compose logs still works).
-x-logging: &journald
-  driver: journald
-  options:
-    tag: "{{.Name}}"
-services:
-  frontend:
-    logging: *journald
-  backend:
-    logging: *journald
-  db:
-    logging: *journald
-EOF
-  else
-    [[ -e "$OVERRIDE" ]] || return 0
-    grep -qF "$MARK" "$OVERRIDE" || die "$OVERRIDE wasn't written by plone-syslog; leaving the containers as they are"
-    rm -f "$OVERRIDE"
-  fi
-  exec 9>"$STATE_DIR/update.lock"
-  flock -w 3600 9 || die "A backup or update is still running; try again later"
-  say "Restarting the site's containers so they log $( [[ "$want" == journald ]] && echo "to journald" || echo "to their own files again"); the site is back in a minute or two"
-  compose up -d --wait --wait-timeout 600 >/dev/null 2>&1 || say "The site is taking long to come back: check sudo docker compose --project-directory $APP_DIR ps"
-  flock -u 9
+# back to their own files, as $STATE_DIR/syslog says. docker compose logs
+# works either way. Recreating them restarts the site for a moment, so not
+# while a backup or update runs.
+containers() {
+  /usr/local/lib/plone-in-a-box/compose-override || die "The containers weren't changed; see above"
 }
 
 case "${1:-}" in
@@ -2180,7 +2239,7 @@ EOF
   printf '%s %s %s\n' "$protocol" "$host:$port" "$requests" > "$STATE_DIR/syslog"
   systemctl restart rsyslog
   systemctl reload nginx
-  containers journald
+  containers
   logger -t plone-in-a-box "plone-syslog: $(cat "$STATE_DIR/site-url" 2>/dev/null || hostname) now sends its logs here"
   say "On: the server's logs go to $host:$port ($protocol). A first message was sent; check that it arrived. Off again with: sudo plone-syslog off"
   ;;
@@ -2192,7 +2251,7 @@ off)
   fi
   nginx -t -q && systemctl reload nginx
   systemctl restart rsyslog 2>/dev/null
-  containers files
+  containers
   say "Off: the logs stay on the server only"
   ;;
 status)
@@ -2217,6 +2276,227 @@ test)
 esac
 PLONE_SYSLOG_EOF
 chmod 755 /usr/local/bin/plone-syslog
+
+# The server's and Plone's numbers to an OpenTelemetry service: sudo plone-otel
+# on ENDPOINT. An OpenTelemetry Collector container gathers them each minute.
+cat > /usr/local/bin/plone-otel <<'PLONE_OTEL_EOF'
+#!/bin/bash
+# Sends the server's and the site's numbers (metrics) to an OpenTelemetry
+# service (Grafana Cloud, New Relic, Honeycomb, your own Collector, ...),
+# once a minute: the server's CPU, memory, disks and network; memory and CPU
+# of Plone, Volto, PostgreSQL and nginx; Plone's own (plone.observability);
+# PostgreSQL's; and nginx's connections.
+# Usage: sudo plone-otel on ENDPOINT [--user ID | --header NAME]
+#          ENDPOINT: the service's OTLP/HTTP address, such as
+#          https://otlp-gateway-prod-eu-west-2.grafana.net/otlp;
+#          --user: basic authentication with this user or instance ID
+#          (Grafana Cloud), --header: the token goes in this header
+#          (api-key for New Relic, x-honeycomb-team for Honeycomb); either
+#          asks for the token, unshown
+#        sudo plone-otel off
+#        sudo plone-otel status   (where they go, and whether sending works)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-otel ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+APP_DIR=/opt/plone
+CONF=$STATE_DIR/otelcol.yaml
+ENV_FILE=$STATE_DIR/otel.env
+NGINX_CONF=/etc/nginx/conf.d/plone-otel.conf
+MARK="# Written by plone-otel"
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+die() { echo "$*" >&2; exit 1; }
+compose() { docker compose --project-directory "$APP_DIR" "$@"; }
+# PostgreSQL's numbers come from a login of their own, with only the
+# pg_monitor role: it can read statistics, not the site's data.
+pg() { compose exec -T db psql -q -U plone -d plone -v ON_ERROR_STOP=1 >/dev/null; }
+
+case "${1:-}" in
+on)
+  endpoint=${2:-}
+  [[ "$endpoint" =~ ^https?://[A-Za-z0-9.:\[\]-]+(/[A-Za-z0-9._~/-]*)?$ ]] || die "Give the service's OTLP endpoint, for example https://otlp-gateway-prod-eu-west-2.grafana.net/otlp"
+  endpoint=${endpoint%/}
+  auth=none user="" header=""
+  shift 2
+  while (( $# )); do
+    case "$1" in
+      --user) auth=basic user=${2:-}; shift ;;
+      --header) auth=header header=${2:-}; shift ;;
+      *) die "Unknown option $1" ;;
+    esac
+    shift
+  done
+  [[ "$auth" != basic || "$user" =~ ^[A-Za-z0-9._@-]+$ ]] || die "--user takes the user or instance ID your service gives"
+  [[ "$auth" != header || "$header" =~ ^[A-Za-z0-9-]+$ ]] || die "--header takes a header name, such as api-key"
+  token=""
+  if [[ "$auth" != none ]]; then
+    if [[ -t 0 ]]; then
+      read -r -s -p "Token (not shown): " token; echo
+    else
+      read -r token
+    fi
+    [[ -n "$token" && "$token" != *[[:space:][:cntrl:]]* ]] || die "No token given"
+  fi
+  case "$auth" in
+    basic) header=Authorization value="Basic $(printf '%s:%s' "$user" "$token" | base64 -w0)" ;;
+    header) value=$token ;;
+    none) value="" ;;
+  esac
+
+  # Does the service take them? An empty batch of metrics is a valid one.
+  args=(-s -o /dev/null -w '%{http_code}' -m 20 -X POST -H 'Content-Type: application/x-protobuf' --data-binary '')
+  code=$(if [[ -n "$header" ]]; then printf 'header = "%s: %s"\n' "$header" "$value"; fi |
+         curl "${args[@]}" -K - "$endpoint/v1/metrics")
+  case "$code" in
+    2??) ;;
+    401|403) die "$endpoint didn't accept the token (HTTP $code): check it, and the user or header" ;;
+    000) die "Can't reach $endpoint: check the address, and that a firewall in front of this server allows it out" ;;
+    *) die "$endpoint answered HTTP $code instead of accepting metrics: check the address (often ending in /otlp)" ;;
+  esac
+
+  # nginx's connection counts, on the server only.
+  printf '%s: nginx connections for the Collector, on this server only.\nserver {\n  listen 127.0.0.1:8091;\n  access_log off;\n  location = /nginx_status { stub_status; }\n  location / { return 404; }\n}\n' "$MARK" > "$NGINX_CONF"
+  nginx -t -q 2>/dev/null || { rm -f "$NGINX_CONF"; die "nginx didn't accept the status page; nothing was changed"; }
+  systemctl reload nginx
+
+  pg_password=$(openssl rand -hex 24)
+  pg <<EOF || die "Couldn't create PostgreSQL's monitoring login; nothing else was changed"
+DO \$\$ BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'otel') THEN
+    ALTER ROLE otel LOGIN PASSWORD '$pg_password';
+  ELSE
+    CREATE ROLE otel LOGIN PASSWORD '$pg_password';
+  END IF;
+END \$\$;
+GRANT pg_monitor TO otel;
+EOF
+
+  # The name the numbers carry: the site's.
+  name=$(sed -E 's#^https?://##; s#[:/].*##' "$STATE_DIR/site-url" 2>/dev/null)
+  [[ "$name" =~ ^[A-Za-z0-9.-]+$ ]] || name=$(hostname)
+  # Secrets only in the environment file, which only root can read.
+  (umask 077; printf 'OTLP_ENDPOINT=%s\nOTLP_AUTH=%s\nPG_PASSWORD=%s\n' "$endpoint" "$value" "$pg_password" > "$ENV_FILE")
+  headers=""
+  [[ -n "$header" ]] && headers="    headers:
+      $header: \${env:OTLP_AUTH}"
+  cat > "$CONF" <<EOF
+$MARK: the server's and the site's numbers to $endpoint.
+receivers:
+  hostmetrics:
+    root_path: /hostfs
+    collection_interval: 60s
+    scrapers:
+      cpu: {}
+      load: {}
+      memory: {}
+      paging: {}
+      disk: {}
+      network: {}
+      filesystem:
+        include_mount_points:
+          mount_points: ["/"]
+          match_type: strict
+      # Plone (runwsgi), Volto (node), PostgreSQL and nginx.
+      process:
+        include:
+          names: ["runwsgi", "node", "postgres", "nginx"]
+          match_type: strict
+        mute_process_name_error: true
+        mute_process_exe_error: true
+        mute_process_io_error: true
+        mute_process_user_error: true
+        mute_process_cgroup_error: true
+  postgresql:
+    endpoint: 127.0.0.1:5432
+    transport: tcp
+    username: otel
+    password: \${env:PG_PASSWORD}
+    databases: [plone]
+    collection_interval: 60s
+    tls:
+      insecure: true
+  nginx:
+    endpoint: http://127.0.0.1:8091/nginx_status
+    collection_interval: 60s
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: plone
+          scrape_interval: 60s
+          metrics_path: /@@metrics
+          static_configs:
+            - targets: ["127.0.0.1:8080"]
+processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 150
+    spike_limit_mib: 30
+  resource:
+    attributes:
+      - { key: host.name, value: "$name", action: upsert }
+  batch: {}
+exporters:
+  otlphttp:
+    endpoint: \${env:OTLP_ENDPOINT}
+$headers
+service:
+  telemetry:
+    logs:
+      level: warn
+    # Its own counts of what was sent, for plone-otel status.
+    metrics:
+      level: basic
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 127.0.0.1
+                port: 8888
+  pipelines:
+    metrics:
+      receivers: [hostmetrics, postgresql, nginx, prometheus]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp]
+EOF
+  chmod 644 "$CONF"
+  printf '%s\n' "$endpoint" > "$STATE_DIR/otel"
+  /usr/local/lib/plone-in-a-box/compose-override || die "The containers weren't changed; see above"
+  say "On: the server's and the site's numbers go to $endpoint once a minute. Check in a few minutes with: sudo plone-otel status. Off again with: sudo plone-otel off"
+  ;;
+off)
+  rm -f "$STATE_DIR/otel"
+  /usr/local/lib/plone-in-a-box/compose-override || exit 1
+  rm -f "$CONF" "$ENV_FILE" "$NGINX_CONF"
+  nginx -t -q 2>/dev/null && systemctl reload nginx
+  pg <<<"DROP ROLE IF EXISTS otel;" || true
+  say "Off: the numbers aren't sent any more"
+  ;;
+status)
+  if [[ ! -s "$STATE_DIR/otel" ]]; then
+    echo "Off. Turn it on with: sudo plone-otel on ENDPOINT"
+    exit 0
+  fi
+  echo "On: the server's and the site's numbers go to $(cat "$STATE_DIR/otel")."
+  counts=$(curl -fsS -m 5 http://127.0.0.1:8888/metrics 2>/dev/null)
+  if [[ -z "$counts" ]]; then
+    echo "The Collector isn't running: see sudo docker compose --project-directory $APP_DIR logs otel-collector"
+    exit 1
+  fi
+  sum() { awk -v m="$1" '$1 ~ "^"m"(\\{|$)" { n += $2 } END { printf "%d", n }' <<<"$counts"; }
+  sent=$(sum otelcol_exporter_sent_metric_points_total)
+  failed=$(sum otelcol_exporter_send_failed_metric_points_total)
+  echo "Since the Collector started: $sent values sent, $failed failed."
+  if (( failed > 0 )); then
+    echo "Its latest errors:"
+    compose logs --no-log-prefix --since 1h otel-collector 2>/dev/null | grep -iE 'error|fail' | tail -n 3
+  fi
+  ;;
+*)
+  sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+  ;;
+esac
+PLONE_OTEL_EOF
+chmod 755 /usr/local/bin/plone-otel
 
 # HTTPS for a site without a domain name: a Let's Encrypt certificate for the
 # server's IP address. Setup runs it; plone-https-ip.timer renews it.
