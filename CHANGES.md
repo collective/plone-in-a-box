@@ -10,7 +10,11 @@
   them (about 50 MB of memory); it reads the server's disks and processes
   read-only, only sends, and checks the token before anything changes.
   PostgreSQL's numbers come from a login that can read statistics, not
-  content. `status` shows what was sent and what failed; `off` removes it
+  content. With the official backend image, Plone's response times and
+  errors too: plone.observability's filters are added to the image's
+  `zope.ini` at each start, and Docker's health check moves to its health
+  server, which also checks the database. A ready-made Grafana dashboard is
+  in `docs/grafana/`. `status` shows what was sent and what failed; `off` removes it
   all. Older servers get it from `src/add-updates.sh`. ("Graphs of your
   server and site" in the setup guide.)
 - `plone-syslog` and `plone-otel` share one helper that writes

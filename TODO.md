@@ -21,11 +21,16 @@
   nginx's and Plone's own numbers (plone.observability's `@@metrics`) to an
   OTLP/HTTP service, tried with Grafana Cloud.
 - [x] A ready-made Grafana dashboard (`docs/grafana/plone-in-a-box.json`).
-  Publish it on grafana.com's dashboards too, once it has settled. Add
-  Plone's response times to it once request metrics work (below).
-- Request timings and traces from plone.observability need its WSGI filters
-  in `zope.ini`, which the official backend image doesn't let us add without
-  replacing the file; ask upstream for a setting, or keep our own copy.
+  Publish it on grafana.com's dashboards too, once it has settled. 
+- [x] Request timings: `backend-start` adds plone.observability's filters to
+  the official image's `zope.ini` at each start. Drop it once the image
+  includes them (proposal for plone/container-backend drafted). Traces too
+  then, with the `opentelemetry` extra.
+- plone.observability counts every request as anonymous: its pubevent
+  subscriber writes the logged-in flag to `request.environ`, which Zope's
+  `HTTPRequest` copies from the WSGI environ (`sane_environment`), so the
+  middleware never sees it (1.3.1). Report upstream; then add "logged in"
+  response times to the dashboard.
 - The Collector's image tag (`OTELCOL_IMAGE` in the compose-override helper)
   isn't seen by Dependabot: bump it at each release. A Collector built with
   only the parts we use would also be smaller than contrib (its binary is

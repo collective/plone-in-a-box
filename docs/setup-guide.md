@@ -669,7 +669,8 @@ went out and whether any failed, and `off` stops sending.
   details**, and create a token there with the **metrics:write** scope. Then look at your numbers under
   **Drilldown → Metrics**: type `plone` to see Plone's own.
 * **A ready-made dashboard**: [docs/grafana/plone-in-a-box.json](grafana/plone-in-a-box.json) puts your site on one
-  page: at a glance (up, memory, disk, requests), your site, Plone's health (the warning signs plone.observability
+  page: at a glance (up, response time, errors, requests, memory, disk), your site (response times, requests and
+  errors, memory, database objects per request), Plone's health (the warning signs plone.observability
   suggests watching: conflicts visitors felt, memory that keeps growing, garbage collection, connections not freed),
   the database, the server, and Plone, Volto, PostgreSQL and nginx side by side. In Grafana, **Dashboards → New → Import**, upload or paste the file, and choose your
   Prometheus data source (in Grafana Cloud, the one ending in `-prom`). With several sites, pick one in **Site** at
@@ -680,7 +681,10 @@ went out and whether any failed, and `off` stops sending.
 How it works: an OpenTelemetry Collector container gathers the numbers. It uses about 50 MB of memory, reads the
 server's disks and processes read-only, and only sends; nothing new is reachable from the internet. Plone's numbers
 come from plone.observability, which `plone-otel` adds to the site's add-ons; its page of numbers, `/@@metrics` on
-Zope's root, is only reachable from the server itself. PostgreSQL's numbers come from a login of their own, which
+Zope's root, is only reachable from the server itself. For Plone's response times, `plone-otel` also adds
+plone.observability's two filters to the official backend image's `zope.ini` each time the backend starts, and
+Docker's health check then asks plone.observability's health server (whose answers aren't counted as requests)
+instead of `/ok`. A backend image of your own starts as it is, without response times. PostgreSQL's numbers come from a login of their own, which
 can read statistics but not your content. A server set up before 2.26 gets the command with the
 [same command](#servers-set-up-before-212) as automatic updates.
 

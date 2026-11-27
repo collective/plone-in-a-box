@@ -1970,6 +1970,43 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# plone-otel: starts the backend as the official image does, with
+# plone.observability's request metrics added to the image's own zope.ini
+# first (the image has no setting for it). Mounted into the backend by the
+# compose-override helper.
+cat > /usr/local/lib/plone-in-a-box/backend-start <<'BACKEND_START_EOF'
+#!/bin/sh
+# Adds plone.observability's "healthserver" and "observability" filters to
+# /app/etc/zope.ini when Plone starts with it among its add-ons, then starts
+# as the image does. A zope.ini that isn't shaped as expected is left as it
+# is: Plone starts normally, only without its request metrics (and the health
+# check falls back to /ok).
+ini=/app/etc/zope.ini
+case " ${ADDONS:-} " in *" plone.observability"*) wanted=yes ;; *) wanted=no ;; esac
+if [ "${1:-}" = start ] && [ "$wanted" = yes ] && [ -f "$ini" ] && ! grep -q '^\[filter:observability\]' "$ini"; then
+  if awk '
+    /^\[pipeline:main\]/ { pipeline = 1 }
+    pipeline && /^[ \t]+zope[ \t]*$/ && !done { print "    healthserver"; print "    observability"; done = 1 }
+    { print }
+    END {
+      if (!done) exit 1
+      print ""
+      print "[filter:healthserver]"
+      print "use = egg:plone.observability#healthserver"
+      print ""
+      print "[filter:observability]"
+      print "use = egg:plone.observability#observability"
+    }' "$ini" > "$ini.new"; then
+    mv "$ini.new" "$ini"
+  else
+    rm -f "$ini.new"
+    echo "plone-in-a-box: $ini isn't as expected, so Plone's request metrics are off" >&2
+  fi
+fi
+exec /app/docker-entrypoint.sh "$@"
+BACKEND_START_EOF
+chmod 755 /usr/local/lib/plone-in-a-box/backend-start
+
 # The site's docker-compose.override.yml, made from what's turned on:
 # plone-syslog (the containers log to journald) and plone-otel (metrics: the
 # backend gets plone.observability, PostgreSQL a port on 127.0.0.1, and an
@@ -1992,6 +2029,15 @@ fi
 syslog=no otel=no
 [[ -s "$STATE_DIR/syslog" ]] && syslog=yes
 [[ -s "$STATE_DIR/otel" ]] && otel=yes
+# plone-otel's request metrics need the backend-start script, which knows
+# how the official backend image starts; another image starts as it is.
+official_start=no
+if [[ "$otel" == yes ]]; then
+  image=$(docker compose --project-directory "$APP_DIR" -f "$APP_DIR/docker-compose.yml" config --format json 2>/dev/null |
+          python3 -c 'import json, sys; print(json.load(sys.stdin)["services"]["backend"]["image"])' 2>/dev/null)
+  [[ -n "$image" ]] && { docker image inspect "$image" >/dev/null 2>&1 || docker pull -q "$image" >/dev/null 2>&1; }
+  [[ "$(docker image inspect -f '{{json .Config.Entrypoint}}' "$image" 2>/dev/null)" == '["/app/docker-entrypoint.sh"]' ]] && official_start=yes
+fi
 new=""
 if [[ "$syslog" == yes || "$otel" == yes ]]; then
   new=$(
@@ -2014,8 +2060,24 @@ if [[ "$syslog" == yes || "$otel" == yes ]]; then
       # plone-otel: Plone's own numbers at /@@metrics, which only the server
       # itself can reach (nginx sends visitors to the site, not Zope's root).
       ADDONS: "${ADDONS:-} plone.observability<2"
-      PLONE_OBSERVABILITY_HEALTH_PORT: "0"
+      # Its health checks, inside the container only.
+      PLONE_OBSERVABILITY_HEALTH_HOST: 127.0.0.1
 EOF
+      if [[ "$official_start" == yes ]]; then
+        cat <<'EOF'
+    # plone-otel: Plone's request times too, from a filter added to the
+    # image's own zope.ini at each start (backend-start).
+    entrypoint: ["/plone-in-a-box-start"]
+    command: ["start"]
+    volumes:
+      - /usr/local/lib/plone-in-a-box/backend-start:/plone-in-a-box-start:ro
+    # Docker's health check through plone.observability's health server,
+    # whose answers aren't counted as requests (it would be most of them on
+    # a quiet site); /ok if it isn't there.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/ready || wget -q -O - http://127.0.0.1:8080/ok | grep -q OK"]
+EOF
+      fi
     fi
     echo "  db:"
     [[ "$syslog" == yes ]] && echo "    logging: *site-logging"
