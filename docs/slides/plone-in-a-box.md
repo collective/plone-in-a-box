@@ -3,7 +3,7 @@ marp: true
 theme: default
 paginate: true
 title: Plone in a Box™
-description: Your own Plone 6 website on a cloud server, without needing a command line
+description: Your own Plone 6 website on a cloud server, easily installed without a command line
 style: |
   :root {
     --blue: #0083be;
@@ -36,7 +36,7 @@ style: |
 # Plone in a Box™
 
 Your own Plone 6 website on a cloud server,
-without needing a command line.
+easily installed without a command line.
 
 <small>Release 2.25 · November 2026</small>
 
@@ -75,9 +75,10 @@ One Ubuntu 26.04 LTS server, running the **official Plone Docker images**:
 
 - **Plone 6.2** backend, **Volto 19** front end, **PostgreSQL** for storage
 - **nginx** in front, with HTTPS from **Let's Encrypt**
-- managed with plain **Docker Compose** in `/opt/plone`, so a Plone developer finds nothing unusual
+- best practices for application and server setup and maintenance
+- standard deployment tooling, easily extendable and customizable by a Plone developer 
 
-The site's **language**, versions, add-ons, themes and sample pages are settings. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
+Choose the site's language, Plone & Volto versions, add-ons, themes and even if you want sample content. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
 
 ---
 
@@ -85,15 +86,14 @@ The site's **language**, versions, add-ons, themes and sample pages are settings
 
 ## Safe by default
 
-- The admin password is **the one you choose**, or a generated one.
-- **HTTPS for every site,** also without a domain name: a certificate for the server's IP address, renewed by itself.
-- Only the **website** (HTTP, HTTPS) and **SSH** are reachable from the internet. The database and Plone's own ports are closed.
-- **SSH keys only** when the server has one, and addresses that keep failing to log in are blocked.
-- **Security headers** on every page, and nginx doesn't reveal its version.
-- **All Ubuntu updates** are installed during setup, and security updates keep coming automatically. The server **restarts at night** when one needs it.
-- **Plone security fixes** install the same day they come out, and you hear about them, often a week ahead.
-- Servers made with **Terraform** or AWS's **Launch Stack** can't be deleted or rebuilt by mistake.
-- Forgot the password? One command in your provider's **browser console** resets it.
+- Choose your own admin password or generate a safe one.
+- Secure browsing using **HTTPS for every site**, automatically renewed.
+- Multiple firewalls secure your site and server.
+- Secure **SSH key access**, and automatic blocking of failed login attempts.
+- **Security headers** served on every page.
+- **All Ubuntu OS updates** are installed during setup and automatically afterwards, including overnight server restarts as needed.
+- **Plone security fixes** automatically installed the day they come out.
+- Forgot the admin password? Reset it with one command in your cloud provider's browser console.
 
 ---
 
@@ -101,12 +101,12 @@ The site's **language**, versions, add-ons, themes and sample pages are settings
 
 ## Updates that look after themselves
 
-Every Sunday, early in the morning, the server checks for patch releases of the **same** versions: Plone 6.2.2 to 6.2.3. Moving to 6.3 is up to you.
+Every early Sunday morning, the server checks for patch releases of Plone and Volto, e.g., Plone 6.2.2 to 6.2.3. (Moving to new major or minor versions, such as 6.3 or 7.0, is up to you).
 
 - First a **database backup**, then the update.
-- If the site doesn't come back, it **goes back** to the previous version, and skips that build from then on.
-- A **report** after each run: on your phone (ntfy), in a team chat (Slack, Teams, Discord, Google Chat, Mattermost), or by email.
-- **Security fixes the same day:** when the Plone forum announces a released fix, the server installs it that day, not on Sunday, and says so. Each security post is sent the same ways, and shown when you log in.
+- If there is a problem, **automatic fallback** to the previous version, and skips that failed version from then on.
+- A **report** after each run: pushed to your phone (ntfy), in a team chat (Slack, Teams, Discord, Google Chat, Mattermost), or by email.
+- **Security fixes the same day:** when the Plone forum announces a released fix, the server installs it that day. Each Plone security announcement is sent to you the same ways.
 
 Older servers get all this with one command.
 
@@ -124,16 +124,16 @@ Older servers get all this with one command.
 **Already have an account somewhere?** Use that one.
 **Prefer a European provider?** Hetzner.
 
-Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It picks a region that offers the server size, and never deletes an existing server.
+Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetzner.
 
 ---
 
-## Why it's useful
+## Who this is for
 
-- **Small organizations, teams, projects** get a real Plone site, or an intranet, without hiring an administrator.
-- **Evaluating Plone?** See the current release running in ten minutes, for the price of a small server.
+- **Evaluating Plone in depth?** Get the current release running in ten minutes, on your own server.
+- **Small organizations, teams, projects** get a well set up Plone site, or an intranet, without hiring an administrator.
 - **Training and workshops:** every participant gets their own site.
-- **Showing a site to a client,** or letting people try an add-on: a demo login to share.
+- **Showing a site to a client,** or letting people try an add-on.
 - **No lock-in:** the official Plone images and standard Docker Compose, so it can be upgraded, backed up and handed over like any other Plone deployment.
 
 ---
@@ -142,12 +142,12 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It p
 
 ## Backups
 
-- **Every night,** a database backup on the server: the whole site, files and images included. The three newest are kept.
-- **Every week,** a pack: the database's old history is cleared, so it doesn't keep growing.
-- **`sudo plone-restore`** puts a backup back, after saving the site as it is. If the restore fails, the site goes back as it was. It also **moves a site** to a new server.
-- **Encrypted copies off the server:** each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted on the server first.
-- **Once a month, a restore test:** the newest backup (or its copy off the server) is restored into a test database and opened, without touching the site.
-- Your provider's **server backups** can be turned on too, for the whole disk: on AWS too, with Terraform's `backups` setting.
+- A database backup **every night,** on the server: the whole site, files and images included. The three newest are kept.
+- A database pack **every week,**: the database's old history is cleared, so it doesn't keep growing.
+- Easy restore from backup, using one command **`sudo plone-restore`**, with automatic fallback. Use it to **move a site** to a new server.
+- **Encrypted offsite backups:** each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted first on the server.
+- **Once a month, a restore test:** the newest backup (on server or offsite) is restored into a test database and verified, without affecting your site.
+- Optional cloud provider's **server backups** for the entire server.
 
 ---
 
@@ -155,33 +155,33 @@ Developers can use **Terraform** for AWS, DigitalOcean and Hetzner instead. It p
 
 ## Keeping an eye on it
 
-- **Problems come to you:** a failed backup, update or restore test, a disk getting full, or a tool cut off sends a notice and an email.
-- **From outside:** the setup guide shows how to get an email when the site is down. DigitalOcean's **free alerts** for disk, memory and CPU come with its Terraform setup.
-- **Logs in one place:** `plone-syslog` sends the server's logs to a log service too, such as Better Stack's free plan, Papertrail or your own log server.
-- **Behind Cloudflare:** `plone-cloudflare` lets only Cloudflare reach the site, so nobody can go around it.
+- **Stay in the loop:** receive notifications of errors (failed backup, update or restore test, disk getting full) via email and/or other channels.
+- **External checks:** get notified when the site is down, alerts for disk, memory and CPU spikes.
+- **View server logs centrally:** `plone-syslog` sends the server's logs to Better Stack's free plan, Papertrail or your own log server.
+- **Secured by Cloudflare:** optional `plone-cloudflare` lets only Cloudflare reach the site and helps block bots and DDOS attacks
 
 ---
 
 ## Add-ons
 
-List Python packages such as `collective.easyform` when you create the server. Then activate them in **Site Setup → Add-ons**.
+**Automatically install Plone add-ons** when you create the server.
 
-- No custom build needed: the official backend image installs them.
-- Held to the versions each Plone release was tested with.
-- A misspelled name doesn't break anything: setup continues without the add-ons and says why.
+- Tested package version pins are matched to your chosen Plone release.
+- Any add-on installation issues are alerted to you while setup continues normally.
 
 ---
 
 <!-- _class: dense -->
 
-## Themes and ready-made images
+## Ready-made Volto images
 
-Volto add-ons are built into the front end, so Plone in a Box publishes **ready-made frontend images**. Set one as the **Frontend image** when you create the server:
+Volto add-ons are built into the front end, so Plone in a Box publishes **ready-made frontend images**. Choose a **frontend image** when you create the server:
 
-- `ghcr.io/collective/plone-in-a-box-frontend:19-vlt`: **Volto Light Theme**, its logo, colours, header and footer edited with the site's own settings.
-- `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard`: **Juizi Dashboard**, a record of what happened on the site.
+- standard Volto
+- `ghcr.io/collective/plone-in-a-box-frontend:19-vlt`: **Volto Light Theme**, its logo, colours, header and footer configured using the site's control panels.
+- `ghcr.io/collective/plone-in-a-box-frontend:19-juizi-dashboard`: **Juizi Dashboard**, a record of who did what on the site.
 
-Setup installs and activates the backend half too. Images are rebuilt every week; if one can't be used, the site starts with the standard Volto look, and says why.
+Images are rebuilt every week; if one can't be used, the site starts with standard Volto, and tells you why.
 
 ---
 
@@ -189,16 +189,15 @@ Setup installs and activates the backend half too. Images are rebuilt every week
 
 ## Email
 
-Plone sends email for password resets, forms and update reports. Cloud servers can't deliver it themselves, so the site sends it through an **email relay service**: SMTP2GO, Brevo, Mailgun, Amazon SES and others, many with a free plan.
+Plone sends email for password resets, forms and update reports. Your site can send email through an **email relay service**: SMTP2GO, Brevo, Mailgun, Amazon SES and others, many with a free plan.
 
-- Fill in the service's settings **when you create the server**.
-- Setup puts them into **Site Setup → Mail**, and sends you a **test email**.
-- The weekly update reports go to your inbox too.
-- Setup checks your domains and the server's address against the **blocklists** mail services use, and the weekly report says if a domain gets listed. A free **Spamhaus key** makes the check work on any provider.
+- Set up an email relay service account
+- **Fill out some fields** when you create your site.
+- Your site sends you a **test email**.
+- Your server's weekly update reports and any warning/error reports go to your inbox too.
+- Receive a weekly report if your domain or the site's internet address are found in **spam blocklists**.
 
-- Mail the **server itself** sends, such as a failed security update, reaches you the same way.
-
-The setup guide compares the services, and explains the DNS records your domain needs.
+See the included setup guide to compare email relay services.
 
 ---
 
@@ -206,11 +205,10 @@ The setup guide compares the services, and explains the DNS records your domain 
 
 ## Let people try your site
 
-A **demo login**: a second login, such as `demo`, for a client looking at a draft site, or people trying an add-on.
+A **demo login**: a second login, such as `demo`, for a client looking at a draft site, or someone trying an add-on.
 
-- **You choose its roles:** Editor, Contributor, Reviewer, Site Administrator, or a role an add-on defines (Manager isn't offered).
+- **You choose its roles:** Editor, Contributor, Reviewer, Site Administrator, or a role an add-on defines.
 - **You choose its password,** or setup generates one.
-- A ready-made image can suggest the roles: Juizi Dashboard's demo login is an **Editor** who can also see the dashboard.
 
 Change it or remove it any time in **Site Setup → Users**.
 
@@ -220,29 +218,20 @@ Change it or remove it any time in **Site Setup → Users**.
 
 ## Try It pages for add-on authors
 
-Let people try your Plone add-on on a real site of their own, in about ten minutes, without installing anything.
+Use Plone in a Box to make it easy for someone to try your Plone add-on or distribution on a real site of their own.
 
-1. **One pull request** adds your add-on to Plone in a Box's catalog: its npm and Python packages, and the demo login's roles.
-2. Plone in a Box builds its image and publishes a **Try It page**, with the steps for AWS, Linode, DigitalOcean and Hetzner.
+1. **One pull request** adds your add-on to Plone in a Box's catalog (npm and Python packages and the demo login's roles).
+2. If needed, Plone in a Box builds the frontend image, then publishes a **Try It page**, with the steps for deploying to AWS, Linode, DigitalOcean and Hetzner.
 3. **One button** in your README links to it.
 
-Already publish your own images, for a Plone distribution, say? The entry names them, and nothing is built.
-
-Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's new frontend
-
----
-
-## Your own add-ons and themes
-
-- **Volto add-ons:** fork the repository, add an entry to `addons.yml`, and GitHub builds and publishes your own frontend image. Setup installs its backend half too.
-- **Backend image:** a Plone distribution, a cookieplone project, or the official image with packages that aren't on PyPI. Setup checks it runs Plone and can create the site, and otherwise uses the official one. **Private images** work too, with a registry login.
+Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's future frontend
 
 ---
 
 ## What's next
 
-- **Metrics with OpenTelemetry:** graphs of memory, disk and slow pages over time, sent to a service such as Grafana Cloud.
-- **Logs and metrics in the launch forms,** so a new server sends them from its first minute.
+- **Logs and metrics** so a new server sends them from the moment it launches.
+- **OpenTelemetry metrics:** graphs of memory, disk and slow pages over time, sent to a service such as Grafana Cloud.
 - **Plone distributions to try:** kitconcept's intranet and website, and PortalBrasil.
 - **More add-ons** in the catalog, each with its own Try It page.
 
@@ -252,8 +241,10 @@ Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's new fron
 
 ## Get started
 
+Plone's easy button:
+
 **github.com/collective/plone-in-a-box**
 
-The official repository, in the Plone community's **collective** organization. Step-by-step instructions for each provider are in the setup guide.
+Plone in a Box™: automatic for the people!
 
 Questions and ideas: **#plone-in-a-box** on the Plone Discord, **discord.gg/jRrsnYkNvS**
