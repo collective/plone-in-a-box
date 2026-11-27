@@ -2026,7 +2026,9 @@ EOF
       - "127.0.0.1:5432:5432"
   otel-collector:
     image: $OTELCOL_IMAGE
-    command: ["--config=/etc/otelcol/config.yaml"]
+    # (The feature gate: PostgreSQL's numbers in the layout that becomes the
+    # default, and without a warning at each start.)
+    command: ["--config=/etc/otelcol/config.yaml", "--feature-gates=receiver.postgresql.separateSchemaAttr"]
     # The server's own network and processes, and its disks read-only, for
     # the server's numbers; it only sends, and listens on 127.0.0.1 only.
     network_mode: host
@@ -2308,12 +2310,12 @@ die() { echo "$*" >&2; exit 1; }
 compose() { docker compose --project-directory "$APP_DIR" "$@"; }
 # PostgreSQL's numbers come from a login of their own, with only the
 # pg_monitor role: it can read statistics, not the site's data.
-pg() { compose exec -T db psql -q -U plone -d plone -v ON_ERROR_STOP=1 >/dev/null; }
+pg() { compose exec -T -e PGOPTIONS='-c client_min_messages=warning' db psql -q -U plone -d plone -v ON_ERROR_STOP=1 >/dev/null; }
 
 case "${1:-}" in
 on)
   endpoint=${2:-}
-  [[ "$endpoint" =~ ^https?://[A-Za-z0-9.:\[\]-]+(/[A-Za-z0-9._~/-]*)?$ ]] || die "Give the service's OTLP endpoint, for example https://otlp-gateway-prod-eu-west-2.grafana.net/otlp"
+  [[ "$endpoint" =~ ^https?://[][A-Za-z0-9.:-]+(/[A-Za-z0-9._~/-]*)?$ ]] || die "Give the service's OTLP endpoint, for example https://otlp-gateway-prod-eu-west-2.grafana.net/otlp"
   endpoint=${endpoint%/}
   auth=none user="" header=""
   shift 2
@@ -2381,7 +2383,7 @@ EOF
   cat > "$CONF" <<EOF
 $MARK: the server's and the site's numbers to $endpoint.
 receivers:
-  hostmetrics:
+  host_metrics:
     root_path: /hostfs
     collection_interval: 60s
     scrapers:
@@ -2395,11 +2397,12 @@ receivers:
         include_mount_points:
           mount_points: ["/"]
           match_type: strict
-      # Plone (runwsgi), Volto (node), PostgreSQL and nginx.
+      # Plone (runwsgi), Volto (node, which names itself MainThread),
+      # PostgreSQL and nginx.
       process:
         include:
-          names: ["runwsgi", "node", "postgres", "nginx"]
-          match_type: strict
+          names: ["^(runwsgi|node|MainThread|postgres|nginx)$"]
+          match_type: regexp
         mute_process_name_error: true
         mute_process_exe_error: true
         mute_process_io_error: true
@@ -2435,7 +2438,7 @@ processors:
       - { key: host.name, value: "$name", action: upsert }
   batch: {}
 exporters:
-  otlphttp:
+  otlp_http:
     endpoint: \${env:OTLP_ENDPOINT}
 $headers
 service:
@@ -2450,16 +2453,18 @@ service:
             exporter:
               prometheus:
                 host: 127.0.0.1
-                port: 8888
+                port: 18888
   pipelines:
     metrics:
-      receivers: [hostmetrics, postgresql, nginx, prometheus]
+      receivers: [host_metrics, postgresql, nginx, prometheus]
       processors: [memory_limiter, resource, batch]
-      exporters: [otlphttp]
+      exporters: [otlp_http]
 EOF
   chmod 644 "$CONF"
   printf '%s\n' "$endpoint" > "$STATE_DIR/otel"
   /usr/local/lib/plone-in-a-box/compose-override || die "The containers weren't changed; see above"
+  # When it was on already: the Collector with the new settings.
+  compose up -d --force-recreate otel-collector >/dev/null 2>&1 || die "The Collector didn't start: see sudo docker compose --project-directory $APP_DIR logs otel-collector"
   say "On: the server's and the site's numbers go to $endpoint once a minute. Check in a few minutes with: sudo plone-otel status. Off again with: sudo plone-otel off"
   ;;
 off)
@@ -2476,14 +2481,15 @@ status)
     exit 0
   fi
   echo "On: the server's and the site's numbers go to $(cat "$STATE_DIR/otel")."
-  counts=$(curl -fsS -m 5 http://127.0.0.1:8888/metrics 2>/dev/null)
+  counts=$(curl -fsS -m 5 http://127.0.0.1:18888/metrics 2>/dev/null)
   if [[ -z "$counts" ]]; then
     echo "The Collector isn't running: see sudo docker compose --project-directory $APP_DIR logs otel-collector"
     exit 1
   fi
-  sum() { awk -v m="$1" '$1 ~ "^"m"(\\{|$)" { n += $2 } END { printf "%d", n }' <<<"$counts"; }
-  sent=$(sum otelcol_exporter_sent_metric_points_total)
-  failed=$(sum otelcol_exporter_send_failed_metric_points_total)
+  # (With or without _total, which newer Collectors leave off.)
+  sum() { awk -v m="$1" '$1 ~ "^"m"(_total)?(\\{|$)" { n += $2 } END { printf "%d", n }' <<<"$counts"; }
+  sent=$(sum otelcol_exporter_sent_metric_points)
+  failed=$(sum otelcol_exporter_send_failed_metric_points)
   echo "Since the Collector started: $sent values sent, $failed failed."
   if (( failed > 0 )); then
     echo "Its latest errors:"
