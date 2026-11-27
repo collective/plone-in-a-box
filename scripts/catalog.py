@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """The add-on catalog (addons.yml): checks it, and makes what's built from it.
 
-  python3 scripts/catalog.py check    check the entries, and that docs/try/ is
-                                      up to date (CI runs this)
-  python3 scripts/catalog.py pages    write the Try It pages in docs/try/
+  python3 scripts/catalog.py check    check the entries, and that the start page
+                                      (docs/index.html) and docs/try/ are up to
+                                      date (CI runs this)
+  python3 scripts/catalog.py pages    write the start page and the Try It pages
   python3 scripts/catalog.py matrix   print the frontend image builds, as a
                                       GitHub Actions matrix (JSON)
   python3 scripts/catalog.py images   check that the ready-made images can be
@@ -25,7 +26,8 @@ from urllib.parse import quote
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATALOG = os.path.join(ROOT, "addons.yml")
-PAGES = os.path.join(ROOT, "docs", "try")
+DOCS = os.path.join(ROOT, "docs")
+PAGES = os.path.join(DOCS, "try")
 
 KEYS = ("id name description url volto packages addons theme backend_addons site_behaviors demo_roles "
         "frontend_image backend_image arm try_it try_hint linode_stackscript").split()
@@ -374,9 +376,10 @@ document.querySelectorAll('.copy').forEach(function (box) {
 """
 
 GENERATED = "<!-- Written by scripts/catalog.py from addons.yml; don't edit by hand. -->"
+FOOTER = f"""Set up by <a href="{REPO}">Plone in a Box</a>, which installs Plone 6 on a cloud server of your own."""
 
 
-def page(title, description, body):
+def page(title, description, body, footer=FOOTER):
     return f"""<!doctype html>
 {GENERATED}
 <html lang="en">
@@ -390,7 +393,7 @@ def page(title, description, body):
 <body>
 <main>
 {body}
-<footer>Set up by <a href="{REPO}">Plone in a Box</a>, which installs Plone 6 on a cloud server of your own.
+<footer>{footer}
 Questions? Ask in <a href="{DISCORD_CHANNEL}" style="white-space: nowrap"><strong>#plone-in-a-box</strong></a> on <a href="{DISCORD}">the Plone Discord</a>.
 Plone and the Plone logo are trademarks of the Plone Foundation.</footer>
 </main>
@@ -546,22 +549,135 @@ a cloud server of your own.</p>
     return page("Try a Plone add-on", "Try Plone add-ons on a Plone 6 site of your own, set up by Plone in a Box.", body)
 
 
+GUIDE = f"{REPO}/blob/main/docs/setup-guide.md"
+AWS_LAUNCH = ("https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review"
+              f"?templateURL={quote(TEMPLATE_URL, safe='')}&stackName=plone-in-a-box")
+
+
+def start_page(version):
+    """The start page, at the project's address: the easiest way first, then the choices."""
+    launcher = "\n".join([
+        "#!/bin/bash",
+        "export ADMIN_PASSWORD='CHANGE-ME'",
+        "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh "
+        f"https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/{version}/src/StackScript"
+        " && bash /root/plone-in-a-box.sh"])
+    linode_url = f"https://cloud.linode.com/stackscripts/{LINODE_STACKSCRIPT}"
+    aws = html.escape(AWS_LAUNCH)
+    body = f"""<h1>Plone in a Box™</h1>
+<p class="lead">Your own Plone 6 website on a cloud server, without needing a command line.</p>
+
+<ol class="steps">
+<li><strong>Pick a provider:</strong> Linode, DigitalOcean, AWS or Hetzner.</li>
+<li><strong>Choose a password</strong> for your site's <code>admin</code> account.</li>
+<li><strong>Click Create.</strong> About 10 minutes later, your server's address shows your new Plone site.</li>
+</ol>
+
+<div class="buttons">
+<a class="button" href="#linode">Deploy on Linode</a>
+<a class="button" href="{aws}">Launch on AWS</a>
+<a class="button" href="#digitalocean-and-hetzner">DigitalOcean or Hetzner</a>
+</div>
+
+<p><strong>New to all of them?</strong> Choose Linode: a form, nothing to paste, and among the lowest prices.
+<strong>Already have an account somewhere?</strong> Use that one. <strong>Prefer a European provider?</strong>
+Hetzner.</p>
+<p class="note">You need an account with the provider and a way to pay. A small server costs a few cents an hour,
+paid to the provider. Nothing to install on your computer.</p>
+
+<h2 id="later">No need to decide everything now</h2>
+<p>Everything else can be added once your site is running:</p>
+<ul>
+<li><a href="{GUIDE}#adding-a-domain-later">your domain name</a></li>
+<li><a href="{GUIDE}#sending-email">email</a>, so your site can send password resets and form results</li>
+<li><a href="{GUIDE}#day-to-day-administration">offsite backups</a>, encrypted copies in cloud storage</li>
+<li><a href="{GUIDE}#updates">notifications</a> on your phone or in your team chat</li>
+<li><a href="{GUIDE}#where-to-send-the-logs">logs</a> &amp; <a href="{GUIDE}#graphs">graphs</a> of your server and site</li>
+<li><a href="{GUIDE}#add-ons">add-ons</a> and a <a href="{GUIDE}#themes-and-frontend-images">theme</a></li>
+</ul>
+
+<h2 id="linode">Linode (Akamai)</h2>
+<ol>
+<li>Log in to <a href="https://cloud.linode.com">Cloud Manager</a>, open the
+<a href="{linode_url}">Plone in a Box StackScript</a>, and click <strong>Deploy New Linode</strong>.</li>
+<li>Fill in the <strong>Plone admin password</strong> (at least 12 characters).</li>
+<li>Choose <strong>Ubuntu 26.04 LTS</strong>, a region, a 1 GB <strong>Nanode</strong> and <strong>No firewall</strong>,
+set a root password, and click <strong>Create Linode</strong>.</li>
+</ol>
+<p class="note">Then open the Linode's IP address in a browser. More detail:
+<a href="{GUIDE}#option-a-linode">setup guide</a>.</p>
+
+<h2 id="aws">Amazon AWS</h2>
+<ol>
+<li>Sign in to the <a href="https://console.aws.amazon.com/">AWS console</a>, then click
+<a href="{aws}">Launch on AWS</a>.</li>
+<li>Fill in the <strong>AdminPassword</strong> (at least 12 characters), and click <strong>Create stack</strong>.</li>
+<li>When the stack says <strong>CREATE_COMPLETE</strong>, open the <strong>SiteURL</strong> on its
+<strong>Outputs</strong> tab.</li>
+</ol>
+<p class="note">The default <code>t3.small</code> server costs more than the other providers' 1 GB ones. More detail:
+<a href="{GUIDE}#console-deployment-easiest">setup guide</a>.</p>
+
+<h2 id="digitalocean-and-hetzner">DigitalOcean and Hetzner</h2>
+<p>Create an Ubuntu 26.04 server with 1 GB of memory or more, and paste these lines into <strong>Additional Options →
+Startup scripts</strong> (DigitalOcean) or <strong>Cloud config</strong> (Hetzner). Replace <code>CHANGE-ME</code>
+with your admin password (at least 12 characters), keeping the quotes:</p>
+{copyable(launcher)}
+<p class="note">Then open the server's IP address in a browser. More detail:
+<a href="{GUIDE}#option-c-digitalocean">DigitalOcean</a>,
+<a href="{GUIDE}#option-d-hetzner">Hetzner</a>.</p>
+
+<h2 id="make-it-yours">Make it yours</h2>
+<p>Know what the site is for? Fill in just these fields when you create the server:</p>
+<table>
+<tr><th>Just trying Plone</th><td>Nothing more: the sample pages are there to explore.</td></tr>
+<tr><th>A site for your organization</th><td><strong>Domain name</strong>, the <strong>Email</strong> fields and a
+<strong>Notification URL</strong>; then <a href="{GUIDE}#day-to-day-administration">offsite backups</a>.</td></tr>
+<tr><th>An intranet</th><td><strong>Backend image</strong> and <strong>Frontend image</strong>:
+<a href="{GUIDE}#custom-backend-image">kitconcept's intranet</a>.</td></tr>
+<tr><th>Letting others try your site</th><td>A <a href="{GUIDE}#demo-login">demo login</a>, with the roles you
+choose.</td></tr>
+<tr><th>Training or a workshop</th><td>A server per person, each with a demo login, or
+<a href="{GUIDE}#terraform-deployment-automated-more-technical">Terraform</a> for many at once.</td></tr>
+<tr><th>Showing off your add-on</th><td>A <a href="try/">Try It page</a> and button for your README
+(<a href="{REPO}/blob/main/docs/try-it-buttons.md">how</a>).</td></tr>
+<tr><th>Full control</th><td>Terraform, your own images, and every setting in the
+<a href="{GUIDE}">setup guide</a>.</td></tr>
+</table>
+
+<h2 id="more">More</h2>
+<ul>
+<li><a href="slides/">The slides</a>: Plone in a Box™ in a few minutes</li>
+<li><a href="try/">Try a Plone add-on</a> on a site of your own</li>
+<li><a href="{GUIDE}">The setup guide</a>, and the code, on <a href="{REPO}">GitHub</a></li>
+</ul>
+"""
+    footer = (f'<a href="{REPO}">Plone in a Box™</a> is open source, and part of the '
+              '<a href="https://github.com/collective">Plone collective</a>.')
+    return page("Plone in a Box™",
+                "Your own Plone 6 website on a cloud server, without needing a command line.", body, footer)
+
+
 def pages(entries):
-    """{relative path: content} for everything in docs/try/."""
+    """{path relative to docs/: content} for the start page and everything in docs/try/."""
     version = release()
-    out = {"index.html": index_page(entries)}
+    out = {"index.html": start_page(version), "try/index.html": index_page(entries)}
     for entry in entries:
         if entry["try_it"] == "yes":
-            out[f"{entry['id']}/index.html"] = try_page(entry, version)
+            out[f"try/{entry['id']}/index.html"] = try_page(entry, version)
     return out
 
 
 def existing_pages():
+    """The pages written by pages(): the start page and docs/try/, relative to docs/."""
     found = {}
+    start = os.path.join(DOCS, "index.html")
+    if os.path.exists(start):
+        found["index.html"] = open(start, encoding="utf-8").read()
     for folder, _dirs, files in os.walk(PAGES):
         for f in files:
             path = os.path.join(folder, f)
-            found[os.path.relpath(path, PAGES)] = open(path, encoding="utf-8").read()
+            found[os.path.relpath(path, DOCS)] = open(path, encoding="utf-8").read()
     return found
 
 
@@ -590,22 +706,22 @@ def main(argv):
             have = existing_pages()
             for rel in have:
                 if rel not in wanted:
-                    os.remove(os.path.join(PAGES, rel))
+                    os.remove(os.path.join(DOCS, rel))
             for rel, text in wanted.items():
-                path = os.path.join(PAGES, rel)
+                path = os.path.join(DOCS, rel)
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(text)
-            print(f"Wrote {len(wanted)} pages in docs/try/")
+            print(f"Wrote {len(wanted)} pages: docs/index.html and docs/try/")
             return 0
         if command == "check":
             have = existing_pages()
             stale = sorted(set(wanted) ^ set(have) | {r for r in wanted if have.get(r) != wanted[r]})
             if stale:
-                print("docs/try/ isn't up to date with addons.yml and the release: run "
+                print("docs/index.html or docs/try/ isn't up to date with addons.yml and the release: run "
                       "python3 scripts/catalog.py pages, and commit. Different: " + ", ".join(stale), file=sys.stderr)
                 return 1
-            print(f"addons.yml: {len(entries)} entries, docs/try/ up to date")
+            print(f"addons.yml: {len(entries)} entries, docs/index.html and docs/try/ up to date")
             return 0
     except CatalogError as error:
         print(f"error: {error}", file=sys.stderr)

@@ -2,81 +2,23 @@
 
 Your own [Plone 6](https://plone.org) website on a cloud server, without needing a command line.
 
-Plone in a Box is for people who want a Plone site of their own but aren't system administrators. You fill in a
-form on your cloud provider's website (Linode, DigitalOcean, Amazon AWS or Hetzner), choose an admin password, and click
-Create. About 10 minutes later, the server's address shows your new Plone site, ready to log in and edit. There's
-nothing to install on your computer.
+Plone in a Box is for people who want a Plone site of their own but aren't system administrators. There's nothing
+to install on your computer.
 
-For a short overview, see the [slides](https://collective.github.io/plone-in-a-box/slides/).
-
-## What you get
-
-Each box is a single Ubuntu 26.04 LTS server running the official Plone Docker images (the Plone backend, the
-Volto front end and PostgreSQL) behind nginx.
-
-**Setting up**
-* A form on your provider's website ([Linode, DigitalOcean, AWS or Hetzner](#get-started)), or
-  [Terraform](docs/setup-guide.md#terraform-deployment-automated-more-technical) if you prefer automation. On
-  DigitalOcean and Hetzner, Terraform picks a region that offers the server size you chose.
-* The admin password you choose, or a randomly generated one (there's no `admin:admin`).
-* A page that shows setup progress while you wait, and turns into your site in about 10 minutes.
-* The site's language and time zone, and whether it starts with sample pages or empty.
-* Plone 6.2 with Volto 19 by default; both are configurable (for the previous release line, use Plone `6.1` with
-  Volto `18`).
-
-**Security**
-* Only the website (HTTP and HTTPS) and SSH are reachable from the internet.
-* HTTPS from Let's Encrypt for every site: for your domain name, now or [later](docs/setup-guide.md#adding-a-domain-later),
-  or without one, for the server's IP address (`https://<ip>`), renewed automatically.
-* Standard security headers on every page, and nginx doesn't reveal its version.
-* Ubuntu installs its security updates by itself.
-* [Plone security announcements](docs/setup-guide.md#security-fixes-and-new-plone-releases) reach you within a day,
-  often a week before the fix is out, and a released fix installs the same day.
-* Servers made with Terraform or AWS's Launch Stack button are protected from being deleted or rebuilt by mistake.
-
-**Updates**
-* Every week, Plone, Volto and PostgreSQL patch releases install automatically, after a database backup, and are
-  undone if the site doesn't come back. You're told when a new Plone version is out to move to yourself. See
-  [Updates](docs/setup-guide.md#updates); a server set up before 2.12 gets them with
-  [one command](docs/setup-guide.md#servers-set-up-before-212).
-
-**Notices**
-* Update reports, security announcements and backup problems go to your phone ([ntfy](https://ntfy.sh)), a team
-  chat (Slack, Discord, Google Chat, Mattermost or Microsoft Teams), by email (once
-  [email](docs/setup-guide.md#sending-email) is set up), and to the server's login message.
-
-**Email**
-* Password resets, new-user emails, form submissions and update reports, sent through an email relay service
-  (SMTP2GO, Brevo, Amazon SES and others) with your own domain. Fill in its settings when creating the server (setup
-  sends a test email), or later in Site Setup → Mail; without them, the site can't send email. See
-  [Sending email](docs/setup-guide.md#sending-email), which compares the services.
-
-**Backups**
-* A database backup every night (the whole site, files and images included), and a weekly pack so the database
-  doesn't grow forever. Your provider's server backups can be turned on too. See
-  [Backups](docs/setup-guide.md#day-to-day-administration).
-* Optional encrypted copies of each night's backup in S3-compatible storage (Cloudflare R2, AWS S3, Backblaze B2,
-  DigitalOcean Spaces, Hetzner Object Storage), with `sudo plone-offsite setup`.
-* `sudo plone-restore` puts a backup back, and moves a site to a new server.
-
-**Customizing**
-* [Backend add-ons](docs/setup-guide.md#add-ons) such as `collective.easyform`, installed when deploying or later.
-* [Ready-made frontend images](docs/setup-guide.md#themes-and-frontend-images) such as Volto Light Theme
-  (`ghcr.io/collective/plone-in-a-box-frontend:19-vlt`), or your own.
-* A [backend image](docs/setup-guide.md#custom-backend-image): a Plone distribution such as kitconcept's intranet,
-  or your own project, for example one made with cookieplone.
-* A [demo login](docs/setup-guide.md#demo-login), with the roles and password you choose, for letting others try the site.
-
-**For add-on authors**
-* A [Try It page and button](#for-add-on-authors-a-try-it-button) that sets up a box with your add-on and a demo
-  login.
-
-Questions, ideas, or stuck? Come and talk in the **[#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082)** channel on
-[the Plone Discord](https://discord.gg/jRrsnYkNvS).
+**Start here: [collective.github.io/plone-in-a-box](https://collective.github.io/plone-in-a-box/)**, the easiest
+way in three steps, then the choices that suit what your site is for. For a short overview, see the
+[slides](https://collective.github.io/plone-in-a-box/slides/).
 
 ## Get started
 
-Pick a cloud provider. You'll need an account with them and a way to pay.
+1. **Pick a provider:** Linode, DigitalOcean, AWS or Hetzner.
+2. **Choose a password** for your site's `admin` account.
+3. **Click Create.** About 10 minutes later, your server's address shows your new Plone site.
+
+**No need to decide everything now:** your domain name, email, offsite backups, notifications, logs, graphs,
+add-ons and a theme can all be added once your site is running.
+
+You'll need an account with the provider and a way to pay.
 
 **Which one?** If you don't already use one of these, choose **Linode**: it has the simplest setup (a form with
 labelled fields, nothing to paste) and among the lowest prices for a small site. Choose **DigitalOcean** if you
@@ -147,6 +89,71 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
 For more settings (a domain for HTTPS, the time zone, versions, add-ons, a theme), paste [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead.
 
 Details: [setup guide, Hetzner](docs/setup-guide.md#console-deployment-easiest-2).
+
+## What you get
+
+Each box is a single Ubuntu 26.04 LTS server running the official Plone Docker images (the Plone backend, the
+Volto front end and PostgreSQL) behind nginx.
+
+**Setting up**
+* A form on your provider's website ([Linode, DigitalOcean, AWS or Hetzner](#get-started)), or
+  [Terraform](docs/setup-guide.md#terraform-deployment-automated-more-technical) if you prefer automation. On
+  DigitalOcean and Hetzner, Terraform picks a region that offers the server size you chose.
+* The admin password you choose, or a randomly generated one (there's no `admin:admin`).
+* A page that shows setup progress while you wait, and turns into your site in about 10 minutes.
+* The site's language and time zone, and whether it starts with sample pages or empty.
+* Plone 6.2 with Volto 19 by default; both are configurable (for the previous release line, use Plone `6.1` with
+  Volto `18`).
+
+**Security**
+* Only the website (HTTP and HTTPS) and SSH are reachable from the internet.
+* HTTPS from Let's Encrypt for every site: for your domain name, now or [later](docs/setup-guide.md#adding-a-domain-later),
+  or without one, for the server's IP address (`https://<ip>`), renewed automatically.
+* Standard security headers on every page, and nginx doesn't reveal its version.
+* Ubuntu installs its security updates by itself.
+* [Plone security announcements](docs/setup-guide.md#security-fixes-and-new-plone-releases) reach you within a day,
+  often a week before the fix is out, and a released fix installs the same day.
+* Servers made with Terraform or AWS's Launch Stack button are protected from being deleted or rebuilt by mistake.
+
+**Updates**
+* Every week, Plone, Volto and PostgreSQL patch releases install automatically, after a database backup, and are
+  undone if the site doesn't come back. You're told when a new Plone version is out to move to yourself. See
+  [Updates](docs/setup-guide.md#updates); a server set up before 2.12 gets them with
+  [one command](docs/setup-guide.md#servers-set-up-before-212).
+
+**Notices**
+* Update reports, security announcements and backup problems go to your phone ([ntfy](https://ntfy.sh)), a team
+  chat (Slack, Discord, Google Chat, Mattermost or Microsoft Teams), by email (once
+  [email](docs/setup-guide.md#sending-email) is set up), and to the server's login message.
+
+**Email**
+* Password resets, new-user emails, form submissions and update reports, sent through an email relay service
+  (SMTP2GO, Brevo, Amazon SES and others) with your own domain. Fill in its settings when creating the server (setup
+  sends a test email), or later in Site Setup → Mail; without them, the site can't send email. See
+  [Sending email](docs/setup-guide.md#sending-email), which compares the services.
+
+**Backups**
+* A database backup every night (the whole site, files and images included), and a weekly pack so the database
+  doesn't grow forever. Your provider's server backups can be turned on too. See
+  [Backups](docs/setup-guide.md#day-to-day-administration).
+* Optional encrypted copies of each night's backup in S3-compatible storage (Cloudflare R2, AWS S3, Backblaze B2,
+  DigitalOcean Spaces, Hetzner Object Storage), with `sudo plone-offsite setup`.
+* `sudo plone-restore` puts a backup back, and moves a site to a new server.
+
+**Customizing**
+* [Backend add-ons](docs/setup-guide.md#add-ons) such as `collective.easyform`, installed when deploying or later.
+* [Ready-made frontend images](docs/setup-guide.md#themes-and-frontend-images) such as Volto Light Theme
+  (`ghcr.io/collective/plone-in-a-box-frontend:19-vlt`), or your own.
+* A [backend image](docs/setup-guide.md#custom-backend-image): a Plone distribution such as kitconcept's intranet,
+  or your own project, for example one made with cookieplone.
+* A [demo login](docs/setup-guide.md#demo-login), with the roles and password you choose, for letting others try the site.
+
+**For add-on authors**
+* A [Try It page and button](#for-add-on-authors-a-try-it-button) that sets up a box with your add-on and a demo
+  login.
+
+Questions, ideas, or stuck? Come and talk in the **[#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082)** channel on
+[the Plone Discord](https://discord.gg/jRrsnYkNvS).
 
 ## Once your site is running
 

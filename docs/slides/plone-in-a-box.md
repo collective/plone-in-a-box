@@ -128,6 +128,23 @@ Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetz
 
 ---
 
+<!-- _class: dense -->
+
+## Choose your path
+
+Start with the three steps, then add only what your site needs:
+
+- **Just trying Plone:** nothing more; the sample pages are there to explore.
+- **Your organization's site:** your domain name, email & notifications, then offsite backups.
+- **An intranet:** kitconcept's intranet, ready to use.
+- **Letting others try it:** a demo login, with the roles you choose.
+- **Training or a workshop:** a server per person, or Terraform for many at once.
+- **Showing off your add-on:** a Try It page.
+
+**No need to decide everything now:** all of it can be added once your site is running.
+
+---
+
 ## Who this is for
 
 - **Evaluating Plone in depth?** Get the current release running in ten minutes, on your own server.
@@ -245,8 +262,10 @@ Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's future f
 
 Plone's easy button:
 
-**github.com/collective/plone-in-a-box**
+**collective.github.io/plone-in-a-box**
 
 Plone in a Box™: automatic for the people!
+
+The code: **github.com/collective/plone-in-a-box**
 
 Questions and ideas: **#plone-in-a-box** on the Plone Discord, **discord.gg/jRrsnYkNvS**

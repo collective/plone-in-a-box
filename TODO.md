@@ -128,17 +128,36 @@ restoring a backup.
 - **Separate from the Plone site**, so it still works when Plone doesn't: that's
   exactly when you need it (restore a backup, see why an update failed, turn
   logs on to find out).
-- **A look at Cockpit** (Ubuntu's own web console for a server): a Plone in a
-  Box™ page as a Cockpit plugin would get logins, HTTPS and a terminal for
-  free, and stay small. Or a small app of our own behind nginx.
-- **Safe by default:** off until you turn it on, its own login (not the Plone
-  admin's), only over HTTPS, perhaps only from your own address. It can do
-  what root can, so it has to be at least as hard to get into as SSH.
+- **Cockpit first** (Ubuntu's own web console for a server): a Plone in a Box™
+  page as a Cockpit plugin gets logins, sessions and running commands as
+  root without our writing them, starts only when someone opens it (little
+  memory on a 1 GB server), and comes with a terminal and the server's logs.
+  Try it on a test server first: does it install on Ubuntu 24.04 and 26.04,
+  work behind nginx, and can our page be the first thing people see? Our own
+  small app behind nginx only if Cockpit doesn't work out.
+- **Its own address, `box.example.org`** (the site at `www.example.org`, the
+  box it runs in at `box.example.org`), titled "Plone in a Box™ control
+  panel". A separate address keeps the browser from mixing the panel with
+  the site: a script that got into the site can't use an open panel
+  session. It needs one more DNS record; setup checks it and gets the
+  certificate once it works. The name can be changed. Sites without a domain
+  name get a separate port instead (opened in the Launch Stack template, the
+  Terraform plans and the server's firewall). Not a path on the site.
+- **Safe by default:** off until you turn it on (`sudo plone-panel on`, or a
+  box in the launch form), its own login (not the Plone admin's), only over
+  HTTPS, optional two-step login with an authenticator app, repeated failed
+  logins blocked, and optionally only from your own address. It can do what
+  root can, so it has to be at least as hard to get into as SSH.
 - **The same tools underneath:** each switch runs the command it stands for
   (`plone-syslog on`, `plone-otel off`, ...), so the panel, SSH and the launch
   fields always agree.
-- Later: a status page for the site (last backup, last update, disk, the
-  graphs' numbers), and a Plone control panel that links to it.
+- **In stages, lowest risk first:** (1) a `status` every command can report
+  to a program, and one `plone-status` for the whole server (last backup and
+  restore test, last update, disk, what's on), which MCP can use too; (2) a
+  status page, read only; (3) switches for logs, graphs, notifications, the
+  email test, back up now, a new demo password; (4) the risky ones (restore,
+  Cloudflare, HTTPS, updates), each with a warning and a way back; (5) a link
+  from Plone's Site Setup.
 
 ## MCP for Plone in a Box™
 
