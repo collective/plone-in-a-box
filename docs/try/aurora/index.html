@@ -62,7 +62,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; }
 hour, paid to the cloud provider; delete it when you're done, which deletes the site too.</p>
 
 <div class="buttons">
-<a class="button" href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=aurora-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=plone%2Faurora%3A1.0.0-alpha.26&amp;param_BackendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-backend%3A6.2-aurora&amp;param_DemoRoles=Editor">Launch on AWS</a>
+<a class="button" href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=aurora-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=plone%2Faurora%3A1.0.0-alpha.26&amp;param_BackendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-backend%3A6.2-aurora&amp;param_DemoRoles=Editor%2C%20Contributor">Launch on AWS</a>
 <a class="button" href="#linode">Deploy on Linode</a>
 <a class="button" href="#digitalocean-and-hetzner">DigitalOcean or Hetzner</a>
 </div>
@@ -74,7 +74,7 @@ for the <code>demo</code> login you'll share.</li>
 <li>Log in as <code>demo</code> with the demo password, then edit the home page with Aurora&#x27;s new block editor, and add a page of your own.</li>
 </ol>
 
-<p>The <code>demo</code> login has the role <strong>Editor</strong>: it can do what that role allows
+<p>The <code>demo</code> login has the roles <strong>Editor, Contributor</strong>: it can do what those roles allow
 on the site, and nothing more. Share it with whoever you want to try Plone Aurora.</p>
 <p class="note">The site has no domain name, so it gets an HTTPS certificate for the server's IP address and is at
 <code>https://</code> followed by that address; if it opens on <code>http://</code> during setup, it moves to
@@ -83,7 +83,7 @@ on the site, and nothing more. Share it with whoever you want to try Plone Auror
 <h2 id="aws">Amazon AWS</h2>
 <ol>
 <li>Sign in to the <a href="https://console.aws.amazon.com/">AWS console</a>, then click
-<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=aurora-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=plone%2Faurora%3A1.0.0-alpha.26&amp;param_BackendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-backend%3A6.2-aurora&amp;param_DemoRoles=Editor">Launch on AWS</a>: a form with Plone Aurora and the demo login filled in.</li>
+<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=aurora-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=plone%2Faurora%3A1.0.0-alpha.26&amp;param_BackendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-backend%3A6.2-aurora&amp;param_DemoRoles=Editor%2C%20Contributor">Launch on AWS</a>: a form with Plone Aurora and the demo login filled in.</li>
 <li>Fill in <strong>AdminPassword</strong> and <strong>DemoPassword</strong> (at least 12 characters each), and click
 <strong>Create stack</strong>.</li>
 <li>When the stack says <strong>CREATE_COMPLETE</strong>, open the <strong>SiteURL</strong> on its
@@ -102,7 +102,7 @@ delete the stack.</p>
 <tr><th>Demo login</th><td><code>demo</code></td></tr>
 <tr><th>Frontend image</th><td><code>plone/aurora:1.0.0-alpha.26</code></td></tr>
 <tr><th>Backend image</th><td><code>ghcr.io/collective/plone-in-a-box-backend:6.2-aurora</code></td></tr>
-<tr><th>Roles of the demo login</th><td><code>Editor</code></td></tr>
+<tr><th>Roles of the demo login</th><td><code>Editor, Contributor</code></td></tr>
 <tr><th>Demo login password</th><td>at least 12 characters, for the people you let try it</td></tr></table></li>
 <li>Choose <strong>Ubuntu 26.04 LTS</strong>, a region, a 1 GB <strong>Nanode</strong> and <strong>No firewall</strong>,
 set a root password, and click <strong>Create Linode</strong>.</li>
@@ -118,7 +118,7 @@ characters:</p>
 export ADMIN_PASSWORD=&#x27;CHANGE-ME&#x27;
 export FRONTEND_IMAGE=&#x27;plone/aurora:1.0.0-alpha.26&#x27;
 export BACKEND_IMAGE=&#x27;ghcr.io/collective/plone-in-a-box-backend:6.2-aurora&#x27;
-export DEMO_ROLES=&#x27;Editor&#x27;
+export DEMO_ROLES=&#x27;Editor, Contributor&#x27;
 export DEMO_USER=&#x27;demo&#x27;
 export DEMO_PASSWORD=&#x27;CHANGE-ME-TOO&#x27;
 curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/StackScript &amp;&amp; bash /root/plone-in-a-box.sh</code></pre></div>

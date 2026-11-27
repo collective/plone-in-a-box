@@ -22,6 +22,11 @@
   OpenTelemetry to Plone in a Box.
 - `plone-syslog` and `plone-otel` share one helper that writes
   `docker-compose.override.yml`, so turning one on or off keeps the other.
+- The Plone Aurora Try It page gives the demo login Contributor as well as
+  Editor, so the people you let try it can add pages and upload images, such
+  as in an image block, as the page suggests. Editor alone can only change
+  existing pages. On a server already running, give `demo` Contributor in
+  Site Setup → Users.
 
 2.25 (2026-11-26)
 -----------------
