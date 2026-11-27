@@ -89,7 +89,8 @@
   backend_image: ghcr.io/collective/plone-in-a-box-backend:6.2-aurora
   # plone/aurora is built for Arm too, and so is the backend image.
   arm: yes
-  # Editors can edit the home page and add pages.
-  demo_roles: Editor
+  # Editor to edit the home page; Contributor to add pages and upload images
+  # (an image block uploads an Image), which Editor alone can't.
+  demo_roles: Editor, Contributor
   try_it: yes
   try_hint: edit the home page with Aurora's new block editor, and add a page of your own
