@@ -9,11 +9,12 @@
 
 ## Per-add-on StackScripts after 2.24
 
-- [ ] 2.24 added a form field, **Spamhaus key** (`SPAMHAUS_KEY`), so per-add-on "Try It" StackScripts made with
+- [x] 2.24 added a form field, **Spamhaus key** (`SPAMHAUS_KEY`), so per-add-on "Try It" StackScripts made with
   `scripts/linode-addon-stackscript.sh` should be printed again and pasted over the old ones in Cloud Manager
   (RELEASING.md, "Per-add-on StackScripts"). The Juizi Dashboard one (2318969) is done: `update-public-stackscripts.sh`
   updated it. Check for any others, in our accounts or made by add-on authors, and tell those authors. Until then
   they keep working without the field (they download the latest release, and the field is optional).
+  Checked on 2026-11-27: the only public ones are ours (931893, 2318969, 692002), all updated by 2.26.
 
 ## OpenTelemetry, and launch fields for logs (next release after 2.25)
 
@@ -162,6 +163,20 @@ restoring a backup.
   Try it on a test server first: does it install on Ubuntu 24.04 and 26.04,
   work behind nginx, and can our page be the first thing people see? Our own
   small app behind nginx only if Cockpit doesn't work out.
+  **Tried on 2026-11-27** (Linode, Ubuntu 26.04, 1 GB): Ubuntu's Cockpit 360
+  installs in about 11 seconds (6 MB); behind nginx on port 8443 with the
+  site's IP address certificate, login, a wrong password (401), our page and
+  its WebSocket all work; about 50 MB of memory with someone logged in, 13 MB
+  after, none until first opened; port 9090 stays closed from outside (the
+  server's firewall). A page of ours showed `plone-status` on an iPhone,
+  after switching on administrative access. Learned: Cockpit's
+  Content-Security-Policy for a page allows no inline scripts or styles, so
+  they go in their own files; administrative access is a separate step
+  (needs plain words, or a login that doesn't need it for read-only status);
+  plain text wraps badly on a phone (show `plone-status --json` as cards);
+  Cockpit's own screens (System, Help, Session) stay in its bottom bar;
+  Cockpit should listen on 127.0.0.1 only, and its nginx server block needs
+  `server_tokens off` (it showed nginx's version).
 - **Its own address, `box.example.org`** (the site at `www.example.org`, the
   box it runs in at `box.example.org`), titled "Plone in a Box™ control
   panel". A separate address keeps the browser from mixing the panel with
