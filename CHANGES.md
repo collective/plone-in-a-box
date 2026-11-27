@@ -10,6 +10,11 @@
   add-on). `scripts/catalog.py pages` writes it with the Try It pages, so it
   always names the current release. The README starts with the same three
   steps, and the slides have a "Choose your path" slide.
+- **`plone-status`**: how the server and site are doing, in one place: whether
+  the site answers, its parts, the versions, disk and memory, the last backup
+  and restore test, the last update, and which features are on. Read only.
+  `--json` gives the same for programs, the groundwork for the box control
+  panel and MCP. Older servers get it from `src/add-updates.sh`.
 - **Starter content** now says what it is in every form and in the guide:
   Plone's welcome page (or a Plone distribution's own sample content), not
   "sample pages", which a standard Plone 6.2 site doesn't have.

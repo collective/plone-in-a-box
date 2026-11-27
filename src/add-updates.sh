@@ -81,6 +81,7 @@ main() {
     /usr/local/lib/plone-in-a-box/compose-override || true
   fi
   say "To graph the server's and the site's numbers in a service such as Grafana Cloud: sudo plone-otel on ENDPOINT (see the setup guide)"
+  say "To see how the server and site are doing, in one place: sudo plone-status"
 
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then
