@@ -97,6 +97,20 @@ export REPORT_EMAIL=''
 # so the blocklist checks can ask Spamhaus, whose public servers refuse many
 # cloud providers' DNS. Keep it private.
 export SPAMHAUS_KEY=''
+# Logs, optional: a syslog server or service that gets the server's logs too,
+# as 'HOST:PORT' over TLS, with the token element it wants in each message
+# (see "Sending the logs elsewhere" in the setup guide). LOG_REQUESTS='yes'
+# sends one line per web request too, most of the volume. Keep the token private.
+export LOG_SERVER=''
+export LOG_TOKEN=''
+export LOG_REQUESTS='no'
+# Graphs, optional: an OpenTelemetry service's OTLP endpoint that gets the
+# server's and the site's numbers, with your instance ID or user (Grafana
+# Cloud), or 'header:NAME' for a token in a header (see "Graphs of your server
+# and site" in the setup guide). Keep the token private.
+export METRICS_ENDPOINT=''
+export METRICS_USER=''
+export METRICS_TOKEN=''
 
 # --- No need to edit below this line -----------------------------------------
 

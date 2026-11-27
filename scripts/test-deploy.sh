@@ -51,6 +51,13 @@
 #                          piab-spamhaus-key, then check Spamhaus answers
 #                          through it, and the key isn't in the setup log or
 #                          credentials file
+#   --logs                 fill in the log fields: PIAB_TEST_LOG_SERVER, and
+#                          the token element in the Keychain as piab-log-token;
+#                          then check plone-syslog is on
+#   --metrics              fill in the graphs fields: PIAB_TEST_METRICS_ENDPOINT,
+#                          PIAB_TEST_METRICS_USER, and the token in the
+#                          Keychain as piab-metrics-token; then check numbers
+#                          went out
 #   --expect-backend-fallback
 #                          with --backend-image: expect setup to use the
 #                          official Plone backend instead (an image that can't
@@ -144,6 +151,7 @@ SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 SITE_LANGUAGE="" NO_STARTER=0 REAL_CERT=0 UPDATES=0 NOTIFY_URL="" MAIL_TO="" REGISTRY_USER="" REGISTRY_TOKEN=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM="" SPAMHAUS=0 SPAMHAUS_KEY=""
+LOGS=0 LOG_SERVER="" LOG_TOKEN="" METRICS=0 METRICS_ENDPOINT="" METRICS_USER="" METRICS_TOKEN=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
@@ -175,6 +183,8 @@ while (( $# )); do
     --backend-image) BACKEND_IMAGE=${2:?--backend-image needs a value}; shift ;;
     --registry-user) REGISTRY_USER=${2:?--registry-user needs a value}; shift ;;
     --spamhaus) SPAMHAUS=1 ;;
+    --logs) LOGS=1 ;;
+    --metrics) METRICS=1 ;;
     --site-language) SITE_LANGUAGE=${2:?--site-language needs a value}; shift ;;
     --no-starter-content) NO_STARTER=1 ;;
     --real-cert) REAL_CERT=1 ;;
@@ -236,6 +246,18 @@ fi
 if (( SPAMHAUS )); then
   SPAMHAUS_KEY=$(keychain_token piab-spamhaus-key || true)
   [[ "$SPAMHAUS_KEY" =~ ^[A-Za-z0-9]+$ ]] || die "--spamhaus needs a key in the Keychain as piab-spamhaus-key"
+fi
+if (( LOGS )); then
+  LOG_SERVER=${PIAB_TEST_LOG_SERVER:-}
+  [[ "$LOG_SERVER" =~ ^[A-Za-z0-9.-]+:[0-9]+$ ]] || die "--logs needs PIAB_TEST_LOG_SERVER, as HOST:PORT"
+  LOG_TOKEN=$(keychain_token piab-log-token || true)
+fi
+if (( METRICS )); then
+  METRICS_ENDPOINT=${PIAB_TEST_METRICS_ENDPOINT:-}
+  METRICS_USER=${PIAB_TEST_METRICS_USER:-}
+  [[ "$METRICS_ENDPOINT" == https://* ]] || die "--metrics needs PIAB_TEST_METRICS_ENDPOINT"
+  METRICS_TOKEN=$(keychain_token piab-metrics-token || true)
+  [[ -n "$METRICS_TOKEN" ]] || die "--metrics needs a token in the Keychain as piab-metrics-token"
 fi
 TOKEN=""
 if [[ "$PROVIDER" == linode ]]; then
@@ -424,6 +446,8 @@ launcher() {
   local text
   if [[ "${PIAB_TEST_LAUNCHER:-}" == short ]]; then
     # The three-line launcher from the README and setup guide.
+    local obs_lines=""
+    [[ -z "$LOG_SERVER$METRICS_ENDPOINT" ]] || obs_lines=$(obs_exports)
     printf '%s\n' '#!/bin/bash' \
       "export ADMIN_PASSWORD='${ADMIN_PASSWORD:-CHANGE-ME}'" \
       ${ADDONS:+"export ADDONS='$ADDONS'"} \
@@ -439,6 +463,7 @@ launcher() {
       ${DEMO_ROLES:+"export DEMO_ROLES='$DEMO_ROLES'"} \
       ${NOTIFY_URL:+"export NOTIFY_URL='$NOTIFY_URL'"} \
       ${MAIL_TO:+"$(mail_exports)"} \
+      ${obs_lines:+"$obs_lines"} \
       "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
     return
   fi
@@ -482,7 +507,20 @@ launcher() {
       { split($0, kv, "="); if (kv[1] in m) print m[kv[1]]; else print }' <<<"$text")
     grep -q "^export SMTP_HOST=$SMTP_HOST$" <<<"$text" || die "couldn't set the email settings in src/user-data.sh"
   fi
+  if [[ -n "$LOG_SERVER$METRICS_ENDPOINT" ]]; then
+    text=$(OBS_LINES="$(obs_exports)" awk '
+      BEGIN { n = split(ENVIRON["OBS_LINES"], l, "\n"); for (i = 1; i <= n; i++) { split(l[i], kv, "="); m[kv[1]] = l[i] } }
+      { split($0, kv, "="); if (kv[1] in m) print m[kv[1]]; else print }' <<<"$text")
+    grep -q "^export LOG_SERVER=$LOG_SERVER$" <<<"$text" || die "couldn't set the log and graphs settings in src/user-data.sh"
+  fi
   printf '%s\n' "$text"
+}
+# The log and graphs settings as export lines, quoted for bash.
+obs_exports() {
+  local var
+  for var in LOG_SERVER LOG_TOKEN METRICS_ENDPOINT METRICS_USER METRICS_TOKEN; do
+    printf 'export %s=%q\n' "$var" "${!var}"
+  done
 }
 # The email settings as export lines, quoted for bash.
 mail_exports() {
@@ -515,13 +553,17 @@ if [[ "$PROVIDER" == linode ]]; then
       --arg frontend "$FRONTEND_IMAGE" --arg backend "$BACKEND_IMAGE" --arg reg_user "$REGISTRY_USER" --arg reg_token "$REGISTRY_TOKEN" --arg spamhaus "$SPAMHAUS_KEY" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg type "${PIAB_LINODE_TYPE:-g6-nanode-1}" --arg notify "$NOTIFY_URL" \
       --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
       --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
+      --arg log_server "$LOG_SERVER" --arg log_token "$LOG_TOKEN" --arg metrics_endpoint "$METRICS_ENDPOINT" \
+      --arg metrics_user "$METRICS_USER" --arg metrics_token "$METRICS_TOKEN" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
         stackscript_data: ({ADMIN_PASSWORD: $pw, ADDONS: $addons, FRONTEND_IMAGE: $frontend, BACKEND_IMAGE: $backend, REGISTRY_USER: $reg_user, REGISTRY_TOKEN: $reg_token, SITE_LANGUAGE: $lang, STARTER_CONTENT: $content, DEMO_USER: $demo,
             DEMO_PASSWORD: $demopw, DEMO_ROLES: $roles, NOTIFY_URL: $notify,
             SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
-            EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email, SPAMHAUS_KEY: $spamhaus}
+            EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email, SPAMHAUS_KEY: $spamhaus,
+            LOG_SERVER: $log_server, LOG_TOKEN: $log_token, METRICS_ENDPOINT: $metrics_endpoint,
+            METRICS_USER: $metrics_user, METRICS_TOKEN: $metrics_token}
           | with_entries(select(.value != ""))),
         booted: true}
        + (if $fw == "" then {} else {firewall_id: ($fw | tonumber)} end)')
@@ -600,10 +642,14 @@ else
         --arg backend "$BACKEND_IMAGE" --arg reg_user "$REGISTRY_USER" --arg reg_token "$REGISTRY_TOKEN" --arg spamhaus "$SPAMHAUS_KEY" --arg lang "${SITE_LANGUAGE:-en}" --arg content "${STARTER_CONTENT:-yes}" --arg demo "$DEMO_USER" --arg demopw "$DEMO_PASSWORD_SET" --arg roles "$DEMO_ROLES" --arg notify "$NOTIFY_URL" \
         --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
         --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
+        --arg log_server "$LOG_SERVER" --arg log_token "$LOG_TOKEN" --arg metrics_endpoint "$METRICS_ENDPOINT" \
+        --arg metrics_user "$METRICS_USER" --arg metrics_token "$METRICS_TOKEN" \
       '{AdminPassword: $pw, KeyName: $key, Release: $release, InstanceType: $type, Addons: $addons,
         FrontendImage: $frontend, BackendImage: $backend, RegistryUser: $reg_user, RegistryToken: $reg_token, SiteLanguage: $lang, StarterContent: $content, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
         SmtpHost: $smtp_host, SmtpPort: $smtp_port, SmtpUser: $smtp_user, SmtpPassword: $smtp_password,
-        EmailFrom: $email_from, ReportEmail: $report_email, SpamhausKey: $spamhaus}
+        EmailFrom: $email_from, ReportEmail: $report_email, SpamhausKey: $spamhaus,
+        LogServer: $log_server, LogToken: $log_token, MetricsEndpoint: $metrics_endpoint,
+        MetricsUser: $metrics_user, MetricsToken: $metrics_token}
        | to_entries | map(select(.value != "") | {ParameterKey: .key, ParameterValue: .value})' \
       > "$WORK/cloudformation-parameters.json"
     say "Creating stack $NAME from src/aws/cloudformation.yaml"
@@ -976,6 +1022,19 @@ else
     bash -c 'for l in zen.spamhaus.org bl.spamcop.net dbl.spamhaus.org multi.surbl.org; do grep -qE "^(LISTED [^ ]+|UNCHECKED) $l( |\$)" <<<"$1" || exit 1; done' _ "$bl"
 fi
 check "setup looked up the site in the blocklists" rssh "grep -qiE 'blocklist' /var/log/plone-in-a-box.log"
+if [[ -n "$LOG_SERVER" ]]; then
+  check "the logs go to the log server from the form (plone-syslog is on)" rssh "plone-syslog status | grep -q '^On: .*$LOG_SERVER'"
+  check "the credentials file says where the logs go" rssh "grep -q '^Logs: .*also sent to' /root/plone-credentials.txt"
+fi
+if [[ -n "$METRICS_ENDPOINT" ]]; then
+  check "the numbers go to the OpenTelemetry service from the form (plone-otel is on)" rssh "plone-otel status | grep -q '^On:'"
+  check "the credentials file says where the numbers go" rssh "grep -q '^Graphs: .*numbers sent to' /root/plone-credentials.txt"
+fi
+for secret in "$LOG_TOKEN" "$METRICS_TOKEN"; do
+  [[ -n "$secret" ]] || continue
+  check "a log or graphs token isn't in the setup log or credentials file" \
+    rssh "! grep -qF -- $(printf '%q' "$secret") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
+done
 
 # --- Server state ---------------------------------------------------------------------
 
@@ -1025,8 +1084,12 @@ fi
 
 check "nightly backups are on (plone-backup.timer)" rssh \
   'systemctl is-enabled --quiet plone-backup.timer && systemctl is-active --quiet plone-backup.timer'
+# Every container: Docker's own files, at most 30 MB each, or journald (which
+# has its own limit) when the logs go to a log server too.
+journald_ok=""
+[[ -z "$LOG_SERVER" ]] || journald_ok="|journald "
 check "container logs are limited in size" rssh \
-  "docker inspect -f '{{.HostConfig.LogConfig.Config}}' \$(docker compose --project-directory /opt/plone ps -q) | grep -c max-size:10m | grep -qx 3"
+  "out=\$(docker inspect -f '{{.HostConfig.LogConfig.Type}} {{.HostConfig.LogConfig.Config}}' \$(docker compose --project-directory /opt/plone ps -q)); [ \$(wc -l <<<\"\$out\") -ge 3 ] && ! grep -vE '^(json-file .*max-size:10m$journald_ok)' <<<\"\$out\""
 check "plone-backup backs up and packs the database" rssh \
   'rm -f /var/lib/plone-in-a-box/last-pack && plone-backup pack && test -s /var/lib/plone-in-a-box/last-pack && find /var/backups/plone -name "plone-*.sql.gz" -mmin -10 | grep -q . && grep -q "^\[.*\] Packed$" /var/log/plone-backup.log'
 rssh 'tail -n 4 /var/log/plone-backup.log' 2>/dev/null | sed 's/^/      /'
@@ -1110,6 +1173,13 @@ if (( UPDATES )); then
 fi
 
 # --- Restarts -------------------------------------------------------------------------
+
+if [[ -n "$METRICS_ENDPOINT" ]]; then
+  # Shellcheck can't see the inner bash's variables.
+  # shellcheck disable=SC2016
+  check "numbers went out to the OpenTelemetry service, and none failed" \
+    rssh 'out=$(plone-otel status); grep -qE "[1-9][0-9]* values sent, 0 failed" <<<"$out"'
+fi
 
 continued=$(count_in_log 'Continuing setup')
 say "Recreating the backend container"

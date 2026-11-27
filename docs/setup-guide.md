@@ -196,6 +196,11 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # email_from        = "plone@example.org"
 # report_email      = "you@example.org"
 # spamhaus_key      = "..."  # optional: see Blocklists
+# log_server        = "s1234567.us-east-9.betterstackdata.com:6514"  # optional: see Sending the logs elsewhere
+# log_token         = "[logtail@11993 source_token=\"...\"]"
+# metrics_endpoint  = "https://otlp-gateway-prod-us-east-2.grafana.net/otlp"  # optional: see Graphs
+# metrics_user      = "1234567"
+# metrics_token     = "..."
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -593,6 +598,11 @@ as SSH logins and security updates.
 sudo plone-syslog on logs.example.org:6514
 ```
 
+**From the start:** fill in the **Logs** fields when you create the server (**Log server**, **Log token** and
+**Log each web request** in the Launch Stack form; `log_server`, `log_token` and `log_requests` in Terraform;
+`LOG_SERVER`, `LOG_TOKEN` and `LOG_REQUESTS` in the launcher), and setup turns it on, without the line per request
+unless you ask for it. The credentials file says whether it worked.
+
 It uses TLS, checked against the server's name, unless you add `--tcp` or `--udp` (unencrypted: only within a
 private network). For a log server with a certificate of its own making, add `--ca <file>` with its certificate
 authority. Some services want a token in every message, as a structured-data element: give it with `--sd -`,
@@ -651,6 +661,12 @@ site's numbers to an OpenTelemetry service once a minute:
 ```
 sudo plone-otel on https://otlp-gateway-prod-us-east-2.grafana.net/otlp --user 1234567
 ```
+
+**From the start:** fill in the **Graphs** fields when you create the server (**OpenTelemetry endpoint**, **user**
+and **token** in the Launch Stack form; `metrics_endpoint`, `metrics_user` and `metrics_token` in Terraform;
+`METRICS_ENDPOINT`, `METRICS_USER` and `METRICS_TOKEN` in the launcher). For a service that takes the token in a
+header, give the user as `header:` and the header's name, such as `header:api-key`. The credentials file says
+whether it worked.
 
 It asks for your token without showing it, checks that the service accepts it, and keeps it where only root can
 read it. Your site restarts once, so it's away for a minute or two. `sudo plone-otel status` shows how many numbers

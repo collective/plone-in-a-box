@@ -40,9 +40,9 @@
 - Then, opt-in: traces for Volto (Node auto-instrumentation through
   `NODE_OPTIONS`), and for the backend if wrapping its WSGI app stays stable
   across image updates.
-- Launch fields for the syslog server (`plone-syslog`, 2.25) and the OTLP
-  endpoint together, in one optional "Logs and metrics" section, so the
-  launchers and the Try It StackScripts change once.
+- [x] Launch fields for logs and graphs (2.26). The Try It StackScripts made
+  with `scripts/linode-addon-stackscript.sh` don't have them until they're
+  printed and pasted again (optional fields, so they keep working).
 
 ## Retire the duplicate Linode StackScript
 
@@ -110,6 +110,54 @@ and would push setup well past ~10 minutes. Building in CI means users need a Gi
 registry and credentials before deploying, which breaks the no-command-line Linode flow. It would also fix
 Plone/Volto versions when the project is generated, add template churn to maintain, and overlap the existing
 nginx + Compose setup. Custom images as an option get most of the benefit without those costs.
+
+## A control panel for Plone in a Box™
+
+Like a big control panel for Plone in a Box™, but user friendly: one place to
+turn its features on and off and change their settings, instead of commands
+over SSH. Backups and offsite copies, the restore test, updates,
+notifications, email, logs, graphs, Cloudflare, the demo login, HTTPS, and
+restoring a backup.
+
+- **User friendly first:** plain words, not settings names; each switch says
+  what it does and what it costs (free, or the service's price); sensible
+  choices already filled in; a test button where there's something to test
+  (send a test email, a test log line); and a clear way back (turn it off
+  again, or restore the backup taken before).
+
+- **Separate from the Plone site**, so it still works when Plone doesn't: that's
+  exactly when you need it (restore a backup, see why an update failed, turn
+  logs on to find out).
+- **A look at Cockpit** (Ubuntu's own web console for a server): a Plone in a
+  Box™ page as a Cockpit plugin would get logins, HTTPS and a terminal for
+  free, and stay small. Or a small app of our own behind nginx.
+- **Safe by default:** off until you turn it on, its own login (not the Plone
+  admin's), only over HTTPS, perhaps only from your own address. It can do
+  what root can, so it has to be at least as hard to get into as SSH.
+- **The same tools underneath:** each switch runs the command it stands for
+  (`plone-syslog on`, `plone-otel off`, ...), so the panel, SSH and the launch
+  fields always agree.
+- Later: a status page for the site (last backup, last update, disk, the
+  graphs' numbers), and a Plone control panel that links to it.
+
+## MCP for Plone in a Box™
+
+Let an AI assistant (Claude and others) help look after a site, through the
+Model Context Protocol (MCP): ask "is my site healthy?", "when was the last
+backup?", "why did last night's update fail?", and have it answer from the
+server itself.
+
+- **The server:** an MCP server on the box with the same tools underneath as
+  the control panel (above): status, backups, the restore test, updates, logs,
+  graphs. Read-only first; anything that changes the site (restore, turn
+  something off) only with your say-so, and a way back.
+- **The site's content:** editing pages and finding content through
+  plone.restapi. Look first for an MCP server the Plone community already has
+  or is building, and use that rather than our own.
+- **Safe by default:** off until you turn it on, its own token, only over
+  HTTPS, and nothing an assistant does that SSH couldn't undo. Consider the
+  separate-service question as for the control panel, so it still works when
+  Plone doesn't.
 
 ## To investigate
 
