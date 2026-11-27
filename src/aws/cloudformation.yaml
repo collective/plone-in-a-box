@@ -64,6 +64,15 @@ Metadata:
           - ReportEmail
           - SpamhausKey
       - Label:
+          default: Logs and graphs (optional)
+        Parameters:
+          - LogServer
+          - LogToken
+          - LogRequests
+          - MetricsEndpoint
+          - MetricsUser
+          - MetricsToken
+      - Label:
           default: Advanced (leave as is)
         Parameters:
           - PloneVersion
@@ -125,6 +134,18 @@ Metadata:
         default: Email for reports
       SpamhausKey:
         default: Spamhaus DQS key
+      LogServer:
+        default: Log server
+      LogToken:
+        default: Log token
+      LogRequests:
+        default: Log each web request
+      MetricsEndpoint:
+        default: OpenTelemetry endpoint
+      MetricsUser:
+        default: OpenTelemetry user
+      MetricsToken:
+        default: OpenTelemetry token
       PloneVersion:
         default: Plone backend image tag
       VoltoVersion:
@@ -333,6 +354,47 @@ Parameters:
     Description: >-
       Optional: a free Data Query Service key from spamhaus.com, so the blocklist checks can ask Spamhaus
       about the server's IP address and the site's domains.
+  LogServer:
+    Type: String
+    Default: ""
+    AllowedPattern: '^([A-Za-z0-9.-]+:[0-9]{1,5})?$'
+    ConstraintDescription: Must be HOST:PORT, or empty.
+    Description: >-
+      Optional: a syslog server or service that gets the server's logs too, as HOST:PORT over TLS, for
+      example s1234567.us-east-9.betterstackdata.com:6514. See "Sending the logs elsewhere" in the setup guide.
+  LogToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: >-
+      The token element your log service wants in each message, in brackets, as the service gives it. Empty
+      if it needs none.
+  LogRequests:
+    Type: String
+    Default: "no"
+    AllowedValues: ["yes", "no"]
+    Description: One line per web request too, which is most of the volume.
+  MetricsEndpoint:
+    Type: String
+    Default: ""
+    AllowedPattern: '^(https?://[^\s"]*)?$'
+    ConstraintDescription: Must start with https://, or be empty.
+    Description: >-
+      Optional: an OpenTelemetry service's OTLP endpoint that gets the server's and the site's numbers, for
+      example https://otlp-gateway-prod-us-east-2.grafana.net/otlp. See "Graphs of your server and site" in
+      the setup guide.
+  MetricsUser:
+    Type: String
+    Default: ""
+    AllowedPattern: '^[A-Za-z0-9._@:-]*$'
+    Description: >-
+      Your instance ID or user (Grafana Cloud), or header:NAME for a service that takes the token in a
+      header (header:api-key for New Relic).
+  MetricsToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: The OpenTelemetry service's token.
   PloneVersion:
     Type: String
     Default: "6.2"
@@ -345,7 +407,7 @@ Parameters:
     Description: plone/plone-frontend Docker image tag.
   Release:
     Type: String
-    Default: "2.25"
+    Default: "2.26"
     AllowedPattern: '^[A-Za-z0-9._/-]+$'
     Description: The Plone in a Box release whose provisioning script the server downloads.
   LatestAmiId:
@@ -460,8 +522,15 @@ Resources:
             EMAIL_FROM="$(d '${EmailFromB64}')"
             REPORT_EMAIL="$(d '${ReportEmailB64}')"
             SPAMHAUS_KEY='${SpamhausKey}'
+            LOG_SERVER='${LogServer}'
+            LOG_TOKEN="$(d '${LogTokenB64}')"
+            LOG_REQUESTS='${LogRequests}'
+            METRICS_ENDPOINT="$(d '${MetricsEndpointB64}')"
+            METRICS_USER='${MetricsUser}'
+            METRICS_TOKEN="$(d '${MetricsTokenB64}')"
             export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL
             export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY
+            export LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)
             if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \
@@ -485,6 +554,9 @@ Resources:
             SmtpPasswordB64: !Base64 {Ref: SmtpPassword}
             EmailFromB64: !Base64 {Ref: EmailFrom}
             ReportEmailB64: !Base64 {Ref: ReportEmail}
+            LogTokenB64: !Base64 {Ref: LogToken}
+            MetricsEndpointB64: !Base64 {Ref: MetricsEndpoint}
+            MetricsTokenB64: !Base64 {Ref: MetricsToken}
 
   # A fixed address, so the site keeps the same IP after the server is stopped
   # and started, and DNS for a domain only needs setting once. Deleting the stack

@@ -1,3 +1,54 @@
+2.26 (2026-11-27)
+-----------------
+
+See how your site is doing over time:
+
+* **Graphs of your server and site:** optional `plone-otel` sends your
+  site's health (memory, disk, response times, errors) to an OpenTelemetry
+  service, including Grafana Cloud's free plan, with a ready-made
+  dashboard. Thanks to Jean Jordaan (@jean), a longtime Plonista with a gift
+  for finding great software tools and methods, for the idea!
+
+* **Logs and graphs from the start:** turn them on in the launch form, and
+  a new server sends them as soon as it's ready.
+
+* **Try Plone Aurora:** the demo login can now add pages and images too.
+
+- **Graphs of your server and site**: `sudo plone-otel on ENDPOINT` sends
+  the server's numbers (CPU, memory, disks, network), each of Plone's,
+  Volto's, PostgreSQL's and nginx's memory and CPU, PostgreSQL's and nginx's
+  own, and Plone's (request times, errors, database size and cache, content
+  counts, from plone.observability) to an OpenTelemetry service once a
+  minute, such as Grafana Cloud's free plan. An OpenTelemetry Collector
+  container gathers them (about 50 MB of memory); it reads the server's
+  disks and processes read-only, only sends, and checks the token before
+  anything changes. PostgreSQL's numbers come from a login that can read
+  statistics, not content. With the official backend image, Plone's response
+  times and errors too: plone.observability's filters are added to the
+  image's `zope.ini` at each start, and Docker's health check moves to its
+  health server, which also checks the database. A ready-made Grafana
+  dashboard is in `docs/grafana/`. `status` shows what was sent and what
+  failed; `off` removes it all. Older servers get it from
+  `src/add-updates.sh`. ("Graphs of your server and site" in the setup
+  guide.) Thanks to Jean Jordaan (@jean), a longtime Plonista with a gift
+  for finding great software tools and methods, for the idea of adding
+  OpenTelemetry to Plone in a Box.
+- **Logs and graphs from the start**: new optional launch fields send the
+  server's logs to a syslog service (`plone-syslog`) and its numbers to an
+  OpenTelemetry service (`plone-otel`) from the moment setup finishes: Log
+  server, Log token and Log each web request; OpenTelemetry endpoint, user
+  and token. In the Linode form, the Launch Stack form, Terraform
+  (`log_server`, `log_token`, `log_requests`, `metrics_endpoint`,
+  `metrics_user`, `metrics_token`) and the launcher. The tokens are never
+  logged, and the credentials file says whether each one worked.
+- `plone-syslog` and `plone-otel` share one helper that writes
+  `docker-compose.override.yml`, so turning one on or off keeps the other.
+- The Plone Aurora Try It page gives the demo login Contributor as well as
+  Editor, so the people you let try it can add pages and upload images, such
+  as in an image block, as the page suggests. Editor alone can only change
+  existing pages. On a server already running, give `demo` Contributor in
+  Site Setup → Users.
+
 2.25 (2026-11-26)
 -----------------
 

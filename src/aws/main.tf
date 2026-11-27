@@ -207,6 +207,44 @@ variable "spamhaus_key" {
   sensitive   = true
 }
 
+variable "log_server" {
+  description = "Optional: a syslog server or service that gets the server's logs too, as HOST:PORT over TLS (see Sending the logs elsewhere in the setup guide)."
+  type        = string
+  default     = ""
+}
+
+variable "log_token" {
+  description = "The token element your log service wants in each message, in brackets, as the service gives it. Empty if it needs none."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "log_requests" {
+  description = "Send one line per web request too, which is most of the volume."
+  type        = bool
+  default     = false
+}
+
+variable "metrics_endpoint" {
+  description = "Optional: an OpenTelemetry service's OTLP endpoint that gets the server's and the site's numbers, such as https://otlp-gateway-prod-us-east-2.grafana.net/otlp (see Graphs of your server and site in the setup guide)."
+  type        = string
+  default     = ""
+}
+
+variable "metrics_user" {
+  description = "Your instance ID or user (Grafana Cloud), or header:NAME for a service that takes the token in a header (header:api-key for New Relic)."
+  type        = string
+  default     = ""
+}
+
+variable "metrics_token" {
+  description = "The OpenTelemetry service's token."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "auto_update" {
   description = "Install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back."
   type        = bool
@@ -216,11 +254,11 @@ variable "auto_update" {
 variable "release" {
   description = "The Plone in a Box release whose setup script the server downloads from GitHub at first boot. To try unreleased changes, set a branch or commit that's pushed to GitHub."
   type        = string
-  default     = "2.25"
+  default     = "2.26"
 
   validation {
     condition     = can(regex("^[A-Za-z0-9._/-]+$", var.release))
-    error_message = "release: a release, branch or commit, such as 2.25."
+    error_message = "release: a release, branch or commit, such as 2.26."
   }
 }
 
@@ -359,6 +397,12 @@ resource "aws_instance" "app_server" {
     "export EMAIL_FROM=\"$(echo ${base64encode(var.email_from)} | base64 -d)\"",
     "export REPORT_EMAIL=\"$(echo ${base64encode(var.report_email)} | base64 -d)\"",
     "export SPAMHAUS_KEY=\"$(echo ${base64encode(var.spamhaus_key)} | base64 -d)\"",
+    "export LOG_SERVER=\"$(echo ${base64encode(var.log_server)} | base64 -d)\"",
+    "export LOG_TOKEN=\"$(echo ${base64encode(var.log_token)} | base64 -d)\"",
+    "export LOG_REQUESTS=${var.log_requests ? "yes" : "no"}",
+    "export METRICS_ENDPOINT=\"$(echo ${base64encode(var.metrics_endpoint)} | base64 -d)\"",
+    "export METRICS_USER=\"$(echo ${base64encode(var.metrics_user)} | base64 -d)\"",
+    "export METRICS_TOKEN=\"$(echo ${base64encode(var.metrics_token)} | base64 -d)\"",
     "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
     "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
     "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",

@@ -196,6 +196,11 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # email_from        = "plone@example.org"
 # report_email      = "you@example.org"
 # spamhaus_key      = "..."  # optional: see Blocklists
+# log_server        = "s1234567.us-east-9.betterstackdata.com:6514"  # optional: see Sending the logs elsewhere
+# log_token         = "[logtail@11993 source_token=\"...\"]"
+# metrics_endpoint  = "https://otlp-gateway-prod-us-east-2.grafana.net/otlp"  # optional: see Graphs
+# metrics_user      = "1234567"
+# metrics_token     = "..."
 ```
 
 Other variables (region, instance type, SSH source addresses, versions, disk size) are described at the top of
@@ -230,7 +235,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -313,7 +318,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -593,6 +598,11 @@ as SSH logins and security updates.
 sudo plone-syslog on logs.example.org:6514
 ```
 
+**From the start:** fill in the **Logs** fields when you create the server (**Log server**, **Log token** and
+**Log each web request** in the Launch Stack form; `log_server`, `log_token` and `log_requests` in Terraform;
+`LOG_SERVER`, `LOG_TOKEN` and `LOG_REQUESTS` in the launcher), and setup turns it on, without the line per request
+unless you ask for it. The credentials file says whether it worked.
+
 It uses TLS, checked against the server's name, unless you add `--tcp` or `--udp` (unencrypted: only within a
 private network). For a log server with a certificate of its own making, add `--ca <file>` with its certificate
 authority. Some services want a token in every message, as a structured-data element: give it with `--sd -`,
@@ -623,7 +633,7 @@ with a test one (prices as of November 2026; check the service's own page):
 **Another service** works if it accepts **syslog over TLS on TCP** (RFC 5424, usually port 6514) and tells
 accounts apart by the port it gives you, or by a token in each message, which `--sd` adds. Services that only take
 data from their own agent on the server (Grafana Cloud, Datadog, New Relic and others) don't work with
-`plone-syslog`.
+`plone-syslog`; for Grafana Cloud and New Relic, see [Graphs of your server and site](#graphs).
 
 For example:
 
@@ -638,6 +648,62 @@ reached, up to 100 MB of logs wait on the server and go out once it's back. `sud
 message, `status` shows where they go, and `off` keeps the logs on the server only again. A server set up before
 2.25 gets the command with the [same command](#servers-set-up-before-212) as automatic updates.
 
+<a id="graphs"></a>**Graphs of your server and site**: see how your site is doing over time, and spot trouble before
+it becomes a problem: memory creeping up, the disk filling, slow pages. `plone-otel` sends your server's and your
+site's numbers to an OpenTelemetry service once a minute:
+
+* your server: CPU, memory, disk space and activity, network
+* Plone, Volto, PostgreSQL and nginx: each one's memory and CPU
+* Plone itself, from [plone.observability](https://github.com/plone/plone.observability): request times, errors,
+  memory, the database's size and cache, how much content there is
+* PostgreSQL: database size, connections, activity; nginx: connections and requests
+
+```
+sudo plone-otel on https://otlp-gateway-prod-us-east-2.grafana.net/otlp --user 1234567
+```
+
+**From the start:** fill in the **Graphs** fields when you create the server (**OpenTelemetry endpoint**, **user**
+and **token** in the Launch Stack form; `metrics_endpoint`, `metrics_user` and `metrics_token` in Terraform;
+`METRICS_ENDPOINT`, `METRICS_USER` and `METRICS_TOKEN` in the launcher). For a service that takes the token in a
+header, give the user as `header:` and the header's name, such as `header:api-key`. The credentials file says
+whether it worked.
+
+It asks for your token without showing it, checks that the service accepts it, and keeps it where only root can
+read it. Your site restarts once, so it's away for a minute or two. `sudo plone-otel status` shows how many numbers
+went out and whether any failed, and `off` stops sending.
+
+**Where to send them** (prices as of November 2026; check the service's own page):
+
+| | Free | Kept | `plone-otel on …` |
+|---|---|---|---|
+| [Grafana Cloud](https://grafana.com/products/cloud/) (tried) | 10,000 series | 14 days | `<OTLP endpoint> --user <instance ID>` |
+| [New Relic](https://newrelic.com/pricing) (not tried yet) | 100 GB a month | see their page | `https://otlp.nr-data.net --header api-key` (your license key; in Europe `otlp.eu01.nr-data.net`) |
+| Your own OpenTelemetry Collector | — | as long as you like | `<its OTLP/HTTP address>` |
+
+* **Grafana Cloud** is the easiest start: a site sends about 1,500 series, well within the free plan. Find the
+  endpoint and the instance ID under **Connections → Add new connection → OpenTelemetry (OTLP) → View connection
+  details**, and create a token there with the **metrics:write** scope. Then look at your numbers under
+  **Drilldown → Metrics**: type `plone` to see Plone's own.
+* **A ready-made dashboard**: [docs/grafana/plone-in-a-box.json](grafana/plone-in-a-box.json) puts your site on one
+  page: at a glance (up, response time, errors, requests, memory, disk), your site (response times, requests and
+  errors, memory, database objects per request), Plone's health (the warning signs plone.observability
+  suggests watching: conflicts visitors felt, memory that keeps growing, garbage collection, connections not freed),
+  the database, the server, and Plone, Volto, PostgreSQL and nginx side by side. In Grafana, **Dashboards → New → Import**, upload or paste the file, and choose your
+  Prometheus data source (in Grafana Cloud, the one ending in `-prom`). With several sites, pick one in **Site** at
+  the top.
+* **Another service** works if it takes OpenTelemetry metrics over **OTLP/HTTP**, with a user and token, or a token
+  in a header (`--header <name>`).
+
+How it works: an OpenTelemetry Collector container gathers the numbers. It uses about 50 MB of memory, reads the
+server's disks and processes read-only, and only sends; nothing new is reachable from the internet. Plone's numbers
+come from plone.observability, which `plone-otel` adds to the site's add-ons; its page of numbers, `/@@metrics` on
+Zope's root, is only reachable from the server itself. For Plone's response times, `plone-otel` also adds
+plone.observability's two filters to the official backend image's `zope.ini` each time the backend starts, and
+Docker's health check then asks plone.observability's health server (whose answers aren't counted as requests)
+instead of `/ok`. A backend image of your own starts as it is, without response times. PostgreSQL's numbers come from a login of their own, which
+can read statistics but not your content. A server set up before 2.26 gets the command with the
+[same command](#servers-set-up-before-212) as automatic updates.
+
 **Outgoing connections**: setup doesn't limit what the server connects to. If you add a firewall in front of it that
 does (a Linode Cloud Firewall with outbound policy **Drop**, say), allow these, or parts of the box stop working
 without saying why:
@@ -649,6 +715,7 @@ without saying why:
 | UDP 123 | the clock (NTP); without it the clock drifts, and HTTPS and logins can start failing |
 | TCP 587 or 2525 | email, if the site sends it (see [Sending email](#sending-email)) |
 | The log server's port | logs, if you send them elsewhere (see **Sending the logs elsewhere** above) |
+| TCP 443 to your metrics service | graphs, if you send them (see [Graphs of your server and site](#graphs) above) |
 
 ## Updates
 
@@ -761,7 +828,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -769,7 +836,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,

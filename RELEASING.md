@@ -95,6 +95,12 @@ One-time setup for `scripts/test-deploy.sh`:
     2 GB test server; the first user created is the admin
   * ntfy: `https://ntfy.sh/<a long random topic>`
 
+* **Logs and graphs**, for `--logs` and `--metrics` (the launch fields of 2.26): a log service's source and an
+  OpenTelemetry service's account (Better Stack's and Grafana Cloud's free plans are enough). Set
+  `PIAB_TEST_LOG_SERVER` (HOST:PORT), `PIAB_TEST_METRICS_ENDPOINT` and `PIAB_TEST_METRICS_USER`, and store the log
+  service's token element (`[logtail@11993 source_token="..."]` for Better Stack) as `piab-log-token` and the
+  OpenTelemetry token as `piab-metrics-token`.
+
 Tokens stay in the macOS Keychain; never paste them into chats or commit them. Remove one with
 `security delete-generic-password -s piab-linode-token` (or `piab-do-token`, `piab-hetzner-token`, the two AWS
 entries or a `piab-webhook-<service>`). Deactivate

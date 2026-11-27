@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 easily installed without a command line.
 
-<small>Release 2.25 · November 2026</small>
+<small>Release 2.26 · November 2026</small>
 
 ---
 
@@ -153,11 +153,13 @@ Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetz
 
 <!-- _class: dense -->
 
-## Keeping an eye on it
+## Comprehensive monitoring
 
 - **Stay in the loop:** receive notifications of errors (failed backup, update or restore test, disk getting full) via email and/or other channels.
 - **External checks:** get notified when the site is down and, on DigitalOcean, alerts for disk, memory and CPU spikes.
 - **View server logs centrally:** `plone-syslog` sends the server's logs to Better Stack's free plan, Papertrail or your own log server.
+- **See how your site is doing over time:** `plone-otel` sends graphs of your server and site (memory, disk, response times, errors) to Grafana Cloud's free plan or another OpenTelemetry service, with a ready-made dashboard. Thanks to Jean Jordaan for the idea!
+- **From the start:** turn on logs & graphs in the launch form.
 - **Secured by Cloudflare:** optional `plone-cloudflare` lets only Cloudflare reach the site and helps block bots and DDOS attacks.
 
 ---
@@ -230,8 +232,8 @@ Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's future f
 
 ## What's next
 
-- **Logs and metrics** so a new server sends them from the moment it launches.
-- **OpenTelemetry metrics:** graphs of memory, disk and slow pages over time, sent to a service such as Grafana Cloud.
+- **A control panel for Plone in a Box™:** turn features on and off and change their settings, without SSH.
+- **MCP:** ask an AI assistant "is my site healthy?" or "when was the last backup?", and have it answer from your server.
 - **Plone distributions to try:** kitconcept's intranet and website, and PortalBrasil.
 - **More add-ons** in the catalog, each with its own Try It page.
 
