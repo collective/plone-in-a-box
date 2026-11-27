@@ -1084,8 +1084,12 @@ fi
 
 check "nightly backups are on (plone-backup.timer)" rssh \
   'systemctl is-enabled --quiet plone-backup.timer && systemctl is-active --quiet plone-backup.timer'
+# Every container: Docker's own files, at most 30 MB each, or journald (which
+# has its own limit) when the logs go to a log server too.
+journald_ok=""
+[[ -z "$LOG_SERVER" ]] || journald_ok="|journald "
 check "container logs are limited in size" rssh \
-  "docker inspect -f '{{.HostConfig.LogConfig.Config}}' \$(docker compose --project-directory /opt/plone ps -q) | grep -c max-size:10m | grep -qx 3"
+  "out=\$(docker inspect -f '{{.HostConfig.LogConfig.Type}} {{.HostConfig.LogConfig.Config}}' \$(docker compose --project-directory /opt/plone ps -q)); [ \$(wc -l <<<\"\$out\") -ge 3 ] && ! grep -vE '^(json-file .*max-size:10m$journald_ok)' <<<\"\$out\""
 check "plone-backup backs up and packs the database" rssh \
   'rm -f /var/lib/plone-in-a-box/last-pack && plone-backup pack && test -s /var/lib/plone-in-a-box/last-pack && find /var/backups/plone -name "plone-*.sql.gz" -mmin -10 | grep -q . && grep -q "^\[.*\] Packed$" /var/log/plone-backup.log'
 rssh 'tail -n 4 /var/log/plone-backup.log' 2>/dev/null | sed 's/^/      /'
