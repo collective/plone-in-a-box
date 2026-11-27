@@ -49,6 +49,8 @@
 #                          token isn't in the setup log or credentials file
 #   --spamhaus             give the Spamhaus DQS key in the Keychain as
 #                          piab-spamhaus-key, then check Spamhaus answers
+#                          through it, and the key isn't in the setup log or
+#                          credentials file
 #   --logs                 fill in the log fields: PIAB_TEST_LOG_SERVER, and
 #                          the token element in the Keychain as piab-log-token;
 #                          then check plone-syslog is on
@@ -56,8 +58,6 @@
 #                          PIAB_TEST_METRICS_USER, and the token in the
 #                          Keychain as piab-metrics-token; then check numbers
 #                          went out
-#                          through it, and the key isn't in the setup log or
-#                          credentials file
 #   --expect-backend-fallback
 #                          with --backend-image: expect setup to use the
 #                          official Plone backend instead (an image that can't
