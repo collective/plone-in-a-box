@@ -40,9 +40,9 @@
 - Then, opt-in: traces for Volto (Node auto-instrumentation through
   `NODE_OPTIONS`), and for the backend if wrapping its WSGI app stays stable
   across image updates.
-- Launch fields for the syslog server (`plone-syslog`, 2.25) and the OTLP
-  endpoint together, in one optional "Logs and metrics" section, so the
-  launchers and the Try It StackScripts change once.
+- [x] Launch fields for logs and graphs (2.26). The Try It StackScripts made
+  with `scripts/linode-addon-stackscript.sh` don't have them until they're
+  printed and pasted again (optional fields, so they keep working).
 
 ## Retire the duplicate Linode StackScript
 

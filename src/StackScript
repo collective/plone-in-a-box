@@ -36,6 +36,12 @@
 # <UDF name="EMAIL_FROM" label="Email: the site's From address, at a domain the email service has verified, for example plone@example.org" default="" />
 # <UDF name="REPORT_EMAIL" label="Email: your address for a test email and the update reports. Empty: the From address" default="" />
 # <UDF name="SPAMHAUS_KEY" label="Spamhaus DQS key, optional: a free key from spamhaus.com, so the blocklist checks can ask Spamhaus from any cloud provider" default="" />
+# <UDF name="LOG_SERVER" label="Logs, optional: a syslog server or service that gets the server's logs too, as HOST:PORT over TLS, for example s1234567.us-east-9.betterstackdata.com:6514 (see Sending the logs elsewhere in the setup guide)" default="" />
+# <UDF name="LOG_TOKEN" label="Logs: the token element your log service wants in each message, in brackets, as the service gives it. Empty if it needs none" default="" />
+# <UDF name="LOG_REQUESTS" label="Logs: one line per web request too (most of the volume)" oneOf="yes,no" default="no" />
+# <UDF name="METRICS_ENDPOINT" label="Graphs, optional: an OpenTelemetry service's OTLP endpoint that gets the server's and the site's numbers, for example https://otlp-gateway-prod-us-east-2.grafana.net/otlp (see Graphs of your server and site in the setup guide)" default="" />
+# <UDF name="METRICS_USER" label="Graphs: your instance ID or user (Grafana Cloud), or header:NAME for a service that takes the token in a header (header:api-key for New Relic)" default="" />
+# <UDF name="METRICS_TOKEN" label="Graphs: the service's token" default="" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -123,6 +129,18 @@ REPORT_EMAIL="$(printf '%s' "${REPORT_EMAIL:-}" | tr -d ' \t\r\n')"
 # providers' DNS resolvers. It's kept where only root can read it.
 SPAMHAUS_KEY="$(printf '%s' "${SPAMHAUS_KEY:-}" | tr -d ' \t\r\n')"
 SPAMHAUS_KEY="${SPAMHAUS_KEY,,}"
+# Logs to a syslog server or service (plone-syslog), and numbers to an
+# OpenTelemetry service (plone-otel), from the start. The tokens are never
+# logged; the tools keep them where only root can read them.
+LOG_SERVER="$(printf '%s' "${LOG_SERVER:-}" | tr -d ' \t\r\n')"
+LOG_TOKEN="$(printf '%s' "${LOG_TOKEN:-}" | tr -d '\r\n')"
+case "${LOG_REQUESTS:-no}" in
+  [Yy]|[Yy][Ee][Ss]|[Tt]rue|1|[Oo]n) LOG_REQUESTS=yes ;;
+  *) LOG_REQUESTS=no ;;
+esac
+METRICS_ENDPOINT="$(printf '%s' "${METRICS_ENDPOINT:-}" | tr -d ' \t\r\n')"
+METRICS_USER="$(printf '%s' "${METRICS_USER:-}" | tr -d ' \t\r\n')"
+METRICS_TOKEN="$(printf '%s' "${METRICS_TOKEN:-}" | tr -d ' \t\r\n')"
 # Automatic updates (plone-update.timer): on unless set to no.
 case "${AUTO_UPDATE:-yes}" in
   [Nn]|[Nn][Oo]|[Ff]alse|0|[Oo]ff) AUTO_UPDATE=no ;;
@@ -319,7 +337,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LETSENCRYPT_STAGING STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN LETSENCRYPT_STAGING STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -3646,6 +3664,37 @@ if [[ -n "$NOTIFY_URL" ]]; then
   fi
 fi
 
+# --- Logs and graphs -------------------------------------------------------------
+# Each restarts the site's containers once, which is fine before it's announced.
+LOGS_LINE="" GRAPHS_LINE=""
+if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$LOG_SERVER" ]]; then
+  log_args=(on "$LOG_SERVER")
+  [[ -n "$LOG_TOKEN" ]] && log_args+=(--sd -)
+  [[ "$LOG_REQUESTS" == no ]] && log_args+=(--no-access-log)
+  if out=$(printf '%s\n' "$LOG_TOKEN" | /usr/local/bin/plone-syslog "${log_args[@]}" 2>&1); then
+    log "The server's logs go to ${LOG_SERVER} too"
+    LOGS_LINE="Logs:      also sent to ${LOG_SERVER} (sudo plone-syslog status)"
+  else
+    log "Sending the logs to ${LOG_SERVER} didn't work: $(tail -n 1 <<<"$out")"
+    LOGS_LINE="Logs:      not sent to ${LOG_SERVER}: $(tail -n 1 <<<"$out"). Try again with sudo plone-syslog on (see the setup guide)."
+  fi
+fi
+if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$METRICS_ENDPOINT" ]]; then
+  metrics_args=(on "$METRICS_ENDPOINT")
+  case "$METRICS_USER" in
+    "") ;;
+    header:*) metrics_args+=(--header "${METRICS_USER#header:}") ;;
+    *) metrics_args+=(--user "$METRICS_USER") ;;
+  esac
+  if out=$(printf '%s\n' "$METRICS_TOKEN" | /usr/local/bin/plone-otel "${metrics_args[@]}" 2>&1); then
+    log "The server's and the site's numbers go to ${METRICS_ENDPOINT}"
+    GRAPHS_LINE="Graphs:    numbers sent to ${METRICS_ENDPOINT} once a minute (sudo plone-otel status)"
+  else
+    log "Sending the numbers to ${METRICS_ENDPOINT} didn't work: $(tail -n 1 <<<"$out")"
+    GRAPHS_LINE="Graphs:    not sent to ${METRICS_ENDPOINT}: $(tail -n 1 <<<"$out"). Try again with sudo plone-otel on (see the setup guide)."
+  fi
+fi
+
 # --- Done ----------------------------------------------------------------------
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
@@ -3674,6 +3723,8 @@ Security:  Plone security announcements are passed on every day, in the login me
 ${SSH_LINE}
 ${NOTIFY_LINE}
 ${MAIL_LINE}
+${LOGS_LINE}
+${GRAPHS_LINE}
 ${BLOCKLIST_LINES}Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF

@@ -20,6 +20,14 @@
   guide.) Thanks to Jean Jordaan (@jean), a longtime Plonista with a gift
   for finding great software tools and methods, for the idea of adding
   OpenTelemetry to Plone in a Box.
+- **Logs and graphs from the start**: new optional launch fields send the
+  server's logs to a syslog service (`plone-syslog`) and its numbers to an
+  OpenTelemetry service (`plone-otel`) from the moment setup finishes: Log
+  server, Log token and Log each web request; OpenTelemetry endpoint, user
+  and token. In the Linode form, the Launch Stack form, Terraform
+  (`log_server`, `log_token`, `log_requests`, `metrics_endpoint`,
+  `metrics_user`, `metrics_token`) and the launcher. The tokens are never
+  logged, and the credentials file says whether each one worked.
 - `plone-syslog` and `plone-otel` share one helper that writes
   `docker-compose.override.yml`, so turning one on or off keeps the other.
 
