@@ -435,7 +435,7 @@ LINODE_FIELD_ORDER = ["Demo login roles", "Backend add-ons", "Frontend image", "
 def try_page(entry, version):
     e = {k: html.escape(v) for k, v in entry.items()}
     name = e["name"]
-    role_text = ", ".join(roles(entry)) or "Editor"
+    role_text = ", ".join(roles(entry)) or "Contributor"
     linode_ss = entry["linode_stackscript"] or LINODE_STACKSCRIPT
     linode_url = f"https://cloud.linode.com/stackscripts/{linode_ss}"
 

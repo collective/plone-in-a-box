@@ -23,7 +23,7 @@
 # <UDF name="REGISTRY_TOKEN" label="Registry token: a read-only access token for that registry, such as a GitHub token with only read:packages" default="" />
 # <UDF name="DEMO_USER" label="Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password" default="" />
 # <UDF name="DEMO_PASSWORD" label="Demo login password, optional, at least 12 characters. Leave empty to have one generated and saved next to the admin password" default="" />
-# <UDF name="DEMO_ROLES" label="Roles of the demo login, optional, separated by commas, for example Editor or Site Administrator. Empty: what the frontend image suggests, or Editor" default="" />
+# <UDF name="DEMO_ROLES" label="Roles of the demo login, optional, separated by commas, for example Editor or Site Administrator. Empty: what the frontend image suggests, or Contributor" default="" />
 # <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back" oneOf="yes,no" default="yes" />
 # <UDF name="NOTIFY_URL" label="Notification URL, optional: update reports go here, for example https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook" default="" />
 # <UDF name="SMTP_HOST" label="Email: SMTP server of an email relay service, optional, for example mail.smtp2go.com. Empty: the site doesn't send email" default="" />

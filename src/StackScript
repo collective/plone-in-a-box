@@ -27,7 +27,7 @@
 # <UDF name="HEADER_DEMO" label="Demo login (optional): a second login for people you let try the site" header="Yes" default="" />
 # <UDF name="DEMO_USER" label="Demo username (optional)" default="" example="For example demo. Leave empty for no demo login." />
 # <UDF name="DEMO_PASSWORD" label="Demo password, at least 12 characters (optional). Leave empty and one is generated, and saved next to the admin password" default="" />
-# <UDF name="DEMO_ROLES" label="Demo login roles (optional, default: Editor)" default="" example="What the demo login may do, separated by commas: Editor, Contributor, Reviewer or Site Administrator. Leave empty for Editor, or for the roles a ready-made theme suggests." />
+# <UDF name="DEMO_ROLES" label="Demo login roles (optional, default: Contributor)" default="" example="What the demo login may do, separated by commas: Contributor (add pages and images), Editor (edit anyone's pages), Reviewer (publish) or Site Administrator (almost everything). Leave empty for Contributor, or for the roles a ready-made theme suggests." />
 # <UDF name="HEADER_EMAIL" label="Email (optional): lets the site send password resets, form results and update reports" header="Yes" default="" />
 # <UDF name="SMTP_HOST" label="Email service SMTP server (optional)" default="" example="From an email relay service, for example mail.smtp2go.com. Leave empty and the site doesn't send email; you can set it up later in Site Setup, Mail." />
 # <UDF name="SMTP_PORT" label="SMTP port (optional, default: 587)" default="587" />
@@ -109,7 +109,7 @@ REGISTRY_USER="$(printf '%s' "${REGISTRY_USER:-}" | tr -d ' \t\r\n')"
 REGISTRY_TOKEN="$(printf '%s' "${REGISTRY_TOKEN:-}" | tr -d ' \t\r\n')"
 # Demo login: an extra Plone user, created once at setup, for letting other
 # people try the site (DEMO_USER, with the roles DEMO_ROLES, separated by
-# commas). Empty: the roles the frontend image's label suggests, or Editor.
+# commas). Empty: the roles the frontend image's label suggests, or Contributor.
 # DEMO_ROLE is the one-role setting of 2.13; its old default, Site
 # Administrator, counts as no choice.
 DEMO_USER="$(printf '%s' "${DEMO_USER:-}" | tr -d ' \t\r\n')"
@@ -2919,7 +2919,7 @@ fi
 
 # The demo login, once: a username of lowercase letters, digits, dots,
 # hyphens and underscores, not admin. Its roles: DEMO_ROLES, or the frontend
-# image's suggestion, or Editor.
+# image's suggestion, or Contributor.
 DEMO_LINE=""
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
   if [[ ! "$DEMO_USER" =~ ^[a-z][a-z0-9._-]{1,31}$ || "$DEMO_USER" == admin ]]; then
@@ -2928,7 +2928,7 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
   else
     roles="${DEMO_ROLES}"
     [[ -n "${roles// /}" ]] || roles="${IMAGE_DEMO_ROLES}"
-    [[ -n "${roles// /}" ]] || roles="Editor"
+    [[ -n "${roles// /}" ]] || roles="Contributor"
     # With email set up, a Site Administrator could point Site Setup > Mail
     # at another server and have Plone send it the email service's password,
     # so the demo login is an Editor instead.

@@ -26,7 +26,7 @@
 #                   setup installs these as Backend add-ons (backend-only)
 #   site_behaviors  behaviors to enable on the Plone Site type, if any
 #   demo_roles      the demo login's roles, separated by commas: the narrowest
-#                   that show the add-on off. Empty: Editor
+#                   that show the add-on off. Empty: Contributor
 #
 #   Ready-made images, published by someone else (a Plone distribution, or a
 #   project with its own build), instead of packages: nothing is built here.

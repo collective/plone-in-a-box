@@ -21,7 +21,7 @@
 #                          frontend part); at least one of these two is needed
 #   --demo-user NAME       the demo login to fill in (default: demo)
 #   --demo-roles ROLES     its roles, separated by commas (default: empty, so
-#                          the frontend image's suggestion, or Editor)
+#                          the frontend image's suggestion, or Contributor)
 #   --ref REF              download src/StackScript from this branch, tag or
 #                          commit instead of the latest release: for testing
 #                          only, e.g. with scripts/test-deploy.sh --linode-script

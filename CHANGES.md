@@ -10,10 +10,11 @@
   heading each is under. The add-on StackScripts get the same form when
   they're next updated (`scripts/update-public-stackscripts.sh`).
 
-- **The demo login is an Editor by default**, instead of a Site
+- **The demo login is a Contributor by default**, instead of a Site
   Administrator, when neither its roles nor the frontend image's suggestion
-  say otherwise: the narrowest role that still lets people try the site.
-  Set Site Administrator in the demo login's roles to get it as before.
+  say otherwise: it can add pages and images, and edit what it adds. Add
+  Editor to edit other pages, Reviewer to publish, or set Site
+  Administrator to get it as before.
 
 - **Try It pages** open links to other sites (Cloud Manager, the AWS
   console, GitHub, Discord) in a new tab, so you keep your place in the
