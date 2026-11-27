@@ -153,7 +153,7 @@ Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetz
 
 <!-- _class: dense -->
 
-## Keeping an eye on it
+## Comprehensive monitoring
 
 - **Stay in the loop:** receive notifications of errors (failed backup, update or restore test, disk getting full) via email and/or other channels.
 - **External checks:** get notified when the site is down and, on DigitalOcean, alerts for disk, memory and CPU spikes.
