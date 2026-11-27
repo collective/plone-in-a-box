@@ -623,7 +623,7 @@ with a test one (prices as of November 2026; check the service's own page):
 **Another service** works if it accepts **syslog over TLS on TCP** (RFC 5424, usually port 6514) and tells
 accounts apart by the port it gives you, or by a token in each message, which `--sd` adds. Services that only take
 data from their own agent on the server (Grafana Cloud, Datadog, New Relic and others) don't work with
-`plone-syslog`.
+`plone-syslog`; for Grafana Cloud and New Relic, see [Graphs of your server and site](#graphs).
 
 For example:
 
@@ -638,6 +638,56 @@ reached, up to 100 MB of logs wait on the server and go out once it's back. `sud
 message, `status` shows where they go, and `off` keeps the logs on the server only again. A server set up before
 2.25 gets the command with the [same command](#servers-set-up-before-212) as automatic updates.
 
+<a id="graphs"></a>**Graphs of your server and site**: see how your site is doing over time, and spot trouble before
+it becomes a problem: memory creeping up, the disk filling, slow pages. `plone-otel` sends your server's and your
+site's numbers to an OpenTelemetry service once a minute:
+
+* your server: CPU, memory, disk space and activity, network
+* Plone, Volto, PostgreSQL and nginx: each one's memory and CPU
+* Plone itself, from [plone.observability](https://github.com/plone/plone.observability): request times, errors,
+  memory, the database's size and cache, how much content there is
+* PostgreSQL: database size, connections, activity; nginx: connections and requests
+
+```
+sudo plone-otel on https://otlp-gateway-prod-us-east-2.grafana.net/otlp --user 1234567
+```
+
+It asks for your token without showing it, checks that the service accepts it, and keeps it where only root can
+read it. Your site restarts once, so it's away for a minute or two. `sudo plone-otel status` shows how many numbers
+went out and whether any failed, and `off` stops sending.
+
+**Where to send them** (prices as of November 2026; check the service's own page):
+
+| | Free | Kept | `plone-otel on …` |
+|---|---|---|---|
+| [Grafana Cloud](https://grafana.com/products/cloud/) (tried) | 10,000 series | 14 days | `<OTLP endpoint> --user <instance ID>` |
+| [New Relic](https://newrelic.com/pricing) (not tried yet) | 100 GB a month | see their page | `https://otlp.nr-data.net --header api-key` (your license key; in Europe `otlp.eu01.nr-data.net`) |
+| Your own OpenTelemetry Collector | — | as long as you like | `<its OTLP/HTTP address>` |
+
+* **Grafana Cloud** is the easiest start: a site sends about 1,500 series, well within the free plan. Find the
+  endpoint and the instance ID under **Connections → Add new connection → OpenTelemetry (OTLP) → View connection
+  details**, and create a token there with the **metrics:write** scope. Then look at your numbers under
+  **Drilldown → Metrics**: type `plone` to see Plone's own.
+* **A ready-made dashboard**: [docs/grafana/plone-in-a-box.json](grafana/plone-in-a-box.json) puts your site on one
+  page: at a glance (up, response time, errors, requests, memory, disk), your site (response times, requests and
+  errors, memory, database objects per request), Plone's health (the warning signs plone.observability
+  suggests watching: conflicts visitors felt, memory that keeps growing, garbage collection, connections not freed),
+  the database, the server, and Plone, Volto, PostgreSQL and nginx side by side. In Grafana, **Dashboards → New → Import**, upload or paste the file, and choose your
+  Prometheus data source (in Grafana Cloud, the one ending in `-prom`). With several sites, pick one in **Site** at
+  the top.
+* **Another service** works if it takes OpenTelemetry metrics over **OTLP/HTTP**, with a user and token, or a token
+  in a header (`--header <name>`).
+
+How it works: an OpenTelemetry Collector container gathers the numbers. It uses about 50 MB of memory, reads the
+server's disks and processes read-only, and only sends; nothing new is reachable from the internet. Plone's numbers
+come from plone.observability, which `plone-otel` adds to the site's add-ons; its page of numbers, `/@@metrics` on
+Zope's root, is only reachable from the server itself. For Plone's response times, `plone-otel` also adds
+plone.observability's two filters to the official backend image's `zope.ini` each time the backend starts, and
+Docker's health check then asks plone.observability's health server (whose answers aren't counted as requests)
+instead of `/ok`. A backend image of your own starts as it is, without response times. PostgreSQL's numbers come from a login of their own, which
+can read statistics but not your content. A server set up before 2.26 gets the command with the
+[same command](#servers-set-up-before-212) as automatic updates.
+
 **Outgoing connections**: setup doesn't limit what the server connects to. If you add a firewall in front of it that
 does (a Linode Cloud Firewall with outbound policy **Drop**, say), allow these, or parts of the box stop working
 without saying why:
@@ -649,6 +699,7 @@ without saying why:
 | UDP 123 | the clock (NTP); without it the clock drifts, and HTTPS and logins can start failing |
 | TCP 587 or 2525 | email, if the site sends it (see [Sending email](#sending-email)) |
 | The log server's port | logs, if you send them elsewhere (see **Sending the logs elsewhere** above) |
+| TCP 443 to your metrics service | graphs, if you send them (see [Graphs of your server and site](#graphs) above) |
 
 ## Updates
 

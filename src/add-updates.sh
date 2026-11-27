@@ -75,6 +75,12 @@ main() {
   if /usr/local/bin/plone-server-mail >/dev/null 2>&1; then
     say "Mail the server sends to root (such as failed security updates) now goes to the address for reports, through the site's mail settings"
   fi
+  # Logs or metrics sent elsewhere: their containers with this release's
+  # settings (the containers restart only if those changed).
+  if [[ -s "$STATE_DIR/syslog" || -s "$STATE_DIR/otel" ]]; then
+    /usr/local/lib/plone-in-a-box/compose-override || true
+  fi
+  say "To graph the server's and the site's numbers in a service such as Grafana Cloud: sudo plone-otel on ENDPOINT (see the setup guide)"
 
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then
