@@ -1,3 +1,21 @@
+2.26 (unreleased)
+-----------------
+
+- **Graphs of your server and site**: `sudo plone-otel on ENDPOINT` sends the
+  server's numbers (CPU, memory, disks, network), each of Plone's, Volto's,
+  PostgreSQL's and nginx's memory and CPU, PostgreSQL's and nginx's own, and
+  Plone's (request times, errors, database size and cache, content counts,
+  from plone.observability) to an OpenTelemetry service once a minute, such
+  as Grafana Cloud's free plan. An OpenTelemetry Collector container gathers
+  them (about 50 MB of memory); it reads the server's disks and processes
+  read-only, only sends, and checks the token before anything changes.
+  PostgreSQL's numbers come from a login that can read statistics, not
+  content. `status` shows what was sent and what failed; `off` removes it
+  all. Older servers get it from `src/add-updates.sh`. ("Graphs of your
+  server and site" in the setup guide.)
+- `plone-syslog` and `plone-otel` share one helper that writes
+  `docker-compose.override.yml`, so turning one on or off keeps the other.
+
 2.25 (2026-11-26)
 -----------------
 

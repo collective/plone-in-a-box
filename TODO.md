@@ -17,11 +17,20 @@
 
 ## OpenTelemetry, and launch fields for logs (next release after 2.25)
 
-- An optional OTLP endpoint and key: when set, an OpenTelemetry Collector
-  container sends the server's metrics (CPU, memory, disk, network), each
-  container's, PostgreSQL's and nginx's, and optionally the containers' logs.
-  Nothing changes in Plone or Volto. Guide: Grafana Cloud's free tier, with a
-  dashboard.
+- [x] `plone-otel` (2.26): the server's, each process's, PostgreSQL's,
+  nginx's and Plone's own numbers (plone.observability's `@@metrics`) to an
+  OTLP/HTTP service, tried with Grafana Cloud.
+- A ready-made Grafana dashboard for a Plone in a Box site, linked from the
+  guide.
+- Request timings and traces from plone.observability need its WSGI filters
+  in `zope.ini`, which the official backend image doesn't let us add without
+  replacing the file; ask upstream for a setting, or keep our own copy.
+- The Collector's image tag (`OTELCOL_IMAGE` in the compose-override helper)
+  isn't seen by Dependabot: bump it at each release. A Collector built with
+  only the parts we use would also be smaller than contrib (its binary is
+  about 150 MB of the 200 MB it maps).
+- plone.observability publishes its histograms as separate counters, so
+  Grafana shows `_bucket_total` names; suggest standard histograms upstream.
 - Then, opt-in: traces for Volto (Node auto-instrumentation through
   `NODE_OPTIONS`), and for the backend if wrapping its WSGI app stays stable
   across image updates.
