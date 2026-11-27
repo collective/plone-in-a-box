@@ -15,8 +15,8 @@
   `Content-Security-Policy` with only the parts that can't break a Plone site
   (`frame-ancestors 'self'; base-uri 'self'; object-src 'none'`; Volto's
   pages have inline scripts, so a full one can't), a `Permissions-Policy`
-  turning off camera, microphone, payment and USB, and no `X-Powered-By`
-  from Volto's server. "Adding a domain later" in the setup guide now adds
+  turning off camera, microphone, payment and USB, no `X-Powered-By`
+  naming Zope and Python, and one `X-Frame-Options` instead of two. "Adding a domain later" in the setup guide now adds
   `Strict-Transport-Security`, as setup does for a domain. Older servers get
   the headers from `src/add-updates.sh`.
 - **Starter content** now says what it is in every form and in the guide:

@@ -3432,8 +3432,10 @@ EOF
 cat > /etc/nginx/snippets/plone-site.conf <<'EOF'
 client_max_body_size 100m;
 
-# Volto's server (Express) names itself; nothing needs to know.
+# Zope names itself and Python in X-Powered-By; nobody needs to know. Volto
+# sends its own X-Frame-Options, the same as nginx's: one is enough.
 proxy_hide_header X-Powered-By;
+proxy_hide_header X-Frame-Options;
 
 proxy_set_header Host $host;
 proxy_set_header X-Real-IP $remote_addr;

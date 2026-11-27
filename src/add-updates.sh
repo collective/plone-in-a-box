@@ -93,7 +93,7 @@ main() {
     grep -q 'Content-Security-Policy' "$headers" \
       || echo "add_header Content-Security-Policy \"frame-ancestors 'self'; base-uri 'self'; object-src 'none'\" always;" >> "$headers"
     echo 'add_header Permissions-Policy "camera=(), microphone=(), payment=(), usb=()" always;' >> "$headers"
-    grep -q 'X-Powered-By' "$site_conf" || printf '\nproxy_hide_header X-Powered-By;\n' >> "$site_conf"
+    grep -q 'X-Powered-By' "$site_conf" || printf '\nproxy_hide_header X-Powered-By;\nproxy_hide_header X-Frame-Options;\n' >> "$site_conf"
     if nginx -t >/dev/null 2>&1 && systemctl reload nginx; then
       rm -f "$headers.before-2.27" "$site_conf.before-2.27"
       say "Added this release's security headers (Referrer-Policy, Content-Security-Policy, Permissions-Policy)"

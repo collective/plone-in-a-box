@@ -1001,7 +1001,8 @@ has_security_headers() {
     && grep -qix 'referrer-policy: strict-origin-when-cross-origin' <<<"$h" \
     && grep -qix "content-security-policy: frame-ancestors 'self'; base-uri 'self'; object-src 'none'" <<<"$h" \
     && grep -qix 'permissions-policy: camera=(), microphone=(), payment=(), usb=()' <<<"$h" \
-    && ! grep -qi '^x-powered-by:' <<<"$h"
+    && ! grep -qi '^x-powered-by:' <<<"$h" \
+    && [[ $(grep -ci '^x-frame-options:' <<<"$h") == 1 ]]
 }
 js=$(curl -s -m 20 "$SITE/" | grep -oE '/(static/js|assets)/[^"]*\.js' | head -n 1)
 check "security headers on pages" has_security_headers "$SITE/"
