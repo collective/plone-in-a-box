@@ -1,5 +1,18 @@
-2.26 (unreleased)
+2.26 (2026-11-27)
 -----------------
+
+See how your site is doing over time:
+
+* **Graphs of your server and site:** optional `plone-otel` sends your
+  site's health (memory, disk, response times, errors) to an OpenTelemetry
+  service, including Grafana Cloud's free plan, with a ready-made
+  dashboard. Thanks to Jean Jordaan (@jean), a longtime Plonista with a gift
+  for finding great software tools and methods, for the idea!
+
+* **Logs and graphs from the start:** turn them on in the launch form, and
+  a new server sends them as soon as it's ready.
+
+* **Try Plone Aurora:** the demo login can now add pages and images too.
 
 - **Graphs of your server and site**: `sudo plone-otel on ENDPOINT` sends
   the server's numbers (CPU, memory, disks, network), each of Plone's,
