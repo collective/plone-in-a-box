@@ -78,7 +78,7 @@ One Ubuntu 26.04 LTS server, running the **official Plone Docker images**:
 - best practices for application and server setup and maintenance
 - standard deployment tooling, easily extendable and customizable by a Plone developer 
 
-Choose the site's language, Plone & Volto versions, add-ons, themes and even if you want sample content. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
+Choose the site's language, Plone & Volto versions, add-ons, themes and whether you want sample content. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
 
 ---
 
@@ -156,7 +156,7 @@ Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetz
 ## Keeping an eye on it
 
 - **Stay in the loop:** receive notifications of errors (failed backup, update or restore test, disk getting full) via email and/or other channels.
-- **External checks:** get notified when the site is down, alerts for disk, memory and CPU spikes.
+- **External checks:** get notified when the site is down and, on DigitalOcean, alerts for disk, memory and CPU spikes.
 - **View server logs centrally:** `plone-syslog` sends the server's logs to Better Stack's free plan, Papertrail or your own log server.
 - **Secured by Cloudflare:** optional `plone-cloudflare` lets only Cloudflare reach the site and helps block bots and DDOS attacks.
 
@@ -167,7 +167,7 @@ Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetz
 **Automatically install Plone add-ons** when you create the server.
 
 - Tested package version pins are matched to your chosen Plone release.
-- Any add-on installation issues are alerted to you while setup continues normally.
+- If an add-on can't be installed, you're told why and setup carries on.
 
 ---
 
