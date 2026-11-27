@@ -669,8 +669,9 @@ went out and whether any failed, and `off` stops sending.
   details**, and create a token there with the **metrics:write** scope. Then look at your numbers under
   **Drilldown → Metrics**: type `plone` to see Plone's own.
 * **A ready-made dashboard**: [docs/grafana/plone-in-a-box.json](grafana/plone-in-a-box.json) puts your site on one
-  page: at a glance (up, memory, disk, requests), your site, the database, the server, and Plone, Volto, PostgreSQL
-  and nginx side by side. In Grafana, **Dashboards → New → Import**, upload or paste the file, and choose your
+  page: at a glance (up, memory, disk, requests), your site, Plone's health (the warning signs plone.observability
+  suggests watching: conflicts visitors felt, memory that keeps growing, garbage collection, connections not freed),
+  the database, the server, and Plone, Volto, PostgreSQL and nginx side by side. In Grafana, **Dashboards → New → Import**, upload or paste the file, and choose your
   Prometheus data source (in Grafana Cloud, the one ending in `-prom`). With several sites, pick one in **Site** at
   the top.
 * **Another service** works if it takes OpenTelemetry metrics over **OTLP/HTTP**, with a user and token, or a token

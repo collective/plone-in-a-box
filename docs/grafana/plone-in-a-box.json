@@ -571,7 +571,7 @@
     },
     {
       "type": "row",
-      "title": "Database",
+      "title": "Plone's health",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -584,8 +584,8 @@
     },
     {
       "type": "stat",
-      "title": "Database size",
-      "description": "",
+      "title": "Conflicts visitors felt, 24 h",
+      "description": "Two saves that collided and couldn't be retried, so someone saw an error. Should stay at 0.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -593,9 +593,451 @@
       "id": 12,
       "gridPos": {
         "h": 4,
-        "w": 8,
+        "w": 6,
         "x": 0,
         "y": 23
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(plone_zodb_conflicts_total{job=\"plone-in-a-box\", instance=\"$instance\", retry=\"false\"}[24h])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Connections not freed",
+      "description": "Database connections Plone let go of, but that stayed in memory for a whole hour, with everything they loaded: a hidden memory leak. Should stay at 0.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 23
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(min_over_time(plone_zodb_connections_alive{job=\"plone-in-a-box\", instance=\"$instance\"}[1h]) - max_over_time(plone_zodb_connections{job=\"plone-in-a-box\", instance=\"$instance\"}[1h])) > 0 or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Memory growth, 6 h",
+      "description": "How much Plone's own memory grew over the last six hours. A little is normal while caches fill; steady growth day after day is a leak.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 14,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 23
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(delta(plone_process_rss_anon_bytes{job=\"plone-in-a-box\", instance=\"$instance\"}[6h]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 52428800
+              },
+              {
+                "color": "red",
+                "value": 157286400
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Time in garbage collection",
+      "description": "The share of time Python's garbage collector stops Plone; it adds directly to page times.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 15,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 23
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(rate(plone_gc_pause_seconds_sum_total{job=\"plone-in-a-box\", instance=\"$instance\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.02
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Conflicts a minute",
+      "description": "Saves that collided. Retried ones go unnoticed; the others are errors someone saw.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 27
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(plone_zodb_conflicts_total{job=\"plone-in-a-box\", instance=\"$instance\", retry=\"true\"}[5m])) * 60",
+          "legendFormat": "retried (unnoticed)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(plone_zodb_conflicts_total{job=\"plone-in-a-box\", instance=\"$instance\", retry=\"false\"}[5m])) * 60",
+          "legendFormat": "visitors felt",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Where memory grows",
+      "description": "Leaks show up in Plone's own memory, not in the libraries it has loaded.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 27
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(plone_process_rss_anon_bytes{job=\"plone-in-a-box\", instance=\"$instance\"})",
+          "legendFormat": "Plone's own",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "max(plone_process_rss_file_bytes{job=\"plone-in-a-box\", instance=\"$instance\"})",
+          "legendFormat": "libraries",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Python objects",
+      "description": "Objects alive that keep rising: a cache that never empties. Interned strings that keep rising: code compiled again and again.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 27
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(plone_python_allocated_blocks{job=\"plone-in-a-box\", instance=\"$instance\"})",
+          "legendFormat": "objects alive",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "max(plone_python_interned_strings{job=\"plone-in-a-box\", instance=\"$instance\"})",
+          "legendFormat": "interned strings",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Database",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 19,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Database size",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 36
       },
       "targets": [
         {
@@ -644,12 +1086,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 13,
+      "id": 21,
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 23
+        "y": 36
       },
       "targets": [
         {
@@ -698,12 +1140,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 14,
+      "id": 22,
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 23
+        "y": 36
       },
       "targets": [
         {
@@ -752,12 +1194,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 15,
+      "id": 23,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 27
+        "y": 40
       },
       "targets": [
         {
@@ -805,12 +1247,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 16,
+      "id": 24,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 27
+        "y": 40
       },
       "targets": [
         {
@@ -868,9 +1310,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 48
       },
-      "id": 17,
+      "id": 25,
       "panels": []
     },
     {
@@ -881,12 +1323,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 18,
+      "id": 26,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 49
       },
       "targets": [
         {
@@ -935,12 +1377,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 19,
+      "id": 27,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 36
+        "y": 49
       },
       "targets": [
         {
@@ -1016,12 +1458,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 20,
+      "id": 28,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 57
       },
       "targets": [
         {
@@ -1079,12 +1521,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 21,
+      "id": 29,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 57
       },
       "targets": [
         {
@@ -1142,9 +1584,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 65
       },
-      "id": 22,
+      "id": 30,
       "panels": []
     },
     {
@@ -1155,12 +1597,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 23,
+      "id": 31,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 53
+        "y": 66
       },
       "targets": [
         {
@@ -1209,12 +1651,12 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "id": 24,
+      "id": 32,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 53
+        "y": 66
       },
       "targets": [
         {
