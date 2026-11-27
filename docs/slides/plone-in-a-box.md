@@ -143,7 +143,7 @@ Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetz
 ## Backups
 
 - A database backup **every night,** on the server: the whole site, files and images included. The three newest are kept.
-- A database pack **every week,**: the database's old history is cleared, so it doesn't keep growing.
+- A database pack **every week**: the database's old history is cleared, so it doesn't keep growing.
 - Easy restore from backup, using one command **`sudo plone-restore`**, with automatic fallback. Use it to **move a site** to a new server.
 - **Encrypted offsite backups:** each night's backup can also go to Cloudflare R2, AWS S3, Backblaze B2 or other storage, encrypted first on the server.
 - **Once a month, a restore test:** the newest backup (on server or offsite) is restored into a test database and verified, without affecting your site.
@@ -158,7 +158,7 @@ Developers can instead use the **Terraform plan** for AWS, DigitalOcean and Hetz
 - **Stay in the loop:** receive notifications of errors (failed backup, update or restore test, disk getting full) via email and/or other channels.
 - **External checks:** get notified when the site is down, alerts for disk, memory and CPU spikes.
 - **View server logs centrally:** `plone-syslog` sends the server's logs to Better Stack's free plan, Papertrail or your own log server.
-- **Secured by Cloudflare:** optional `plone-cloudflare` lets only Cloudflare reach the site and helps block bots and DDOS attacks
+- **Secured by Cloudflare:** optional `plone-cloudflare` lets only Cloudflare reach the site and helps block bots and DDOS attacks.
 
 ---
 
@@ -224,7 +224,7 @@ Use Plone in a Box to make it easy for someone to try your Plone add-on or distr
 2. If needed, Plone in a Box builds the frontend image, then publishes a **Try It page**, with the steps for deploying to AWS, Linode, DigitalOcean and Hetzner.
 3. **One button** in your README links to it.
 
-Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's future frontend
+Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's future frontend.
 
 ---
 
