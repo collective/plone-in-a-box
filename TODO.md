@@ -140,6 +140,25 @@ restoring a backup.
 - Later: a status page for the site (last backup, last update, disk, the
   graphs' numbers), and a Plone control panel that links to it.
 
+## MCP for Plone in a Box™
+
+Let an AI assistant (Claude and others) help look after a site, through the
+Model Context Protocol (MCP): ask "is my site healthy?", "when was the last
+backup?", "why did last night's update fail?", and have it answer from the
+server itself.
+
+- **The server:** an MCP server on the box with the same tools underneath as
+  the control panel (above): status, backups, the restore test, updates, logs,
+  graphs. Read-only first; anything that changes the site (restore, turn
+  something off) only with your say-so, and a way back.
+- **The site's content:** editing pages and finding content through
+  plone.restapi. Look first for an MCP server the Plone community already has
+  or is building, and use that rather than our own.
+- **Safe by default:** off until you turn it on, its own token, only over
+  HTTPS, and nothing an assistant does that SSH couldn't undo. Consider the
+  separate-service question as for the control panel, so it still works when
+  Plone doesn't.
+
 ## To investigate
 
 - [x] **Easy HTTPS without your own domain** (2.21): a Let's Encrypt certificate for the server's IP address, so
