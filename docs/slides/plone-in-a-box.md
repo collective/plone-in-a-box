@@ -87,7 +87,7 @@ Choose the site's language, Plone & Volto versions, add-ons, themes and even if 
 ## Safe by default
 
 - Choose your own admin password or generate a safe one.
-- Secure browsing using **HTTPS for every site**, automatically renewed.
+- Immediately secure browsing using **HTTPS for every site**, automatically renewed.
 - Multiple firewalls secure your site and server.
 - Secure **SSH key access**, and automatic blocking of failed login attempts.
 - **Security headers** served on every page.
