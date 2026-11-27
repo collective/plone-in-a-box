@@ -59,11 +59,13 @@ That's a system administrator's job. **Most people who want a Plone site aren't 
 
 <div class="steps">
 <div><b>1. Fill in a form</b>On your cloud provider's website: Linode, DigitalOcean, AWS or Hetzner.</div>
-<div><b>2. Choose a password</b>For the site's <code>admin</code> account. Everything else, such as a domain name, add-ons or a theme, is optional.</div>
+<div><b>2. Choose a password</b>For the site's <code>admin</code> account.</div>
 <div><b>3. Click Create</b>About 10 minutes later, the server's address shows your new Plone site.</div>
 </div>
 
 <br>
+
+**That's it. Everything else is optional, and can be added once your site is running.**
 
 Nothing to install on your computer. While you wait, the address shows a page with the setup progress, and it turns into your site when it's ready.
 
@@ -78,7 +80,7 @@ One Ubuntu 26.04 LTS server, running the **official Plone Docker images**:
 - best practices for application and server setup and maintenance
 - standard deployment tooling, easily extendable and customizable by a Plone developer 
 
-Choose the site's language, Plone & Volto versions, add-ons, themes and whether to start with Plone's welcome page. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
+Optional: choose the site's language, Plone & Volto versions, add-ons, themes and whether to start with Plone's welcome page. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
 
 ---
 
