@@ -3,21 +3,24 @@
 
 Know your backups work, and stay in the loop:
 
-- **Monthly restore test:** your server checks that its newest backup (on
+* **Monthly restore test:** your server checks that its newest backup (on
   the server or offsite) can really be restored, without affecting your
   site, and tells you if it can't.
-- **Server warnings reach you:** the server's own messages, such as a
-  failed security update, now arrive through your site's email settings.
-- **View server logs centrally:** optional `plone-syslog` sends your logs to
-  a log service, including Better Stack's free plan, or your own log server.
-- **Secured by Cloudflare:** optional `plone-cloudflare` lets only
-  Cloudflare reach your site, to help block bots and DDoS attacks.
-- **Free DigitalOcean alerts** for disk, memory and CPU spikes on Droplets
-  made with the Terraform plan.
-- **Safer builds:** the project's GitHub workflows are protected against a
-  hijacked GitHub Action.
 
-In detail:
+* **Server warnings reach you:** the server's own messages, such as a
+  failed security update, now arrive through your site's email settings.
+
+* **View server logs centrally:** optional `plone-syslog` sends your logs to
+  a log service, including Better Stack's free plan, or your own log server.
+
+* **Secured by Cloudflare:** optional `plone-cloudflare` lets only
+  Cloudflare reach your site, to help block bots and DDoS attacks.
+
+* **Free DigitalOcean alerts** for disk, memory and CPU spikes on Droplets
+  made with the Terraform plan.
+
+* **Safer builds:** the project's GitHub workflows are protected against a
+  hijacked GitHub Action.
 
 - **Backup checks**: once a month, `plone-backup-check.timer` restores the
   newest backup into a separate test database, has Plone open the site in
