@@ -111,6 +111,28 @@ registry and credentials before deploying, which breaks the no-command-line Lino
 Plone/Volto versions when the project is generated, add template churn to maintain, and overlap the existing
 nginx + Compose setup. Custom images as an option get most of the benefit without those costs.
 
+## A control panel for Plone in a Box™
+
+One friendly place to turn Plone in a Box™ features on and off and change their
+settings, instead of commands over SSH: backups and offsite copies, the restore
+test, updates, notifications, email, logs, graphs, Cloudflare, the demo login,
+HTTPS, and restoring a backup.
+
+- **Separate from the Plone site**, so it still works when Plone doesn't: that's
+  exactly when you need it (restore a backup, see why an update failed, turn
+  logs on to find out).
+- **A look at Cockpit** (Ubuntu's own web console for a server): a Plone in a
+  Box™ page as a Cockpit plugin would get logins, HTTPS and a terminal for
+  free, and stay small. Or a small app of our own behind nginx.
+- **Safe by default:** off until you turn it on, its own login (not the Plone
+  admin's), only over HTTPS, perhaps only from your own address. It can do
+  what root can, so it has to be at least as hard to get into as SSH.
+- **The same tools underneath:** each switch runs the command it stands for
+  (`plone-syslog on`, `plone-otel off`, ...), so the panel, SSH and the launch
+  fields always agree.
+- Later: a status page for the site (last backup, last update, disk, the
+  graphs' numbers), and a Plone control panel that links to it.
+
 ## To investigate
 
 - [x] **Easy HTTPS without your own domain** (2.21): a Let's Encrypt certificate for the server's IP address, so
