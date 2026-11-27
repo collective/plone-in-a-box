@@ -1182,11 +1182,14 @@ sudo sed -i 's/server_name _;/server_name <domain>;/' /etc/nginx/sites-available
 sudo systemctl reload nginx
 sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
+echo 'add_header Strict-Transport-Security max-age=31536000 always;' | sudo tee -a /etc/nginx/snippets/plone-headers.conf
+sudo systemctl reload nginx
 echo 'https://<domain>' | sudo tee /var/lib/plone-in-a-box/site-url
 ```
 
 The first line turns the IP address certificate off (on a server set up before 2.21, which doesn't have one, skip
-it); the last makes update reports name the new address.
+it); the `Strict-Transport-Security` line has browsers use HTTPS only for the site, for a year, as setup does for a
+domain; the last makes update reports name the new address.
 
 ### Behind Cloudflare
 

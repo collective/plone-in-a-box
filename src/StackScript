@@ -3633,8 +3633,12 @@ rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/plone-in-a-box-s
 # For the site's server block: no nginx version in responses, compressed CSS,
 # JavaScript and JSON (overriding Ubuntu's nginx.conf here, as it sets some of
 # these itself), and security headers. A location with an add_header of its
-# own would drop the headers, so none has one. Browsers' default
-# Referrer-Policy, strict-origin-when-cross-origin, is already the right one.
+# own would drop the headers, so none has one. The Content-Security-Policy
+# only has the parts that can't break a Plone site (Volto's pages have inline
+# scripts, so a full one can't): no framing by other sites (the newer form of
+# X-Frame-Options, which older browsers still need), no <base> pointing
+# elsewhere, no plugins. Permissions-Policy turns off what a Plone site never
+# uses; geolocation stays, for maps.
 cat > /etc/nginx/snippets/plone-headers.conf <<'EOF'
 server_tokens off;
 gzip on;
@@ -3642,11 +3646,19 @@ gzip_proxied any;
 gzip_types text/css application/javascript application/json image/svg+xml;
 add_header X-Frame-Options SAMEORIGIN always;
 add_header X-Content-Type-Options nosniff always;
+add_header Referrer-Policy strict-origin-when-cross-origin always;
+add_header Content-Security-Policy "frame-ancestors 'self'; base-uri 'self'; object-src 'none'" always;
+add_header Permissions-Policy "camera=(), microphone=(), payment=(), usb=()" always;
 EOF
 # The site itself, included by the HTTP server block below, and by the HTTPS
 # one when there is one.
 cat > /etc/nginx/snippets/plone-site.conf <<'EOF'
 client_max_body_size 100m;
+
+# Zope names itself and Python in X-Powered-By; nobody needs to know. Volto
+# sends its own X-Frame-Options, the same as nginx's: one is enough.
+proxy_hide_header X-Powered-By;
+proxy_hide_header X-Frame-Options;
 
 proxy_set_header Host $host;
 proxy_set_header X-Real-IP $remote_addr;
