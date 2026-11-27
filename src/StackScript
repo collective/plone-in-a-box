@@ -3279,7 +3279,7 @@ def show(s):
     lines.append(("Last update", f"{u['last']}; automatic updates {onoff(u['automatic'])}"))
     lines.append(("Notifications", f["notifications"] or "off"))
     lines.append(("Email", f"from {f['email']}" if f["email"]
-                  else "not set up when the server was created (see Site Setup → Mail)"))
+                  else "not set up when the server was created (see Site Setup > Mail)"))
     lines.append(("Logs", f"sent to {f['logs']}" if f["logs"] else "on the server only"))
     lines.append(("Graphs", f"sent to {f['graphs']}" if f["graphs"] else "off"))
     lines.append(("Cloudflare", onoff(f["cloudflare"], "on: only Cloudflare reaches the site")))
