@@ -2389,7 +2389,10 @@ receivers:
     scrapers:
       cpu: {}
       load: {}
-      memory: {}
+      memory:
+        metrics:
+          system.memory.limit:
+            enabled: true
       paging: {}
       disk: {}
       network: {}
@@ -2433,9 +2436,39 @@ processors:
     check_interval: 5s
     limit_mib: 150
     spike_limit_mib: 30
+  # Each process's numbers by what it is (plone, volto, postgres, nginx),
+  # added up over its processes (PostgreSQL and nginx run several), rather
+  # than one set per process ID.
+  transform/processes:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        conditions:
+          - resource.attributes["process.executable.name"] != nil
+        statements:
+          - set(attributes["process"], resource.attributes["process.executable.name"])
+          - replace_pattern(attributes["process"], "^runwsgi\$", "plone")
+          - replace_pattern(attributes["process"], "^(node|MainThread)\$", "volto")
+      - context: resource
+        statements:
+          - delete_matching_keys(attributes, "^process[.]")
+  groupbyattrs/processes: {}
+  metrics_transform/processes:
+    transforms:
+      - include: ^process[.]
+        match_type: regexp
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [process, state, direction]
+            aggregation_type: sum
+  # Every number labeled with the site (job plone-in-a-box, instance the
+  # site's name), so a dashboard can tell sites apart.
   resource:
     attributes:
       - { key: host.name, value: "$name", action: upsert }
+      - { key: service.name, value: plone-in-a-box, action: upsert }
+      - { key: service.instance.id, value: "$name", action: upsert }
   batch: {}
 exporters:
   otlp_http:
@@ -2457,10 +2490,17 @@ service:
   pipelines:
     metrics:
       receivers: [host_metrics, postgresql, nginx, prometheus]
-      processors: [memory_limiter, resource, batch]
+      processors: [memory_limiter, transform/processes, groupbyattrs/processes, metrics_transform/processes, resource, batch]
       exporters: [otlp_http]
 EOF
   chmod 644 "$CONF"
+  # The Collector checks its settings before anything changes.
+  image=$(sed -n 's/^OTELCOL_IMAGE=//p' /usr/local/lib/plone-in-a-box/compose-override)
+  if ! out=$(docker run --rm --env-file "$ENV_FILE" -v "$CONF:/etc/otelcol/config.yaml:ro" -v /:/hostfs:ro "$image" \
+       validate --config=/etc/otelcol/config.yaml --feature-gates=receiver.postgresql.separateSchemaAttr 2>&1); then
+    tail -n 3 <<<"$out" >&2
+    die "The Collector didn't accept its settings (above); the site wasn't changed"
+  fi
   printf '%s\n' "$endpoint" > "$STATE_DIR/otel"
   /usr/local/lib/plone-in-a-box/compose-override || die "The containers weren't changed; see above"
   # When it was on already: the Collector with the new settings.

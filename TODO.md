@@ -20,8 +20,9 @@
 - [x] `plone-otel` (2.26): the server's, each process's, PostgreSQL's,
   nginx's and Plone's own numbers (plone.observability's `@@metrics`) to an
   OTLP/HTTP service, tried with Grafana Cloud.
-- A ready-made Grafana dashboard for a Plone in a Box site, linked from the
-  guide.
+- [x] A ready-made Grafana dashboard (`docs/grafana/plone-in-a-box.json`).
+  Publish it on grafana.com's dashboards too, once it has settled. Add
+  Plone's response times to it once request metrics work (below).
 - Request timings and traces from plone.observability need its WSGI filters
   in `zope.ini`, which the official backend image doesn't let us add without
   replacing the file; ask upstream for a setting, or keep our own copy.
