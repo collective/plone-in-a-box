@@ -81,7 +81,7 @@ main() {
     /usr/local/lib/plone-in-a-box/compose-override || true
   fi
   say "To graph the server's and the site's numbers in a service such as Grafana Cloud: sudo plone-otel on ENDPOINT (see the setup guide)"
-  say "To see how the server and site are doing, in one place: sudo plone-status"
+  say "To see how the server and site are doing, in one place: sudo plone-status (or in your browser: sudo plone-panel on)"
 
   # This release's security headers, on servers whose nginx setup has the
   # snippets (2.x); put back as they were if nginx doesn't take them.

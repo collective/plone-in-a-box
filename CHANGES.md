@@ -15,6 +15,15 @@
   and restore test, the last update, and which features are on. Read only.
   `--json` gives the same for programs, the groundwork for the box control
   panel and MCP. Older servers get it from `src/add-updates.sh`.
+- **The Plone in a Box control panel (preview)**: `sudo plone-panel on`
+  shows how your site is doing in your browser, in plain words, on your
+  phone or computer: the same as `plone-status`, read only for now. It runs
+  in Cockpit, Ubuntu's own web console, behind nginx, so it still works when
+  Plone doesn't: at `box.<your domain>` (after a DNS record for it), or on
+  port 8443 for a site without a domain name. Its own login, `box`, which
+  can read the status and nothing else; Cockpit itself listens only on the
+  server. Off until you turn it on; `plone-panel off` turns it off again.
+  `scripts/test-deploy.sh --panel` tests it.
 - **Security headers**, reviewed against OWASP's current recommendations:
   `Referrer-Policy` (what browsers do by default, now said), a
   `Content-Security-Policy` with only the parts that can't break a Plone site

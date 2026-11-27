@@ -3306,6 +3306,275 @@ if __name__ == "__main__":
 PLONE_STATUS_EOF
 chmod 755 /usr/local/bin/plone-status
 
+# Command for the Plone in a Box control panel: sudo plone-panel on|off|status|password
+# Off until turned on. Cockpit (Ubuntu's web console) behind nginx: at
+# box.<your domain> for a site with a domain name, or on port 8443 of the
+# server's address for one without. Its own login, "box", which can only read
+# plone-status for now (stage 2 in TODO.md: a status page, read only).
+cat > /usr/local/bin/plone-panel <<'PLONE_PANEL_EOF'
+#!/bin/bash
+# Usage: sudo plone-panel on [--address box.example.org]
+#        sudo plone-panel off
+#        sudo plone-panel status
+#        sudo plone-panel password     (a new password for the box login)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-panel ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+STATE=$STATE_DIR/panel
+NGINX_CONF=/etc/nginx/sites-enabled/plone-panel
+PAGE=/usr/share/cockpit/plone-in-a-box
+USER_NAME=box
+PORT=8443
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-panel.log; }
+die() { say "$*" >&2; exit 1; }
+
+site_url=$(cat "$STATE_DIR/site-url" 2>/dev/null)
+site_host=${site_url#*://}
+site_host=${site_host%%/*}
+is_ip() { [[ "$1" =~ ^[0-9.]+$ || "$1" == *:* ]]; }
+
+new_password() {
+  local pw
+  pw=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
+  echo "$USER_NAME:$pw" | chpasswd || die "Couldn't set the password of the $USER_NAME login"
+  printf '%s' "$pw"
+}
+
+write_page() {
+  install -d -m 755 "$PAGE"
+  cat > "$PAGE/manifest.json" <<'EOF'
+{
+  "version": 0,
+  "name": "plone-in-a-box",
+  "menu": { "index": { "label": "Plone in a Box", "order": 1 } }
+}
+EOF
+  # Cockpit allows no inline scripts or styles in a page: they're files.
+  cat > "$PAGE/index.html" <<'EOF'
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plone in a Box</title>
+<link rel="stylesheet" href="index.css">
+<script src="../base1/cockpit.js"></script>
+<script src="index.js" defer></script>
+</head>
+<body>
+<main>
+<h1>Plone in a Box&trade;</h1>
+<p class="lead" id="lead">Checking your site&hellip;</p>
+<div id="cards" class="cards"></div>
+<p><button id="again" type="button">Check again</button> <span id="when" class="muted"></span></p>
+<p class="muted">This page only shows how things are; it changes nothing. The setup guide says how to change each one.</p>
+</main>
+</body>
+</html>
+EOF
+  cat > "$PAGE/index.css" <<'EOF'
+:root { --bg: #fff; --fg: #1d2329; --muted: #5a6570; --line: #d9dee3; --panel: #f4f6f8;
+  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 16px 3rem; }
+h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+.lead { font-size: 1.1rem; margin: 0 0 1.2rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .8rem; }
+.card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; padding: .7rem .9rem; }
+.card.ok { border-left-color: var(--ok); } .card.warn { border-left-color: var(--warn); } .card.bad { border-left-color: var(--bad); }
+.card h2 { font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 .2rem; }
+.card p { margin: 0; overflow-wrap: anywhere; }
+.muted { color: var(--muted); font-size: .9rem; }
+button { font: inherit; padding: .4rem .9rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+EOF
+  cat > "$PAGE/index.js" <<'EOF'
+// Plain words from plone-status --json. The box login may run only that,
+// through sudo, so the page needs no administrative access.
+function card(title, text, level) {
+  var div = document.createElement("div");
+  div.className = "card " + (level || "");
+  var h = document.createElement("h2");
+  h.textContent = title;
+  var p = document.createElement("p");
+  p.textContent = text;
+  div.appendChild(h);
+  div.appendChild(p);
+  return div;
+}
+function onoff(v) { return v ? "on" : "off"; }
+function show(s) {
+  var cards = document.getElementById("cards");
+  cards.textContent = "";
+  var parts = Object.keys(s.parts || {}).sort();
+  var down = parts.filter(function (n) { var p = s.parts[n]; return p.state !== "running" || (p.health && p.health !== "healthy"); });
+  var b = s.backups || {}, u = s.updates || {}, f = s.features || {}, d = s.disk || {}, m = s.memory || {}, v = s.versions || {};
+  var problems = [];
+  if (!s.site.ok) problems.push("the site isn't answering");
+  if (down.length) problems.push(down.join(", ") + " not running well");
+  if (d.used_percent >= 90) problems.push("the disk is nearly full");
+  if (b.newest_age_hours > 48 || !b.count) problems.push("no recent backup");
+  if (/FAILED/.test(b.restore_test || "")) problems.push("the last restore test failed");
+  document.getElementById("lead").textContent = problems.length
+    ? "Needs a look: " + problems.join("; ") + "."
+    : "All good: your site is working and backed up.";
+  cards.appendChild(card("Your site", s.site.url + (s.site.ok ? ", working" : ", not answering (" + s.site.http_status + ")"), s.site.ok ? "ok" : "bad"));
+  cards.appendChild(card("Parts", parts.length ? parts.map(function (n) {
+    var p = s.parts[n]; return n + ": " + p.state + (p.health ? " (" + p.health + ")" : "");
+  }).join(", ") : "unknown", parts.length && !down.length ? "ok" : "bad"));
+  cards.appendChild(card("Versions", "Plone " + v.plone + ", Volto " + v.volto + ", PostgreSQL " + v.postgresql));
+  cards.appendChild(card("Disk", d.used_percent + "% used, " + d.free_gb + " GB free", d.used_percent >= 90 ? "bad" : d.used_percent >= 80 ? "warn" : "ok"));
+  cards.appendChild(card("Memory", m.used_mb + " MB of " + m.total_mb + " MB in use"));
+  cards.appendChild(card("Last backup", (b.count ? b.newest + " (" + b.newest_mb + " MB)" : "none yet") +
+    "; nightly backups " + onoff(b.nightly) + ", offsite copies " + onoff(b.offsite),
+    !b.count || b.newest_age_hours > 48 ? "bad" : b.offsite ? "ok" : "warn"));
+  cards.appendChild(card("Restore test", b.restore_test, /FAILED/.test(b.restore_test || "") ? "bad" : b.restore_test_ok ? "ok" : ""));
+  cards.appendChild(card("Updates", u.last + "; automatic updates " + onoff(u.automatic), u.automatic ? "ok" : "warn"));
+  cards.appendChild(card("Notifications", f.notifications ? "sent to " + f.notifications : "off", f.notifications ? "ok" : "warn"));
+  cards.appendChild(card("Email", f.email ? "from " + f.email : "not set up when the server was created (see Site Setup > Mail)"));
+  cards.appendChild(card("Logs", f.logs ? "sent to " + f.logs : "on the server only"));
+  cards.appendChild(card("Graphs", f.graphs ? "sent to " + f.graphs : "off"));
+  cards.appendChild(card("Cloudflare", f.cloudflare ? "on: only Cloudflare reaches your site" : "off"));
+  if (s.security_notice) cards.appendChild(card("Security", s.security_notice, "warn"));
+  document.getElementById("when").textContent = "Checked " + new Date().toLocaleTimeString();
+}
+function check() {
+  document.getElementById("lead").textContent = "Checking your site\u2026";
+  cockpit.spawn(["sudo", "-n", "/usr/local/bin/plone-status", "--json"], { err: "message" })
+    .then(function (out) { show(JSON.parse(out)); })
+    .catch(function (e) { document.getElementById("lead").textContent = "Couldn't check: " + (e.message || e); });
+}
+document.getElementById("again").addEventListener("click", check);
+check();
+EOF
+}
+
+case "${1:-status}" in
+  on)
+    shift
+    address=""
+    while [[ $# -gt 0 ]]; do
+      case $1 in
+        --address) address=${2:-}; shift ;;
+        *) die "Usage: sudo plone-panel on [--address box.example.org]" ;;
+      esac
+      shift
+    done
+    [[ -n "$site_host" ]] || die "No site address in $STATE_DIR/site-url"
+    say "Installing Cockpit, Ubuntu's web console"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cockpit-ws cockpit-bridge cockpit-system >/dev/null \
+      || die "Couldn't install Cockpit"
+    # Only nginx reaches it: Cockpit listens on the server itself.
+    install -d -m 755 /etc/systemd/system/cockpit.socket.d
+    printf '[Socket]\nListenStream=\nListenStream=127.0.0.1:9090\n' > /etc/systemd/system/cockpit.socket.d/listen.conf
+    # Its own login, not root (Cockpit refuses root) and not in the sudo group:
+    # it may run plone-status, and nothing else as root.
+    id "$USER_NAME" >/dev/null 2>&1 || useradd -m -s /bin/bash -c "Plone in a Box control panel" "$USER_NAME" \
+      || die "Couldn't create the $USER_NAME login"
+    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/plone-status --json\n' "$USER_NAME" > /etc/sudoers.d/plone-panel
+    chmod 440 /etc/sudoers.d/plone-panel
+    visudo -cf /etc/sudoers.d/plone-panel >/dev/null || { rm -f /etc/sudoers.d/plone-panel; die "The sudo rule for $USER_NAME was refused"; }
+    write_page
+
+    if is_ip "$site_host"; then
+      # No domain name: port 8443, with the IP address certificate.
+      cert=$(awk '$1 == "ssl_certificate" { sub(/;$/, "", $2); print $2; exit }' /etc/nginx/sites-enabled/plone-https 2>/dev/null)
+      key=$(awk '$1 == "ssl_certificate_key" { sub(/;$/, "", $2); print $2; exit }' /etc/nginx/sites-enabled/plone-https 2>/dev/null)
+      [[ -n "$cert" && -f "$cert" ]] || die "The site has no HTTPS certificate yet (sudo plone-https-ip on)"
+      [[ -z "$address" ]] || die "--address needs a site with a domain name"
+      url="https://$site_host:$PORT"
+      listen="listen $PORT ssl; listen [::]:$PORT ssl;"
+      server_name=_
+    else
+      # A domain name: box.<domain> (without www.), once its DNS points here.
+      address=${address:-box.${site_host#www.}}
+      [[ "$address" =~ ^[A-Za-z0-9.-]+$ ]] || die "Not an address: $address"
+      ip=$(curl -fsS -4 -m 20 https://ifconfig.me 2>/dev/null)
+      if [[ -s /etc/nginx/conf.d/plone-cloudflare.conf ]]; then
+        say "Behind Cloudflare: $address must be proxied by Cloudflare too (orange cloud)"
+      elif ! getent ahostsv4 "$address" | awk '{print $1}' | grep -qxF "$ip"; then
+        die "$address doesn't point at this server ($ip) yet. Add a DNS record for it, wait until 'dig +short $address' shows $ip, and run this again."
+      fi
+      certbot certonly --nginx --non-interactive --agree-tos --keep-until-expiring \
+        --deploy-hook 'systemctl reload nginx' -d "$address" >>/var/log/plone-panel.log 2>&1 \
+        || die "Couldn't get a certificate for $address (see /var/log/plone-panel.log)"
+      cert=/etc/letsencrypt/live/$address/fullchain.pem key=/etc/letsencrypt/live/$address/privkey.pem
+      url="https://$address"
+      listen="listen 443 ssl; listen [::]:443 ssl;"
+      server_name=$address
+    fi
+    cat > "$NGINX_CONF" <<EOF
+# Plone in a Box control panel (sudo plone-panel off removes it).
+server {
+  $listen
+  server_name $server_name;
+  ssl_certificate $cert;
+  ssl_certificate_key $key;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  server_tokens off;
+  add_header Strict-Transport-Security max-age=31536000 always;
+  location / {
+    proxy_pass https://127.0.0.1:9090;
+    proxy_set_header Host \$http_host;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    gzip off;
+  }
+}
+EOF
+    # The IP address case has no HSTS (browsers ignore it for addresses).
+    is_ip "$site_host" && sed -i '/Strict-Transport-Security/d' "$NGINX_CONF"
+    install -d -m 755 /etc/cockpit
+    printf '[WebService]\nOrigins = %s\nProtocolHeader = X-Forwarded-Proto\nLoginTitle = Plone in a Box control panel\n' "$url" > /etc/cockpit/cockpit.conf
+    if ! nginx -t >/dev/null 2>&1; then
+      rm -f "$NGINX_CONF"
+      die "nginx didn't accept the control panel's settings; nothing changed for the site"
+    fi
+    [[ "$url" == *:$PORT ]] && ufw allow "$PORT/tcp" comment 'Plone in a Box control panel' >/dev/null
+    systemctl daemon-reload
+    systemctl enable cockpit.socket >/dev/null 2>&1
+    systemctl restart cockpit.socket
+    systemctl reload nginx
+    printf '%s\n' "$url" > "$STATE"
+    pw=$(new_password)
+    say "The control panel is on: $url/plone-in-a-box"
+    printf 'Log in as %s with this password (store it in a password manager; sudo plone-panel password makes a new one):\n%s\n' "$USER_NAME" "$pw"
+    [[ "$url" == *:$PORT ]] && echo "On AWS, DigitalOcean or Hetzner with a cloud firewall, allow TCP port $PORT there too."
+    ;;
+  off)
+    url=$(cat "$STATE" 2>/dev/null)
+    rm -f "$NGINX_CONF" /etc/sudoers.d/plone-panel "$STATE"
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx
+    ufw delete allow "$PORT/tcp" >/dev/null 2>&1
+    systemctl disable --now cockpit.socket cockpit.service >/dev/null 2>&1
+    id "$USER_NAME" >/dev/null 2>&1 && passwd -l "$USER_NAME" >/dev/null
+    say "The control panel is off${url:+ ($url no longer answers)}. Cockpit stays installed; the $USER_NAME login is locked."
+    ;;
+  password)
+    [[ -s "$STATE" ]] || die "The control panel is off (sudo plone-panel on)"
+    pw=$(new_password)
+    say "A new password for the $USER_NAME login"
+    printf '%s\n' "$pw"
+    ;;
+  status)
+    if [[ -s "$STATE" ]]; then
+      echo "On: $(cat "$STATE")/plone-in-a-box (login: $USER_NAME)"
+    else
+      echo "Off (sudo plone-panel on)"
+    fi
+    ;;
+  *) die "Usage: sudo plone-panel on [--address box.example.org] | off | status | password" ;;
+esac
+PLONE_PANEL_EOF
+chmod 755 /usr/local/bin/plone-panel
+
 # The result of the last update check, at the top of the login message, and
 # security notices from the last 30 days.
 cat > /etc/update-motd.d/90-plone-in-a-box <<'EOF'

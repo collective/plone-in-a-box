@@ -58,6 +58,9 @@
 #                          PIAB_TEST_METRICS_USER, and the token in the
 #                          Keychain as piab-metrics-token; then check numbers
 #                          went out
+#   --panel                turn on the control panel (plone-panel on, port
+#                          8443 on a server without a domain name), check its
+#                          login, page and limits, then turn it off again
 #   --expect-backend-fallback
 #                          with --backend-image: expect setup to use the
 #                          official Plone backend instead (an image that can't
@@ -151,7 +154,7 @@ SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 SITE_LANGUAGE="" NO_STARTER=0 REAL_CERT=0 UPDATES=0 NOTIFY_URL="" MAIL_TO="" REGISTRY_USER="" REGISTRY_TOKEN=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM="" SPAMHAUS=0 SPAMHAUS_KEY=""
-LOGS=0 LOG_SERVER="" LOG_TOKEN="" METRICS=0 METRICS_ENDPOINT="" METRICS_USER="" METRICS_TOKEN=""
+PANEL=0 LOGS=0 LOG_SERVER="" LOG_TOKEN="" METRICS=0 METRICS_ENDPOINT="" METRICS_USER="" METRICS_TOKEN=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
@@ -185,6 +188,7 @@ while (( $# )); do
     --spamhaus) SPAMHAUS=1 ;;
     --logs) LOGS=1 ;;
     --metrics) METRICS=1 ;;
+    --panel) PANEL=1 ;;
     --site-language) SITE_LANGUAGE=${2:?--site-language needs a value}; shift ;;
     --no-starter-content) NO_STARTER=1 ;;
     --real-cert) REAL_CERT=1 ;;
@@ -1040,6 +1044,33 @@ for secret in "$LOG_TOKEN" "$METRICS_TOKEN"; do
   check "a log or graphs token isn't in the setup log or credentials file" \
     rssh "! grep -qF -- $(printf '%q' "$secret") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
 done
+
+# --- Control panel ---------------------------------------------------------------------
+
+if (( PANEL )); then
+  say "Turning on the control panel"
+  panel_out=$(rssh "plone-panel on" 2>&1)
+  panel_pw=$(awk '/^Log in as box/ { getline; print; exit }' <<<"$panel_out")
+  PANEL_URL="https://$IP:8443"
+  check "plone-panel on says where it is" grep -qF "The control panel is on: $PANEL_URL/plone-in-a-box" <<<"$panel_out"
+  check "plone-panel on gives a password" test -n "$panel_pw"
+  check "the control panel's login page answers" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$PANEL_URL/') == 200 ]]"
+  check "the control panel refuses a wrong password" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u box:wrong-password '$PANEL_URL/cockpit/login') == 401 ]]"
+  panel_cookies=$(mktemp)
+  check "the control panel lets box in" bash -c "[[ \$(curl -s -m 20 -c '$panel_cookies' -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' '$PANEL_URL/cockpit/login') == 200 ]]"
+  check "the control panel's page is there" bash -c "[[ \$(curl -s -m 20 -b '$panel_cookies' -o /dev/null -w '%{http_code}' '$PANEL_URL/cockpit/@localhost/plone-in-a-box/index.js') == 200 ]]"
+  check "the control panel's live connection works through nginx" bash -c "[[ \$(curl -s -m 5 --http1.1 -b '$panel_cookies' -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Origin: $PANEL_URL' '$PANEL_URL/cockpit/socket') == 101 ]]"
+  rm -f "$panel_cookies"
+  check "box can read plone-status" rssh "sudo -u box sudo -n /usr/local/bin/plone-status --json | python3 -c 'import json, sys; json.load(sys.stdin)'"
+  check "box can't do anything else as root" rssh "! sudo -u box sudo -n /usr/bin/id"
+  check "Cockpit itself (port 9090) is closed from outside" port_closed 9090
+  check "the site still works with the control panel on" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$SITE/') == 200 ]]"
+  check "the password isn't in the setup log or credentials file" \
+    rssh "! grep -qF -- $(printf '%q' "${panel_pw:-none}") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
+  rssh "plone-panel off" >/dev/null 2>&1
+  check "plone-panel off closes port 8443" port_closed 8443
+  check "plone-panel off locks the box login" rssh "passwd -S box | grep -qE '^box L'"
+fi
 
 # --- Server state ---------------------------------------------------------------------
 

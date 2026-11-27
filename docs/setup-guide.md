@@ -415,6 +415,19 @@ frontend, database), the versions, disk and memory, the last backup and restore 
 features are on (notifications, email, logs, graphs, Cloudflare). It changes nothing. `sudo plone-status --json`
 gives the same for programs.
 
+**The same in your browser (preview):** `sudo plone-panel on` turns on the Plone in a Box™ control panel, a page
+that shows the same in plain words, on your phone or computer. It runs in Cockpit, Ubuntu's own web console, behind
+nginx, so it still works when Plone doesn't. For now it only shows; it changes nothing.
+
+* **Where:** for a site with a domain name, `https://box.<your domain>` (without `www.`), so first add a DNS record
+  for `box.<your domain>` pointing at the server, like the site's own; `--address` chooses another name. For a site
+  without one, `https://<server address>:8443`; with a cloud firewall (AWS, or one you added on DigitalOcean or
+  Hetzner), allow TCP port 8443 there too.
+* **Login:** `box`, with a password `plone-panel on` shows once; `sudo plone-panel password` makes a new one. It isn't
+  the Plone admin's, and it can't do anything else on the server.
+* `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and locks the `box`
+  login.
+
 The stack lives in `/opt/plone` (`docker-compose.yml`, plus `.env` with the versions and database password), which
 only root can read. Use `sudo -i` first, or prefix each command with `sudo`:
 
