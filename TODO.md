@@ -114,22 +114,29 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
 ## Demo content for trying Plone
 
 Plone 6.2's starter content is one welcome page, so someone trying Plone has
-to make content before they see what it can do. An optional set of demo
-content would show it right away: a few pages with different blocks (text,
-images, teasers, a listing, a table, a video), a news item and an event, a
-folder with images and a file.
+to make content before they see what it can do. demo.plone.org already has
+demo content: [plone/demo.plone.org](https://github.com/plone/demo.plone.org)
+(MIT, Plone Foundation), the `voltodemo` distribution in `backend/`, made with
+plone.distribution and plone.exportimport. About 55 items: a page for each
+block (text, image, teaser, listing, grid, table, video, maps, accordion,
+search, ...), each content type (page, news item, event, link, image), and
+images.
 
-- **A choice in the launch form**, such as Starter content: `welcome` (Plone's
-  welcome page, as now), `demo` (the demo content) or `no` (empty). Only for
-  the standard site: a Plone distribution keeps its own.
-- **Loaded with plone.exportimport**, which Plone 6.1 and later have built in,
-  from a small export kept in this repository.
-- **Ours or freely licensed:** text we write, and images we make or that are
-  public domain or CC0, so anyone can use the content on their site.
-- **In each language the site can start in,** or at least English first,
-  with the rest as people contribute.
+- **Made for Volto Light Theme:** grid, highlight, introduction, slider,
+  accordion and button blocks come from it, so it goes with our
+  `19-vlt` frontend image and `kitconcept.voltolighttheme`. On plain Volto
+  those blocks wouldn't show. volto.demo.plone.org's own content is only the
+  welcome page.
+- **A choice in the launch form**, such as Starter content: `welcome`
+  (Plone's welcome page, as now), `demo` (demo.plone.org's content, with
+  Volto Light Theme) or `no` (empty). Only for the standard site: a Plone
+  distribution keeps its own.
+- **Check first:** where its images come from (the penguins have no credits),
+  which pages are worth it (the "Vertical spacing" pages are for theme
+  designers), that it loads into our VLT version, and whether the demo.plone.org
+  people would publish it as a package we can install rather than copy.
 - A Try It page for plain Plone with the demo content and a demo login would
-  then be the quickest way to show someone Plone.
+  then be your own demo.plone.org in ten minutes.
 
 ## A control panel for Plone in a Box™
 
