@@ -230,7 +230,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -246,7 +246,8 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
 ### Terraform deployment (automated, more technical)
 
 1. Install Terraform (see [One-time setup](#one-time-setup) under AWS) and create an API token: in the DigitalOcean control panel, go to **API →
-   Tokens → Generate New Token**, give it **Full Access** (custom scopes need, at least, create/read/delete for droplets, SSH keys, firewalls and tags),
+   Tokens → Generate New Token**, give it **Full Access** (custom scopes need, at least, create/read/delete for droplets, SSH keys, firewalls, tags,
+   monitoring and uptime, and read for account),
    and copy it. It's shown only once.
 2. Deploy:
    ```
@@ -269,8 +270,16 @@ Launch Droplet Console**, and run `cat /root/plone-credentials.txt` to read the 
    regions that do. Once created, the Droplet stays in its region.
    As on AWS, the Droplet downloads its setup script from the Plone in a Box release in `release`, so to try
    changes, push them to a branch and set `release` to it.
-3. Terraform prints `site_url`, `public_ip`, `region` and `credentials_command`. The Droplet also gets a DigitalOcean Cloud
-   Firewall that allows only ports 22, 80 and 443.
+3. Terraform prints `site_url`, `public_ip`, `region`, `credentials_command` and `alerts_to`. The Droplet also gets a
+   DigitalOcean Cloud Firewall that allows only ports 22, 80 and 443.
+
+   **Alerts**, free and on by default: DigitalOcean emails you when the Droplet's disk is over 85% full, its memory
+   over 90% for 10 minutes, or its CPU over 90% for 30 minutes (**Monitoring → Resource Alerts**). They go to your
+   account's email; `alert_emails = ["you@example.org"]` sends them elsewhere (DigitalOcean only sends to verified
+   members of your team), and `alerts = false` turns them off. `uptime_check = true` also checks the site from four
+   places every few minutes and emails you when it's down, or when its certificate expires within 14 days (with a
+   domain). That costs extra beyond the first: DigitalOcean includes one Uptime check per account, then charges $1 a
+   month each, so it's off by default.
 
 Open the `site_url` to watch the setup progress page (or follow `ssh root@<public-ip> tail -f
 /var/log/plone-in-a-box.log`), then continue with [After provisioning](#after-provisioning).
@@ -304,7 +313,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -533,8 +542,20 @@ ssh root@<new-server> plone-restore /root/plone-<date>.sql.gz
 
 Then point your domain at the new server, and delete the old one when you're sure.
 
+**Checking the backups**: a backup you've never restored may not restore. Once a month (the first Wednesday,
+around 04:30 server time), `plone-backup-check.timer` loads the newest backup into a separate test database next
+to the site's, has Plone open the site in it and read its newest pages and a file or image, and then deletes the
+test database. The site keeps running and isn't touched. With [copies off the server](#day-to-day-administration),
+it tests the newest copy there instead, downloaded and decrypted the way you would after losing the server, so the
+passphrase and the bucket are checked too, and it warns if the newest copy is more than three days old. If
+anything fails, a notice goes to the notification URL and by email, and the login message shows it until the next
+check passes. `sudo plone-backup-check` runs it now (`sudo plone-backup-check <file>` tests one backup), and the
+result of the last one is in `/var/lib/plone-in-a-box/backup-check`, the log in `/var/log/plone-backup-check.log`.
+It needs free disk space for a second copy of the database while it runs.
+
 A server set up before 2.16 gets the nightly backups with the [same command](#servers-set-up-before-212) as automatic
-updates, and one set up before 2.19 gets `plone-restore` with it too (and before 2.20, `plone-offsite`).
+updates, and one set up before 2.19 gets `plone-restore` with it too (before 2.20, `plone-offsite`, and before 2.25,
+`plone-backup-check`).
 
 **Knowing when the site is down**: the server can't tell you that it's down itself, so let something outside check
 the site's address every minute or so and alert you:
@@ -544,7 +565,8 @@ the site's address every minute or so and alert you:
   three regions. A check gets its alerts one at a time: add a **Downtime** alert set to **down in all regions** with
   a wait of 2 minutes (so a network problem near one region doesn't wake you), then use **Add alert** again for an
   **SSL certificate expiry** alert at 14 days, in case renewing the certificate stops working. Alerts only go to
-  email addresses verified in the DigitalOcean account.
+  email addresses verified in the DigitalOcean account. One check per account is included; each further one is $1 a
+  month. (With DigitalOcean's Terraform, `uptime_check = true` sets this up.)
 * **AWS**: a **Route 53 health check** on the site's address, with a CloudWatch alarm that emails you.
 * Or an outside uptime service, many of which have a free plan.
 
@@ -556,9 +578,65 @@ Your provider can also tell you when the server itself is struggling:
 * **DigitalOcean**: install the metrics agent (`curl -sSL https://repos.insights.digitalocean.com/install.sh | sudo
   bash`; the Droplet's **Insights** tab then shows memory and disk use), and create **Monitoring → Resource Alerts**
   for disk use over 85%, memory over 90% for 10 minutes, and CPU over 90% for 30 minutes. Give the Droplets a tag and
-  choose the tag, so a new server gets the same alerts.
+  choose the tag, so a new server gets the same alerts. Both are free, and a Droplet made with Terraform has them
+  already (see [Option C](#terraform-deployment-automated-more-technical-1)).
 * **AWS**: CloudWatch alarms on the instance's CPU and status checks. **Hetzner** Cloud has no alerts of this kind;
   an uptime check covers the most common problems.
+
+**Sending the logs elsewhere**: the logs stay on the server, which is enough to look into a problem, but they're
+gone with it, and with several servers you'd log in to each. `plone-syslog` sends them to a syslog server or service
+as well (see [Where to send them](#where-to-send-the-logs) below): Plone, Volto and PostgreSQL, nginx's
+requests and errors, the Plone in a Box tools' logs (backups, updates and the others), and the system's own, such
+as SSH logins and security updates.
+
+```
+sudo plone-syslog on logs.example.org:6514
+```
+
+It uses TLS, checked against the server's name, unless you add `--tcp` or `--udp` (unencrypted: only within a
+private network). For a log server with a certificate of its own making, add `--ca <file>` with its certificate
+authority. Some services want a token in every message, as a structured-data element: give it with `--sd -`,
+which asks for it without showing it, and keeps it where only root can read it.
+
+**How much a site sends**: most of the volume is one line per web request (nginx's, and Plone's own). The rest
+(errors, Plone, backups, updates, SSH) is a few hundred KB a day. A small site with its requests sends roughly
+10–300 MB a month, depending on its traffic and the bots that visit it; with `--no-access-log`, which leaves out the
+line per request (errors still go), it's more like 10 MB.
+
+<a id="where-to-send-the-logs"></a>**Where to send them**: the two services have been tried with `plone-syslog`, and a log server of your own
+with a test one (prices as of November 2026; check the service's own page):
+
+| | Free | Kept | Paid | `plone-syslog on …` |
+|---|---|---|---|---|
+| [Better Stack](https://betterstack.com/logs) | 3 GB a month | 3 days | from about $25 a month | `<ingesting host>:6514 --sd -`, then `[logtail@11993 source_token="<token>"]` |
+| [Papertrail](https://www.papertrail.com) (SolarWinds Observability) | trial only | 15 days | about $91 a year per GB a month | `syslog.collector.na-01.cloud.solarwinds.com:6514 --sd -`, then `[<token>@41058]` |
+| Your own log server (rsyslog) | — | as long as you like | the server, about $5 a month | `<your server>:6514`, with `--ca <file>` if its certificate is your own |
+
+* **Most sites**: Better Stack's free plan with `--no-access-log`. Three days is enough to see what just happened,
+  and the volume stays far below the limit.
+* **Logs kept for weeks**: Papertrail, or a log server of your own. Papertrail is the least work; your own server
+  costs the least once you have several sites, but you look after it.
+* For Better Stack, create a source with the platform **RSyslog** (not the Better Stack collector); it shows the
+  ingesting host and the source token. For Papertrail, **Setup logging** shows the host and an ingestion token.
+  `--sd -` asks for the token's part without showing it, and keeps it where only root can read it.
+
+**Another service** works if it accepts **syslog over TLS on TCP** (RFC 5424, usually port 6514) and tells
+accounts apart by the port it gives you, or by a token in each message, which `--sd` adds. Services that only take
+data from their own agent on the server (Grafana Cloud, Datadog, New Relic and others) don't work with
+`plone-syslog`.
+
+For example:
+
+```
+sudo plone-syslog on s1234567.us-east-9.betterstackdata.com:6514 --sd - --no-access-log
+```
+
+Each message carries the site's name (its domain, or its IP address), so you can tell servers apart. The backend's
+health check every 10 seconds and the firewall's lines about blocked connections stay on the server.
+The site's containers restart once, so the site is away for a minute or two. If the log server can't be
+reached, up to 100 MB of logs wait on the server and go out once it's back. `sudo plone-syslog test` sends a test
+message, `status` shows where they go, and `off` keeps the logs on the server only again. A server set up before
+2.25 gets the command with the [same command](#servers-set-up-before-212) as automatic updates.
 
 **Outgoing connections**: setup doesn't limit what the server connects to. If you add a firewall in front of it that
 does (a Linode Cloud Firewall with outbound policy **Drop**, say), allow these, or parts of the box stop working
@@ -570,6 +648,7 @@ without saying why:
 | UDP and TCP 53 | DNS, unless the provider's resolver is inside its network |
 | UDP 123 | the clock (NTP); without it the clock drifts, and HTTPS and logins can start failing |
 | TCP 587 or 2525 | email, if the site sends it (see [Sending email](#sending-email)) |
+| The log server's port | logs, if you send them elsewhere (see **Sending the logs elsewhere** above) |
 
 ## Updates
 
@@ -682,7 +761,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -690,7 +769,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,
@@ -973,6 +1052,15 @@ go to the Site 'From' address, unless `/var/lib/plone-in-a-box/report-email` on 
 
 Either way, password resets and forms then send email. To change the settings later, use **Site Setup → Mail**.
 
+**The server's own mail**: besides the site, the server itself sometimes has something to say: Ubuntu's automatic
+security updates when one fails, and any program that mails root. With mail settings in place, setup has that mail
+sent through the same service, from the site's From address, to the address for reports (with msmtp, configured in
+`/etc/msmtprc`, which only root can read). The weekly update takes the settings from **Site Setup → Mail** again,
+so a change there reaches the server within a week; `sudo plone-server-mail` does it now, and `sudo
+plone-server-mail test` also sends a test email. If the server already has another mail program, such as postfix,
+it's left alone. A server set up before 2.25 gets this with the [same command](#servers-set-up-before-212) as
+automatic updates.
+
 ### Blocklists
 
 Receiving mail servers look up domains in public blocklists, and email from a listed domain, or with links to one,
@@ -1027,6 +1115,35 @@ echo 'https://<domain>' | sudo tee /var/lib/plone-in-a-box/site-url
 
 The first line turns the IP address certificate off (on a server set up before 2.21, which doesn't have one, skip
 it); the last makes update reports name the new address.
+
+### Behind Cloudflare
+
+If your domain's DNS is on Cloudflare, its proxy (the orange cloud) can stand in front of the site: Cloudflare
+answers visitors, caches images and files, and absorbs attacks, and only it talks to your server. The server
+should then accept web traffic only from Cloudflare, or anyone who finds its IP address can go around it. Once the
+site works through Cloudflare:
+
+1. In Cloudflare, **SSL/TLS → Overview**: set the mode to **Full (strict)** (the server has its own Let's Encrypt
+   certificate, so Cloudflare can check it).
+2. On the server:
+
+   ```
+   sudo plone-cloudflare on
+   ```
+
+   It first checks that the domain points at Cloudflare (otherwise nobody could visit the site, so it stops and
+   says so). Then the firewall lets only Cloudflare's addresses reach ports 80 and 443, and nginx takes each
+   visitor's own address from Cloudflare's `CF-Connecting-IP` header, so Plone's logs and forms see the visitor,
+   not Cloudflare. SSH isn't affected.
+3. Check that the certificate can still renew: `sudo certbot renew --dry-run`. If it fails, turn off **Always Use
+   HTTPS** under **SSL/TLS → Edge Certificates** in Cloudflare, so Let's Encrypt's check on port 80 gets through.
+
+Cloudflare publishes its addresses at [cloudflare.com/ips](https://www.cloudflare.com/ips/) and adds new ones now
+and then; `plone-cloudflare.timer` updates the firewall from that list once a month, and a notice goes out if it
+can't. `sudo plone-cloudflare status` shows whether it's on, and `sudo plone-cloudflare off` opens ports 80 and 443
+to everyone again (do that before turning Cloudflare's proxy off). The log is in `/var/log/plone-cloudflare.log`.
+A site without a domain name can't use it. A server set up before 2.25 gets the command with the
+[same command](#servers-set-up-before-212) as automatic updates.
 
 ## Removing the box
 

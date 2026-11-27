@@ -1085,6 +1085,8 @@ while read -r kind name list url; do
   [[ "$kind" == LISTED ]] && NOTICE+="${NOTICE:+ }${name} is on the blocklist ${list} (${url}): email from it, or with links to it, may land in spam. That page explains how to have it removed."
   [[ "$kind" == UNCHECKED && "$name" == dbl.dq.spamhaus.net ]] && NOTICE+="${NOTICE:+ }Spamhaus didn't answer through the DQS key in /var/lib/plone-in-a-box/spamhaus-key: check the key."
 done < <(/usr/local/lib/plone-in-a-box/blocklists $site_host $(cat "$STATE_DIR/email-domain" 2>/dev/null) || true)
+# The server's own mail, with the site's mail settings as they are now.
+/usr/local/bin/plone-server-mail >/dev/null 2>&1 </dev/null
 # rclone for copies off the server (plone-offsite), if they're set up, and
 # Certbot for the IP address certificate (plone-https-ip), if it's in use.
 [[ -s "$STATE_DIR/offsite.conf" ]] && docker pull -q rclone/rclone:1 >/dev/null 2>&1
@@ -1202,6 +1204,138 @@ else:
     except Exception as e:
         print(f"MAIL_FAILED {e!r}")
 EOF
+
+# Run inside the backend by plone-server-mail: the site's mail settings (Site
+# Setup > Mail), as one line of JSON.
+cat > "$APP_DIR/mail_settings.py" <<'EOF'
+import json
+from plone.registry.interfaces import IRegistry
+from zope.component import getUtility
+from zope.component.hooks import setSite
+
+app = globals()["app"]
+setSite(app["Plone"])
+registry = getUtility(IRegistry)
+print("MAIL_SETTINGS " + json.dumps({
+    "host": registry.get("plone.smtp_host") or "",
+    "port": registry.get("plone.smtp_port") or 25,
+    "user": registry.get("plone.smtp_userid") or "",
+    "password": registry.get("plone.smtp_pass") or "",
+    "from": registry.get("plone.email_from_address") or "",
+}))
+EOF
+
+# The server's own mail (cron, Ubuntu's automatic updates, anything that
+# mails root) through the site's mail settings: sudo plone-server-mail. Setup
+# and add-updates.sh run it, and plone-update every week, so a change in Site
+# Setup > Mail reaches it.
+cat > /usr/local/bin/plone-server-mail <<'PLONE_SERVER_MAIL_EOF'
+#!/bin/bash
+# Mail the server itself sends to root goes to the address for reports, through
+# the site's email service (msmtp, with the settings from Site Setup > Mail).
+# Ubuntu's automatic security updates then email you if they fail.
+# Usage: sudo plone-server-mail        (take the settings from the site again)
+#        sudo plone-server-mail test   (and send a test email)
+# Exit 0: set up; 1: failed; 3: the site has no mail settings.
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-server-mail" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+APP_DIR=/opt/plone
+MARK="# Written by plone-server-mail"
+site=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+
+out=$(docker compose --project-directory "$APP_DIR" run --rm --no-deps -T -e ADDONS= \
+  -v "$APP_DIR/mail_settings.py:/app/scripts/mail_settings.py:ro" backend run /app/scripts/mail_settings.py 2>/dev/null </dev/null)
+settings=$(grep -o '^MAIL_SETTINGS .*' <<<"$out" | tail -n 1)
+settings=${settings#MAIL_SETTINGS }
+[[ -n "$settings" ]] || { echo "Couldn't read the site's mail settings (is the site running?)" >&2; exit 1; }
+if ! python3 -c 'import json, sys; d = json.loads(sys.argv[1]); sys.exit(0 if d["host"] and d["from"] else 1)' "$settings"; then
+  echo "The site has no mail settings (Site Setup > Mail), so the server's own mail isn't set up"
+  exit 3
+fi
+# Another mail program already in charge (postfix, say): leave it be.
+if [[ -e /usr/sbin/sendmail ]] && ! dpkg -S /usr/sbin/sendmail 2>/dev/null | grep -q '^msmtp-mta:'; then
+  echo "This server already has another mail program ($(dpkg -S /usr/sbin/sendmail 2>/dev/null | cut -d: -f1 || echo unknown)); leaving it as it is" >&2
+  exit 1
+fi
+if ! dpkg -s msmtp-mta >/dev/null 2>&1; then
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o DPkg::Lock::Timeout=600 msmtp msmtp-mta >/dev/null \
+    || { echo "Installing msmtp failed" >&2; exit 1; }
+fi
+report=$(cat "$STATE_DIR/report-email" 2>/dev/null)
+# The way to log in: msmtp picks the strongest method the server offers, and
+# some services (SMTP2GO, for one) offer SCRAM but don't accept it. Plone
+# itself logs in with CRAM-MD5, PLAIN or LOGIN, so use one of those too:
+# PLAIN or LOGIN, sent only over TLS, else CRAM-MD5.
+read -r host port < <(python3 -c 'import json, sys; d = json.loads(sys.argv[1]); print(d["host"], int(d["port"]))' "$settings")
+starttls=on; [[ "$port" == 465 ]] && starttls=off
+methods=$(msmtp --serverinfo --host="$host" --port="$port" --tls=on --tls-starttls="$starttls"   --tls-trust-file=/etc/ssl/certs/ca-certificates.crt 2>/dev/null | sed -n '/Supported authentication methods:/{n;p;}')
+auth=on
+for m in PLAIN LOGIN CRAM-MD5; do
+  [[ " $methods " == *" $m "* ]] && { auth=${m,,}; break; }
+done
+override=0
+dpkg --compare-versions "$(dpkg-query -W -f='${Version}' msmtp)" ge 1.8.20 && override=1
+
+# The configuration, written by Python so the password needs no shell quoting.
+new=$(python3 - "$settings" "$report" "$override" "$MARK" "$auth" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+report, override, mark, auth = sys.argv[2] or d["from"], sys.argv[3] == "1", sys.argv[4], sys.argv[5]
+def q(value):
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+port = int(d["port"])
+lines = [mark + " from Site Setup > Mail; it's run again every week.",
+         "defaults", "tls on", "tls_trust_file /etc/ssl/certs/ca-certificates.crt",
+         "syslog LOG_MAIL", "aliases /etc/aliases", "",
+         "account site", f"host {q(d['host'])}", f"port {port}",
+         "tls_starttls " + ("off" if port == 465 else "on")]
+if d["user"]:
+    lines += [f"auth {auth}", f"user {q(d['user'])}", f"password {q(d['password'])}"]
+else:
+    lines += ["auth off"]
+# Every message is sent from the site's address, which the service accepts,
+# whatever From the program sending it gave.
+lines += [f"from {q(d['from'])}", "set_from_header on"]
+if override:
+    lines += ["allow_from_override off"]
+lines += ["", "account default : site"]
+print("\n".join(lines))
+print("#ALIASES " + report)
+PY
+) || { echo "Writing the mail settings failed" >&2; exit 1; }
+aliases_to=$(sed -n 's/^#ALIASES //p' <<<"$new")
+new=$(sed '/^#ALIASES /d' <<<"$new")
+changed=0
+if [[ "$new" != "$(cat /etc/msmtprc 2>/dev/null)" ]]; then
+  (umask 077; printf '%s\n' "$new" > /etc/msmtprc.new) && mv /etc/msmtprc.new /etc/msmtprc
+  changed=1
+fi
+# root, and anyone else on the server, to the address for reports.
+aliases=$(printf '%s: mail for root and the other users on this server goes to the address for reports.\nroot: %s\ndefault: %s' "$MARK" "$aliases_to" "$aliases_to")
+if [[ "$aliases" != "$(cat /etc/aliases 2>/dev/null)" ]]; then
+  [[ -s /etc/aliases ]] && ! grep -qF "$MARK" /etc/aliases && cp -n /etc/aliases /etc/aliases.before-plone-in-a-box
+  printf '%s\n' "$aliases" > /etc/aliases
+  changed=1
+fi
+# Ubuntu's automatic security updates: an email when one fails.
+printf '%s\nUnattended-Upgrade::Mail "root";\nUnattended-Upgrade::MailReport "only-on-error";\n' "// ${MARK#\# }" \
+  > /etc/apt/apt.conf.d/51plone-in-a-box-mail
+(( changed )) && echo "The server's own mail now goes to $aliases_to, through $(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["host"])' "$settings")"
+
+if [[ "${1:-}" == test ]]; then
+  if printf 'To: root\nSubject: Plone in a Box: a test of the server'"'"'s own mail (%s)\nDate: %s\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\n\n%s\n' \
+       "$site" "$(date -R)" "This test email shows that $site can email you about the server itself: failed security updates, and anything else that mails root." \
+       | /usr/sbin/sendmail -t -oi; then
+    echo "Sent a test email to $aliases_to"
+  else
+    echo "Sending the test email failed: see sudo journalctl -t msmtp" >&2
+    exit 1
+  fi
+fi
+exit 0
+PLONE_SERVER_MAIL_EOF
+chmod 755 /usr/local/bin/plone-server-mail
 
 # Nightly database backup, and a weekly pack: sudo plone-backup, and every
 # night through plone-backup.timer.
@@ -1362,6 +1496,160 @@ fi
 exit 1
 PLONE_RESTORE_EOF
 chmod 755 /usr/local/bin/plone-restore
+
+# Run inside the backend by plone-backup-check, against the test copy of the
+# database: opens the Plone site, counts its catalog entries, and reads the
+# newest pages and one file or image, so the content itself is known to be
+# there, not just the tables. Add-ons aren't installed for this, so their own
+# kinds of content may not load; those are counted, not failed.
+cat > "$APP_DIR/check_backup.py" <<'EOF'
+from zope.component.hooks import setSite
+
+app = globals()["app"]
+site = app.get("Plone")
+if site is None:
+    print("CHECK_NO_SITE")
+else:
+    setSite(site)
+    catalog = site.portal_catalog
+    # (A catalog search with no query finds nothing, so: everything under the site.)
+    path = "/".join(site.getPhysicalPath())
+    entries = len(catalog.unrestrictedSearchResults(path=path))
+    loaded = failed = 0
+    for brain in catalog.unrestrictedSearchResults(path=path, sort_on="modified", sort_order="descending")[:20]:
+        try:
+            brain._unrestrictedGetObject().Title()
+            loaded += 1
+        except Exception:
+            failed += 1
+    blob = "none"
+    for brain in catalog.unrestrictedSearchResults(path=path, portal_type=["File", "Image"], sort_on="modified", sort_order="descending")[:1]:
+        try:
+            obj = brain._unrestrictedGetObject()
+            field = getattr(obj, "file", None) or getattr(obj, "image", None)
+            with field.open() as f:
+                f.read(1024)
+            blob = "ok"
+        except Exception as e:
+            blob = f"failed:{type(e).__name__}"
+    print(f"CHECK_SITE entries={entries} loaded={loaded} failed={failed} blob={blob}")
+EOF
+
+# Restore test: sudo plone-backup-check, and once a month through
+# plone-backup-check.timer.
+cat > /usr/local/bin/plone-backup-check <<'PLONE_BACKUP_CHECK_EOF'
+#!/bin/bash
+# Checks that a backup can really be restored, without touching the site: loads
+# it into a separate test database next to the site's, opens the Plone site in
+# it and reads some of its pages and files, then deletes the test database.
+# With copies off the server (plone-offsite), it tests the newest copy there,
+# downloaded and decrypted, as you would after losing the server; otherwise
+# the newest backup on the server. A problem is reported like a failed backup.
+# Usage: sudo plone-backup-check          (also run once a month by plone-backup-check.timer)
+#        sudo plone-backup-check FILE     (test FILE, a plone-*.sql.gz backup)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-backup-check" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+BACKUP_DIR=/var/backups/plone
+APP_DIR=/opt/plone
+CHECK_DB=plone_check
+mkdir -p "$STATE_DIR"
+exec 9>"$STATE_DIR/update.lock"
+flock -w 10800 9 || { echo "A backup or update is still running; no check this time" >&2; exit 1; }
+exec > >(tee -a /var/log/plone-backup-check.log) 2>&1
+LOG_TEE_PID=$!
+FETCHED=""
+cleanup() {
+  compose exec -T db psql -q -U plone -d postgres -c "DROP DATABASE IF EXISTS $CHECK_DB WITH (FORCE)" >/dev/null 2>&1
+  [[ -n "$FETCHED" ]] && rm -f "$FETCHED"
+  exec >/dev/null 2>&1
+  wait "$LOG_TEE_PID" 2>/dev/null || true
+}
+trap cleanup EXIT
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+compose() { docker compose --project-directory "$APP_DIR" "$@"; }
+sql() { compose exec -T -e PGOPTIONS='-c client_min_messages=warning' db psql -q -At -U plone -v ON_ERROR_STOP=1 "$@"; }
+site=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+fail() {
+  say "$1"
+  printf '%s: FAILED: %s\n' "$(date '+%F')" "$1" > "$STATE_DIR/backup-check"
+  /usr/local/lib/plone-in-a-box/alert "Plone in a Box: backup check failed ($site)" \
+    "$1. The log is in /var/log/plone-backup-check.log on the server; run the check again with: sudo plone-backup-check" >/dev/null 2>&1
+  exit 1
+}
+
+# Which backup: the one given, the newest copy off the server, or the newest here.
+FILE=${1:-}
+WHERE="on the server"
+if [[ -z "$FILE" && -s "$STATE_DIR/offsite.conf" ]]; then
+  # shellcheck disable=SC1091
+  FOLDER=$(source "$STATE_DIR/offsite.conf"; printf '%s' "$FOLDER")
+  name=$(/usr/local/bin/plone-offsite list 2>/dev/null | awk -v f="$FOLDER/" 'index($3, f) == 1 && $3 ~ /\/plone-[^\/]*\.sql\.gz\.gpg$/ { print $3 }' | sort -r | head -n 1)
+  [[ -n "$name" ]] || fail "No copy of a backup was found off the server, in $FOLDER (sudo plone-offsite list)"
+  say "Downloading the newest copy off the server, $name"
+  /usr/local/bin/plone-offsite fetch "$name" >/dev/null || fail "Downloading or decrypting the copy $name failed"
+  FILE="$BACKUP_DIR/offsite-$(basename "$name" .gpg)"
+  FETCHED=$FILE
+  WHERE="off the server, $name"
+  # The name has the date it was taken; an old newest copy means the copies stopped.
+  taken=$(sed -nE 's/^plone-([0-9]{4}-[0-9]{2}-[0-9]{2})-.*/\1/p' <<<"$(basename "$name")")
+  if [[ -n "$taken" ]] && (( $(date +%s) - $(date -d "$taken" +%s) > 3 * 86400 )); then
+    fail "The newest copy off the server, $name, is from $taken: the nightly copies have stopped"
+  fi
+elif [[ -z "$FILE" ]]; then
+  # shellcheck disable=SC2012
+  FILE=$(ls -1t "$BACKUP_DIR"/plone-*.sql.gz 2>/dev/null | head -n 1)
+  [[ -n "$FILE" ]] || fail "There's no backup on the server to check"
+fi
+[[ -s "$FILE" ]] || fail "No backup at $FILE"
+gzip -t "$FILE" 2>/dev/null || fail "The backup $FILE is damaged: it isn't a complete .sql.gz file"
+
+# Room for a second copy of the database, and some to spare.
+size=$(sql -d plone -c "SELECT pg_database_size('plone')") || fail "The site's database didn't answer"
+avail=$(df --output=avail -B1 /var/lib/docker | tail -n 1)
+(( avail > size * 12 / 10 + 200000000 )) \
+  || fail "Not enough free disk for the check: the database takes $((size / 1048576)) MB, and $((avail / 1048576)) MB are free"
+
+say "Loading $FILE into the test database $CHECK_DB"
+sql -d postgres -c "DROP DATABASE IF EXISTS $CHECK_DB WITH (FORCE)" -c "CREATE DATABASE $CHECK_DB OWNER plone" >/dev/null \
+  || fail "Creating the test database failed"
+zcat "$FILE" | sql -d "$CHECK_DB" >/dev/null || fail "Loading the backup $FILE into a database failed"
+
+# The objects in it, against the site's own (the site may have grown since).
+count() {  # count DB: objects in the database (history-preserving or not)
+  sql -d "$1" -c "SELECT count(*) FROM current_object" 2>/dev/null || sql -d "$1" -c "SELECT count(*) FROM object_state" 2>/dev/null
+}
+restored=$(count "$CHECK_DB") || fail "The backup loaded, but it has no Plone data in it"
+live=$(count plone || echo 0)
+(( restored > 0 )) || fail "The backup loaded, but it's empty"
+(( restored * 2 >= live )) || fail "The backup has $restored objects, under half the site's $live"
+
+# The site itself, opened from the test database by a second Plone process.
+pw=$(sed -nE "s/^POSTGRES_PASSWORD=['\"]?([^'\"]*)['\"]?$/\1/p" "$APP_DIR/.env")
+out=$(compose run --rm --no-deps -T -e ADDONS= \
+  -e RELSTORAGE_DSN="dbname='$CHECK_DB' user='plone' host='db' password='$pw'" \
+  -v "$APP_DIR/check_backup.py:/app/scripts/check_backup.py:ro" \
+  backend run /app/scripts/check_backup.py 2>&1 </dev/null)
+result=$(grep -oE 'CHECK_(SITE|NO_SITE).*' <<<"$out" | tail -n 1)
+case "$result" in
+  CHECK_NO_SITE) fail "The backup loaded, but there's no Plone site in it" ;;
+  CHECK_SITE*) ;;
+  *) printf '%s\n' "$out" | tail -n 20; fail "Plone couldn't open the site in the backup (its messages are in the log)" ;;
+esac
+entries=$(sed -nE 's/.*entries=([0-9]+).*/\1/p' <<<"$result")
+loaded=$(sed -nE 's/.*loaded=([0-9]+).*/\1/p' <<<"$result")
+failed=$(sed -nE 's/.*failed=([0-9]+).*/\1/p' <<<"$result")
+blob=$(sed -nE 's/.*blob=([^ ]+).*/\1/p' <<<"$result")
+(( entries == 0 || loaded > 0 )) || fail "Plone opened the site in the backup, but none of its newest $failed pages could be read"
+[[ "$blob" == failed* ]] && fail "Plone opened the site in the backup, but the newest file or image couldn't be read (${blob#failed:})"
+
+summary="OK: the backup $(basename "$FILE") ($WHERE) restores: $restored database objects, $entries pages and files, the newest $loaded opened"
+[[ "$blob" == ok ]] && summary+=", and a file or image read"
+(( failed > 0 )) && summary+=" ($failed more are add-on content, not checked)"
+say "$summary"
+printf '%s: %s\n' "$(date '+%F')" "$summary" > "$STATE_DIR/backup-check"
+PLONE_BACKUP_CHECK_EOF
+chmod 755 /usr/local/bin/plone-backup-check
 
 # Encrypted copies of the nightly backups in S3-compatible storage (Cloudflare
 # R2, AWS S3, Backblaze B2, DigitalOcean Spaces, Hetzner and others), once
@@ -1529,6 +1817,407 @@ esac
 PLONE_OFFSITE_EOF
 chmod 755 /usr/local/bin/plone-offsite
 
+# A site behind Cloudflare's proxy: sudo plone-cloudflare on. Only Cloudflare
+# can then reach the web ports, and the site sees visitors' own addresses.
+# plone-cloudflare.timer keeps Cloudflare's address list up to date.
+cat > /usr/local/bin/plone-cloudflare <<'PLONE_CLOUDFLARE_EOF'
+#!/bin/bash
+# For a site whose domain is proxied by Cloudflare (the orange cloud): the
+# firewall lets only Cloudflare's addresses reach ports 80 and 443, so nobody
+# can go around Cloudflare to the server, and nginx takes each visitor's own
+# address from Cloudflare's CF-Connecting-IP header. SSH isn't affected.
+# Usage: sudo plone-cloudflare on [--force]  (--force: even if the domain doesn't point at Cloudflare yet)
+#        sudo plone-cloudflare off           (open ports 80 and 443 to everyone again)
+#        sudo plone-cloudflare status
+#        sudo plone-cloudflare refresh       (update Cloudflare's addresses; done once a month)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-cloudflare ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+RANGES=$STATE_DIR/cloudflare-ranges
+CONF=/etc/nginx/conf.d/plone-cloudflare.conf
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-cloudflare.log; }
+die() { say "$*" >&2; exit 1; }
+site=$(cat "$STATE_DIR/site-url" 2>/dev/null || hostname)
+
+# Cloudflare's published address ranges, one per line, or nothing.
+fetch() {
+  local v4 v6
+  v4=$(curl -fsS -m 30 --retry 3 https://www.cloudflare.com/ips-v4) || return 1
+  v6=$(curl -fsS -m 30 --retry 3 https://www.cloudflare.com/ips-v6) || return 1
+  python3 - "$v4" "$v6" <<'PY'
+import ipaddress, sys
+v4 = [ipaddress.ip_network(x.strip()) for x in sys.argv[1].split() if x.strip()]
+v6 = [ipaddress.ip_network(x.strip()) for x in sys.argv[2].split() if x.strip()]
+if len(v4) < 5 or len(v6) < 3 or any(n.version != 4 for n in v4) or any(n.version != 6 for n in v6):
+    sys.exit(1)
+print("\n".join(str(n) for n in sorted(v4) + sorted(v6, key=str)))
+PY
+}
+
+rule() {  # rule allow|delete RANGE
+  if [[ "$1" == allow ]]; then
+    ufw allow proto tcp from "$2" to any port 80,443 comment Cloudflare >/dev/null
+  else
+    ufw delete allow proto tcp from "$2" to any port 80,443 >/dev/null
+  fi
+}
+
+# apply LIST: nginx's real-address settings and the firewall rules for LIST,
+# replacing the ones for the previous list.
+apply() {
+  local list=$1 old="" r
+  [[ -s "$RANGES" ]] && old=$(cat "$RANGES")
+  { echo "# Written by plone-cloudflare: visitors' own addresses, from Cloudflare's header."
+    while read -r r; do echo "set_real_ip_from $r;"; done <<<"$list"
+    echo "real_ip_header CF-Connecting-IP;"; } > "$CONF.new"
+  mv "$CONF.new" "$CONF"
+  if ! nginx -t -q 2>/dev/null; then
+    rm -f "$CONF"
+    die "nginx didn't accept the Cloudflare settings; nothing was changed"
+  fi
+  # New ranges first, so the site is never closed to Cloudflare.
+  while read -r r; do grep -qxF "$r" <<<"$old" || rule allow "$r" || die "Adding the firewall rule for $r failed"; done <<<"$list"
+  while read -r r; do [[ -z "$r" ]] || grep -qxF "$r" <<<"$list" || rule delete "$r"; done <<<"$old"
+  printf '%s\n' "$list" > "$RANGES"
+  systemctl reload nginx
+}
+
+case "${1:-}" in
+on)
+  domain=$(awk '$1 == "server_name" { sub(/;$/, "", $2); print $2; exit }' /etc/nginx/sites-available/plone)
+  [[ -n "$domain" && "$domain" != _ ]] \
+    || die "This site has no domain name. Cloudflare needs one: see \"Adding a domain later\" in the setup guide"
+  list=$(fetch) || die "Couldn't get Cloudflare's address list from www.cloudflare.com; nothing was changed"
+  # The domain has to point at Cloudflare already, or visitors are shut out.
+  addresses=$(getent ahosts "$domain" | awk '{print $1}' | sort -u)
+  if ! python3 - "$list" "$addresses" <<'PY'
+import ipaddress, sys
+nets = [ipaddress.ip_network(x) for x in sys.argv[1].split()]
+addrs = [ipaddress.ip_address(x) for x in sys.argv[2].split()]
+sys.exit(0 if addrs and all(any(a in n for n in nets) for a in addrs) else 1)
+PY
+  then
+    if [[ "${2:-}" != --force ]]; then
+      die "$domain doesn't point at Cloudflare (it's ${addresses//$'\n'/ }): turn on the proxy (the orange cloud) for it in Cloudflare's DNS settings first, wait a few minutes, and try again. Otherwise only Cloudflare could reach the site, and nobody could visit it."
+    fi
+    say "$domain doesn't point at Cloudflare yet; going ahead, as --force asks"
+  fi
+  apply "$list"
+  ufw delete allow 'Nginx Full' >/dev/null 2>&1
+  systemctl enable --now plone-cloudflare.timer 2>/dev/null
+  say "On: only Cloudflare's $(wc -l <<<"$list") address ranges can reach ports 80 and 443, and the site sees visitors' own addresses. Back to open with: sudo plone-cloudflare off"
+  ;;
+refresh)
+  [[ -s "$RANGES" ]] || exit 0
+  if ! list=$(fetch); then
+    say "Couldn't get Cloudflare's address list; the current one stays"
+    /usr/local/lib/plone-in-a-box/alert "Plone in a Box: Cloudflare's addresses not updated ($site)" \
+      "Getting Cloudflare's current address list from www.cloudflare.com failed, so the firewall keeps the list from $(date -r "$RANGES" '+%F'). If Cloudflare has added addresses since, some visitors may not reach the site. It's tried again next month, or now with: sudo plone-cloudflare refresh" >/dev/null 2>&1
+    exit 1
+  fi
+  if [[ "$list" == "$(cat "$RANGES")" ]]; then
+    touch "$RANGES"
+    say "Cloudflare's addresses haven't changed"
+  else
+    apply "$list"
+    say "Updated Cloudflare's addresses: $(wc -l <<<"$list") ranges"
+  fi
+  ;;
+off)
+  ufw allow 'Nginx Full' >/dev/null
+  if [[ -s "$RANGES" ]]; then
+    while read -r r; do [[ -z "$r" ]] || rule delete "$r"; done < "$RANGES"
+  fi
+  rm -f "$RANGES" "$CONF"
+  nginx -t -q && systemctl reload nginx
+  systemctl disable --now plone-cloudflare.timer 2>/dev/null
+  say "Off: ports 80 and 443 are open to everyone again"
+  ;;
+status)
+  if [[ -s "$RANGES" ]]; then
+    echo "On: only Cloudflare's $(wc -l < "$RANGES") address ranges can reach ports 80 and 443 (list from $(date -r "$RANGES" '+%F'))."
+  else
+    echo "Off: ports 80 and 443 are open to everyone. Turn it on with: sudo plone-cloudflare on"
+  fi
+  ;;
+*)
+  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+  ;;
+esac
+PLONE_CLOUDFLARE_EOF
+chmod 755 /usr/local/bin/plone-cloudflare
+cat > /etc/systemd/system/plone-cloudflare.service <<'EOF'
+[Unit]
+Description=Plone in a Box: update Cloudflare's addresses in the firewall
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/plone-cloudflare refresh
+EOF
+cat > /etc/systemd/system/plone-cloudflare.timer <<'EOF'
+[Unit]
+Description=Update Cloudflare's addresses once a month
+
+[Timer]
+OnCalendar=*-*-03 05:00:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+# The server's logs to a syslog server or service of your own: sudo
+# plone-syslog on HOST:PORT. rsyslog collects them here and forwards them,
+# keeping up to 100 MB while the log server can't be reached.
+cat > /usr/local/bin/plone-syslog <<'PLONE_SYSLOG_EOF'
+#!/bin/bash
+# Sends the server's logs to a syslog server or service (Papertrail, Better
+# Stack, your own rsyslog, ...): Plone, Volto and PostgreSQL, nginx's requests
+# and errors, the Plone in a Box tools (backups, updates, ...), and the
+# system's own (SSH logins, security updates). They also stay on the server.
+# Usage: sudo plone-syslog on HOST:PORT [--tcp|--udp] [--ca FILE] [--sd ELEMENT|-] [--no-access-log]
+#          TLS unless --tcp or --udp (unencrypted); --ca: the certificate
+#          authority of a log server with a certificate of its own making;
+#          --sd: a structured-data element some services want in every
+#          message, with your token (- reads it, unshown, from the terminal);
+#          --no-access-log: not one line per web request, which is most of
+#          the volume (errors and everything else still go)
+#        sudo plone-syslog off
+#        sudo plone-syslog status
+#        sudo plone-syslog test     (send a test message)
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-syslog ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+APP_DIR=/opt/plone
+CONF=/etc/rsyslog.d/60-plone-in-a-box-remote.conf
+FILES_CONF=/etc/rsyslog.d/59-plone-in-a-box-files.conf
+APPARMOR=/etc/apparmor.d/rsyslog.d/plone-in-a-box
+NGINX_CONF=/etc/nginx/conf.d/plone-syslog.conf
+OVERRIDE=$APP_DIR/docker-compose.override.yml
+# (Where rsyslog may read it: it runs as the syslog user, and Ubuntu's AppArmor
+# profile for it allows /etc/rsyslog.d; only *.conf files there are settings.)
+CA_COPY=/etc/rsyslog.d/plone-in-a-box-ca.pem
+MARK="# Written by plone-syslog"
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
+die() { echo "$*" >&2; exit 1; }
+compose() { docker compose --project-directory "$APP_DIR" "$@"; }
+
+# The site's containers log to journald (rsyslog reads it from there), or
+# back to their own files. docker compose logs works either way. Recreating
+# them restarts the site for a moment, so not while a backup or update runs.
+containers() {  # containers journald|files
+  local want=$1
+  if [[ "$want" == journald ]]; then
+    [[ -s "$OVERRIDE" ]] && grep -qF "$MARK" "$OVERRIDE" && return 0
+    cat > "$OVERRIDE" <<'EOF'
+# Written by plone-syslog: the containers log to journald, so their logs can
+# be sent on to the log server (docker compose logs still works).
+x-logging: &journald
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+services:
+  frontend:
+    logging: *journald
+  backend:
+    logging: *journald
+  db:
+    logging: *journald
+EOF
+  else
+    [[ -e "$OVERRIDE" ]] || return 0
+    grep -qF "$MARK" "$OVERRIDE" || die "$OVERRIDE wasn't written by plone-syslog; leaving the containers as they are"
+    rm -f "$OVERRIDE"
+  fi
+  exec 9>"$STATE_DIR/update.lock"
+  flock -w 3600 9 || die "A backup or update is still running; try again later"
+  say "Restarting the site's containers so they log $( [[ "$want" == journald ]] && echo "to journald" || echo "to their own files again"); the site is back in a minute or two"
+  compose up -d --wait --wait-timeout 600 >/dev/null 2>&1 || say "The site is taking long to come back: check sudo docker compose --project-directory $APP_DIR ps"
+  flock -u 9
+}
+
+case "${1:-}" in
+on)
+  target=${2:-}
+  [[ "$target" =~ ^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):([0-9]{1,5})$ ]] || die "Give the log server as HOST:PORT, for example logs.example.org:6514"
+  host=${BASH_REMATCH[1]} port=${BASH_REMATCH[2]}
+  host=${host#[}; host=${host%]}
+  protocol=tls ca="" sd="" requests=yes
+  shift 2
+  while (( $# )); do
+    case "$1" in
+      --tcp) protocol=tcp ;;
+      --udp) protocol=udp ;;
+      --ca) ca=${2:-}; shift ;;
+      --sd) sd=${2:-}; shift ;;
+      --no-access-log) requests=no ;;
+      *) die "Unknown option $1" ;;
+    esac
+    shift
+  done
+  if [[ "$sd" == - ]]; then
+    if [[ -t 0 ]]; then
+      read -r -s -p "Structured-data element (not shown): " sd; echo
+    else
+      read -r sd
+    fi
+  fi
+  # An RFC 5424 structured-data element, such as [TOKEN@41058] or
+  # [logtail@11993 source_token="TOKEN"]: one line, in brackets.
+  if [[ -n "$sd" && ! "$sd" =~ ^\[[^][:cntrl:]]+(\]\[[^][:cntrl:]]+)*\]$ ]]; then
+    die "--sd takes a structured-data element in brackets, such as [TOKEN@41058], as your log service gives it"
+  fi
+  if [[ -n "$ca" ]]; then
+    [[ "$protocol" == tls ]] || die "--ca is for TLS only"
+    openssl x509 -in "$ca" -noout 2>/dev/null || die "$ca isn't a PEM certificate"
+    install -m 644 "$ca" "$CA_COPY.new" && mv "$CA_COPY.new" "$CA_COPY"
+  else
+    rm -f "$CA_COPY"
+  fi
+  packages=(rsyslog)
+  [[ "$protocol" == tls ]] && packages+=(rsyslog-gnutls)
+  for p in "${packages[@]}"; do
+    dpkg -s "$p" >/dev/null 2>&1 && continue
+    DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1 apt-get install -y -qq -o DPkg::Lock::Timeout=600 \
+      "${packages[@]}" >/dev/null 2>&1 || die "Installing ${packages[*]} failed"
+    break
+  done
+  # Reachable at all? (UDP can't tell.) With TLS: a certificate for that name,
+  # from a known authority, or rsyslog would refuse it later without a word here.
+  if [[ "$protocol" != udp ]] && ! timeout 10 bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null; then
+    die "Can't connect to $host on port $port: check the address, and that a firewall in front of this server allows it out"
+  fi
+  if [[ "$protocol" == tls ]]; then
+    cafile=/etc/ssl/certs/ca-certificates.crt
+    [[ -s "$CA_COPY" ]] && cafile=$CA_COPY
+    if ! timeout 20 openssl s_client -connect "$host:$port" -servername "$host" -verify_hostname "$host" \
+         -CAfile "$cafile" -verify_return_error </dev/null >/dev/null 2>&1; then
+      die "$host:$port doesn't have a valid TLS certificate for the name $host (for a log server with a certificate of its own making, give its authority with --ca FILE; to send unencrypted, --tcp)"
+    fi
+  fi
+
+  # The Plone in a Box tools' own log files, and nginx's requests and errors,
+  # through rsyslog too. Finding the tools' files means listing /var/log,
+  # which Ubuntu's AppArmor profile for rsyslog doesn't allow by itself.
+  if [[ -d /etc/apparmor.d/rsyslog.d ]]; then
+    printf '%s\n/var/log/ r,\n' "$MARK: imfile finds /var/log/plone-*.log." > "$APPARMOR"
+    apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd 2>/dev/null || true
+  fi
+  cat > "$FILES_CONF" <<'EOF'
+# Written by plone-syslog: the Plone in a Box tools' log files.
+module(load="imfile")
+# (freshStartTail: from now on, not the files' whole history.)
+input(type="imfile" File="/var/log/plone-*.log" Tag="plone-in-a-box:" Facility="local0" freshStartTail="on")
+EOF
+  { what="errors"; [[ "$requests" == yes ]] && what="requests and errors"
+    echo "# Written by plone-syslog: $what to rsyslog too, which sends them on."
+    [[ "$requests" == yes ]] && echo "access_log syslog:server=unix:/dev/log,tag=nginx,severity=info,nohostname combined;"
+    echo "error_log syslog:server=unix:/dev/log,tag=nginx,nohostname warn;"; } > "$NGINX_CONF"
+  nginx -t -q 2>/dev/null || { rm -f "$NGINX_CONF" "$FILES_CONF"; die "nginx didn't accept the syslog settings; nothing was changed"; }
+
+  # Forwarding, with a queue on disk for when the log server is away.
+  case "$protocol" in
+    tls)
+      # The name checked in the certificate: the host's, or the wildcard a
+      # service's certificate may have instead (*.example.com for
+      # logs.example.com).
+      peers=$host
+      [[ "$host" == *.*.* ]] && peers+=",*.${host#*.}"
+      tls="StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"x509/name\" StreamDriverPermittedPeers=\"$peers\""
+      global="DefaultNetstreamDriverCAFile=\"$cafile\""
+      proto=tcp ;;
+    tcp) tls="" global="" proto=tcp ;;
+    udp) tls="" global="" proto=udp ;;
+  esac
+  # The name the messages carry: the site's, rather than the server's own
+  # (often just "localhost" on a cloud server).
+  name=$(sed -E 's#^https?://##; s#[:/].*##' "$STATE_DIR/site-url" 2>/dev/null)
+  [[ "$name" =~ ^[A-Za-z0-9.-]+$ ]] || name=$(hostname)
+  # --no-access-log: the containers' own line per request too (Plone logs
+  # one for each, as nginx does).
+  request_filter=""
+  # (rsyslog's own variables, not the shell's.)
+  # shellcheck disable=SC2016
+  [[ "$requests" == no ]] && request_filter='if $programname startswith "plone-" and re_match($msg, "\"(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) [^ ]* HTTP/[0-9.]+\" [0-9]{3}") then {
+  stop
+}'
+  # RFC 5424, with the structured-data element if one was given (escaped for
+  # an rsyslog string: backslashes, quotes and percent signs).
+  template=RSYSLOG_SyslogProtocol23Format template_def=""
+  if [[ -n "$sd" ]]; then
+    esc=${sd//\\/\\\\}; esc=${esc//\"/\\\"}; esc=${esc//%/\\%}
+    template=PloneInABoxRemote
+    template_def="template(name=\"PloneInABoxRemote\" type=\"string\" string=\"<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% %PROCID% %MSGID% $esc%msg:::sp-if-no-1st-sp%%msg%\")"
+  fi
+  # Only root can read it: the structured data can hold a token.
+  (umask 077; cat > "$CONF.new" <<EOF
+$MARK: everything to $host:$port ($protocol${sd:+, with structured data}).
+global(localHostname="$name" $global)
+$template_def
+# Not sent, to keep the volume down (both stay in the server's own logs): the
+# backend's health check every 10 seconds, and the firewall's lines about the
+# connections it blocks, which internet scanners cause all day.
+if (\$programname startswith "plone-backend" and \$msg contains "GET /ok HTTP/1.1") or \$msg contains "[UFW BLOCK]" then {
+  stop
+}
+$request_filter
+*.* action(type="omfwd" target="$host" port="$port" protocol="$proto" $tls
+           template="$template"
+           queue.type="LinkedList" queue.filename="plone-in-a-box-remote" queue.maxDiskSpace="100m"
+           queue.saveOnShutdown="on" action.resumeRetryCount="-1" action.resumeInterval="30")
+EOF
+  )
+  mv "$CONF.new" "$CONF"
+  if ! rsyslogd -N1 >/dev/null 2>&1; then
+    rsyslogd -N1 2>&1 | tail -n 5
+    rm -f "$CONF" "$FILES_CONF" "$NGINX_CONF"
+    die "rsyslog didn't accept the settings (above); nothing was changed"
+  fi
+  printf '%s %s %s\n' "$protocol" "$host:$port" "$requests" > "$STATE_DIR/syslog"
+  systemctl restart rsyslog
+  systemctl reload nginx
+  containers journald
+  logger -t plone-in-a-box "plone-syslog: $(cat "$STATE_DIR/site-url" 2>/dev/null || hostname) now sends its logs here"
+  say "On: the server's logs go to $host:$port ($protocol). A first message was sent; check that it arrived. Off again with: sudo plone-syslog off"
+  ;;
+off)
+  rm -f "$CONF" "$FILES_CONF" "$NGINX_CONF" "$CA_COPY" "$STATE_DIR/syslog"
+  if [[ -e "$APPARMOR" ]]; then
+    rm -f "$APPARMOR"
+    apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd 2>/dev/null || true
+  fi
+  nginx -t -q && systemctl reload nginx
+  systemctl restart rsyslog 2>/dev/null
+  containers files
+  say "Off: the logs stay on the server only"
+  ;;
+status)
+  if [[ -s "$STATE_DIR/syslog" ]]; then
+    read -r protocol target requests < "$STATE_DIR/syslog"
+    echo "On: the server's logs go to $target ($protocol)$( [[ "$requests" == no ]] && echo ", without a line per web request")."
+    queued=$(find /var/spool/rsyslog -name 'plone-in-a-box-remote.0*' -printf '%s\n' 2>/dev/null | awk '{ n += $1 } END { if (n) printf "%.1f MB", n / 1048576 }')
+    [[ -n "$queued" ]] && echo "Waiting to be sent, because the log server didn't answer: $queued (see sudo journalctl -u rsyslog)"
+  else
+    echo "Off: the logs stay on the server. Turn it on with: sudo plone-syslog on HOST:PORT"
+  fi
+  ;;
+test)
+  [[ -s "$STATE_DIR/syslog" ]] || die "Sending logs isn't on. Turn it on with: sudo plone-syslog on HOST:PORT"
+  logger -t plone-in-a-box "plone-syslog test message from $(cat "$STATE_DIR/site-url" 2>/dev/null || hostname) at $(date '+%F %T %Z')"
+  echo "Sent a test message (tag plone-in-a-box); check that it arrived at $(cut -d' ' -f2 "$STATE_DIR/syslog")"
+  ;;
+*)
+  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+  ;;
+esac
+PLONE_SYSLOG_EOF
+chmod 755 /usr/local/bin/plone-syslog
+
 # HTTPS for a site without a domain name: a Let's Encrypt certificate for the
 # server's IP address. Setup runs it; plone-https-ip.timer renews it.
 cat > /usr/local/bin/plone-https-ip <<'PLONE_HTTPS_IP_EOF'
@@ -1681,6 +2370,32 @@ Description=Nightly Plone in a Box database backup
 # Shortly after midnight (server time, usually UTC), at a random time within
 # an hour, before the weekly update early on Sunday.
 OnCalendar=*-*-* 00:15:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+cat > /etc/systemd/system/plone-backup-check.service <<'EOF'
+[Unit]
+Description=Plone in a Box: check that a backup can be restored
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/plone-backup-check
+TimeoutStartSec=4h
+EOF
+cat > /etc/systemd/system/plone-backup-check.timer <<'EOF'
+[Unit]
+Description=Monthly Plone in a Box restore test
+
+[Timer]
+# The first Wednesday of the month (server time, usually UTC), after the
+# nightly backup and restart, at a random time within an hour.
+OnCalendar=Wed *-*-01..07 04:30:00
 RandomizedDelaySec=1h
 Persistent=true
 
@@ -1957,7 +2672,7 @@ Description=Plone in a Box: report that %i stopped
 Type=oneshot
 ExecStart=/usr/local/lib/plone-in-a-box/unit-failed %i
 EOF
-for unit in plone-backup plone-update plone-https-ip plone-security-notices plone-reboot; do
+for unit in plone-backup plone-backup-check plone-update plone-https-ip plone-cloudflare plone-security-notices plone-reboot; do
   install -d -m 755 "/etc/systemd/system/${unit}.service.d"
   printf '[Unit]\nOnFailure=plone-in-a-box-failed@%%n.service\n' > "/etc/systemd/system/${unit}.service.d/report-failure.conf"
 done
@@ -1969,6 +2684,7 @@ cat > /etc/update-motd.d/90-plone-in-a-box <<'EOF'
 dir=/var/lib/plone-in-a-box
 [ -s "$dir/update-status" ] && printf '\nPlone in a Box, last update: %s\n' "$(cat "$dir/update-status")"
 [ -s "$dir/update-notice" ] && cat "$dir/update-notice"
+grep -q FAILED "$dir/backup-check" 2>/dev/null && printf 'Backup check: %s\n' "$(cat "$dir/backup-check")"
 [ -s "$dir/security-notice" ] && [ -n "$(find "$dir/security-notice" -mtime -30)" ] && cat "$dir/security-notice"
 exit 0
 EOF
@@ -2406,6 +3122,8 @@ install -d -m 755 /var/lib/plone-in-a-box
 printf '%s\n' "$SITE_URL" > /var/lib/plone-in-a-box/site-url
 # Nightly database backups and a weekly pack, whatever AUTO_UPDATE says.
 systemctl enable --now plone-backup.timer
+# A restore test of the newest backup once a month.
+systemctl enable --now plone-backup-check.timer
 # Daily security notices; the first check only notes the newest post.
 /usr/local/bin/plone-security-notices >/dev/null 2>&1 || true
 systemctl enable --now plone-security-notices.timer
@@ -2450,6 +3168,13 @@ if [[ -n "$SMTP_HOST" && "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
       if [[ "$mail_out" == *MAIL_SENT* ]]; then
         log "Sent a test email to ${REPORT_EMAIL}"
         MAIL_LINE="Email:     sent through ${SMTP_HOST} from ${EMAIL_FROM}; a test email went to ${REPORT_EMAIL}"
+        # The server's own mail (failed security updates, say) the same way.
+        if /usr/local/bin/plone-server-mail >/dev/null 2>&1; then
+          log "The server's own mail goes to ${REPORT_EMAIL} too"
+          MAIL_LINE+=", and the server's own mail (such as failed security updates) goes there too"
+        else
+          log "Setting up the server's own mail failed; try again with: sudo plone-server-mail test"
+        fi
       else
         reason=$(grep -o 'MAIL_FAILED.*' <<<"$mail_out" | head -1 | cut -c13-200 || true)
         log "Sending a test email failed: ${reason:-see above}"

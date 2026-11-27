@@ -7,6 +7,28 @@
 - [ ] Renew the Linode token when it expires (1 month; the DigitalOcean token made on 2026-11-22 doesn't expire),
   and rotate the AWS access key.
 
+## Per-add-on StackScripts after 2.24
+
+- [ ] 2.24 added a form field, **Spamhaus key** (`SPAMHAUS_KEY`), so per-add-on "Try It" StackScripts made with
+  `scripts/linode-addon-stackscript.sh` should be printed again and pasted over the old ones in Cloud Manager
+  (RELEASING.md, "Per-add-on StackScripts"). The Juizi Dashboard one (2318969) is done: `update-public-stackscripts.sh`
+  updated it. Check for any others, in our accounts or made by add-on authors, and tell those authors. Until then
+  they keep working without the field (they download the latest release, and the field is optional).
+
+## OpenTelemetry, and launch fields for logs (next release after 2.25)
+
+- An optional OTLP endpoint and key: when set, an OpenTelemetry Collector
+  container sends the server's metrics (CPU, memory, disk, network), each
+  container's, PostgreSQL's and nginx's, and optionally the containers' logs.
+  Nothing changes in Plone or Volto. Guide: Grafana Cloud's free tier, with a
+  dashboard.
+- Then, opt-in: traces for Volto (Node auto-instrumentation through
+  `NODE_OPTIONS`), and for the backend if wrapping its WSGI app stays stable
+  across image updates.
+- Launch fields for the syslog server (`plone-syslog`, 2.25) and the OTLP
+  endpoint together, in one optional "Logs and metrics" section, so the
+  launchers and the Try It StackScripts change once.
+
 ## Retire the duplicate Linode StackScript
 
 - [x] Asked Linode support (ticket 27858783) to remove the public StackScript 692002, a duplicate of
@@ -93,12 +115,14 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
   saved next to each backup, and the update report warns when the newest backup is more than two days old. AWS
   server backups (2.24): Terraform `backups` (daily EBS snapshots through Data Lifecycle Manager), and the console
   steps for Launch Stack servers, documented. Not in the template, which would then need IAM acknowledgment.
-- [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where
-  the data would go on a single small server.
+- [ ] **OpenTelemetry.** Decided for the release after 2.25: see "OpenTelemetry, and launch fields for logs"
+  above. Logs went first, as syslog (2.25, `plone-syslog`).
 - [ ] **Other Plone best practices.** Review the box against current Plone deployment recommendations
   (backups, monitoring, security headers, upgrades) and note any gaps. Partly done in 2.24, from running three
   production sites: restarts after security updates, disk warnings, notices when a tool is cut off, backup problems
-  by email, SSH keys only and fail2ban, and the guide's uptime checks and outgoing ports. Still open: review the
+  by email, SSH keys only and fail2ban, and the guide's uptime checks and outgoing ports. In 2.25: a monthly
+  restore test, the server's own mail, logs to a syslog service, `plone-cloudflare`, DigitalOcean's free alerts
+  from Terraform, and the GitHub Actions pinned to commit hashes. Still open: review the
   security headers against current recommendations, and moving to a new Plone version (6.3) still takes a person.
 - [ ] **More add-ons in the catalog.** Suggest Plone and Volto add-ons that work on a box, and invite their
   authors to add a Try It page (`addons.yml`, see docs/try-it-buttons.md), for example starting from

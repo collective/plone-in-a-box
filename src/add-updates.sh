@@ -3,7 +3,7 @@
 # Plone in a Box: add automatic updates to a server set up before release 2.12.
 # Run it on the server (in your provider's browser console, or over SSH):
 #
-#   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.24/src/add-updates.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/add-updates.sh | sudo bash
 #
 # It installs plone-update, the weekly plone-update.timer, plone-backup with
 # the nightly plone-backup.timer, plone-restore, plone-offsite, plone-security-notices with
@@ -23,7 +23,7 @@ main() {
   set -euo pipefail
   exec </dev/null
 
-  local PIAB_RELEASE='2.24'
+  local PIAB_RELEASE='2.25'
   local ref=${PIAB_ADD_UPDATES_REF:-$PIAB_RELEASE}
   local APP_DIR=/opt/plone STATE_DIR=/var/lib/plone-in-a-box
   local say_prefix='[plone-in-a-box]'
@@ -65,11 +65,16 @@ main() {
   say "Installed plone-update and plone-backup"
   systemctl enable --now plone-backup.timer
   say "The database is backed up every night, and packed once a week (sudo plone-backup to run it now)"
+  systemctl enable --now plone-backup-check.timer
+  say "Once a month, the newest backup is restored into a test database to check it (sudo plone-backup-check to run it now)"
   [[ -s "$STATE_DIR/security-seen" ]] || /usr/local/bin/plone-security-notices >/dev/null 2>&1 || true
   systemctl enable --now plone-security-notices.timer
   say "Plone security announcements are passed on every day (sudo plone-security-notices to check now)"
   systemctl enable --now plone-reboot.timer
   say "The server restarts at night when Ubuntu's security updates need it (sudo systemctl disable --now plone-reboot.timer to stop)"
+  if /usr/local/bin/plone-server-mail >/dev/null 2>&1; then
+    say "Mail the server sends to root (such as failed security updates) now goes to the address for reports, through the site's mail settings"
+  fi
 
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then

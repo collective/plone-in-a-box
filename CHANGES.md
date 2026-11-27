@@ -1,3 +1,83 @@
+2.25 (2026-11-26)
+-----------------
+
+Know your backups work, and stay in the loop:
+
+* **Monthly restore test:** your server checks that its newest backup (on
+  the server or offsite) can really be restored, without affecting your
+  site, and tells you if it can't.
+
+* **Server warnings reach you:** the server's own messages, such as a
+  failed security update, now arrive through your site's email settings.
+
+* **View server logs centrally:** optional `plone-syslog` sends your logs to
+  a log service, including Better Stack's free plan, or your own log server.
+
+* **Secured by Cloudflare:** optional `plone-cloudflare` lets only
+  Cloudflare reach your site, to help block bots and DDoS attacks.
+
+* **Free DigitalOcean alerts** for disk, memory and CPU spikes on Droplets
+  made with the Terraform plan.
+
+* **Safer builds:** the project's GitHub workflows are protected against a
+  hijacked GitHub Action.
+
+- **Backup checks**: once a month, `plone-backup-check.timer` restores the
+  newest backup into a separate test database, has Plone open the site in
+  it and read its newest pages and a file or image, then deletes the test
+  database; the site isn't touched. With copies off the server, it tests the
+  newest copy there, downloaded and decrypted, and says if the copies have
+  stopped. A failure goes to the notification URL and by email, and shows in
+  the login message. `sudo plone-backup-check` runs it now. Older servers
+  get it from `src/add-updates.sh`. ("Checking the backups" in the setup
+  guide.)
+- **Behind Cloudflare**: `sudo plone-cloudflare on`, for a site whose
+  domain is proxied by Cloudflare, lets only Cloudflare's addresses reach
+  ports 80 and 443, so nobody can go around Cloudflare to the server, and
+  has nginx take each visitor's own address from Cloudflare's header. It
+  checks first that the domain points at Cloudflare. `plone-cloudflare.timer`
+  updates Cloudflare's address list once a month; `sudo plone-cloudflare
+  off` opens the ports again. ("Behind Cloudflare" in the setup guide.)
+- **The server's own mail**: with the site's mail settings in place, mail
+  the server sends to root (Ubuntu's automatic security updates when one
+  fails, say) goes to the address for reports, through the same email
+  service, from the site's From address. `plone-server-mail` configures
+  msmtp from **Site Setup → Mail**; setup runs it, and the weekly update
+  runs it again so changes there reach the server. `sudo plone-server-mail
+  test` sends a test email. Older servers get it from `src/add-updates.sh`.
+  ("The server's own mail" in the setup guide.)
+- **Logs to a syslog server**: `sudo plone-syslog on HOST:PORT` sends the
+  server's logs to a syslog server or service as well (Better Stack,
+  Papertrail, your own rsyslog): Plone, Volto and PostgreSQL, nginx's
+  requests and errors, the Plone in a Box tools' logs and the system's own.
+  TLS by default (`--ca` for a private certificate authority), and up to
+  100 MB wait on the server while the log server is away. The containers
+  log through journald for this; `docker compose logs` still works.
+  `--sd` adds the token some services want in each message (Papertrail,
+  Better Stack), and `--no-access-log` leaves out the line per web request,
+  most of the volume. The setup guide compares the services tried with it
+  (Better Stack's free plan, Papertrail, a log server of your own), with
+  what each costs and keeps, and says how to tell whether another service
+  works. ("Sending the logs elsewhere" in the setup guide.)
+- **DigitalOcean alerts by default (Terraform)**: a Droplet made with
+  `src/digitalocean` now gets DigitalOcean's free resource alerts: an email
+  when its disk is over 85% full, its memory over 90% for 10 minutes, or its
+  CPU over 90% for 30 minutes, to the account's email (`alert_emails` for
+  others, `alerts = false` for none). `uptime_check = true` adds an outside
+  check of the site that emails when it's down or its certificate is about
+  to expire; it's off by default because DigitalOcean charges $1 a month
+  for each check after the first. Custom-scope tokens need monitoring,
+  uptime and account read too.
+- **GitHub Actions pinned to commit hashes**: the workflows named each
+  action by a tag like `v7`, which whoever controls the action can move to
+  other code at any time, as happened to `tj-actions/changed-files` in
+  March 2025. Those workflows push the frontend and backend images that
+  servers install every week, and upload the Launch Stack template with AWS
+  credentials, so a hijacked action could have shipped a tampered image or
+  template. Each action is now named by its commit (with its version in a
+  comment), which can't change, and Dependabot proposes updates weekly as
+  pull requests to review.
+
 2.24 (2026-11-26)
 -----------------
 
