@@ -3671,9 +3671,15 @@ EOF
     systemctl restart cockpit.socket
     systemctl reload nginx
     printf '%s\n' "$url" > "$STATE"
-    pw=$(new_password)
     say "The control panel is on: $url/plone-in-a-box"
-    printf 'Log in as %s with this password (store it in a password manager; sudo plone-panel password makes a new one):\n%s\n' "$USER_NAME" "$pw"
+    # Running on again keeps the password (a browser may have saved it); a
+    # new login, or one off locked, gets a new one.
+    if [[ $(passwd -S "$USER_NAME" 2>/dev/null | awk '{print $2}') == P ]]; then
+      echo "Log in as $USER_NAME with its password, as before (sudo plone-panel password makes a new one)."
+    else
+      pw=$(new_password)
+      printf 'Log in as %s with this password (store it in a password manager; sudo plone-panel password makes a new one):\n%s\n' "$USER_NAME" "$pw"
+    fi
     [[ "$url" == *:$PORT ]] && echo "A cloud firewall made before 2.27 (AWS, or Terraform on DigitalOcean or Hetzner) needs TCP port $PORT allowed too."
     ;;
   off)
