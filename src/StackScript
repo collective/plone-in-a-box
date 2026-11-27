@@ -3508,7 +3508,8 @@ case "${1:-status}" in
     done
     [[ -n "$site_host" ]] || die "No site address in $STATE_DIR/site-url"
     say "Installing Cockpit, Ubuntu's web console"
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cockpit-ws cockpit-bridge cockpit-system >/dev/null \
+    DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y --no-install-recommends \
+      cockpit-ws cockpit-bridge cockpit-system >>/var/log/plone-panel.log 2>&1 \
       || die "Couldn't install Cockpit"
     # Only nginx reaches it: Cockpit listens on the server itself.
     install -d -m 755 /etc/systemd/system/cockpit.socket.d
