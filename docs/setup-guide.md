@@ -426,7 +426,7 @@ Ubuntu's own web console, behind nginx, so it still works when Plone doesn't.
   from 2.27 (nothing answers there until you turn the panel on); a cloud firewall made earlier, or one you added
   yourself, needs TCP port 8443 allowed too.
 * **Login:** `box`, with a password `plone-panel on` shows once; `sudo plone-panel password` makes a new one. It isn't
-  the Plone admin's, and it can't do anything else on the server than show the status and run those buttons.
+  the Plone admin's, and on the server it can only show the status and run those buttons.
 * `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and locks the `box`
   login.
 
