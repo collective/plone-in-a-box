@@ -151,7 +151,7 @@ variable "demo_password" {
 }
 
 variable "demo_roles" {
-  description = "Roles of the demo login, separated by commas, for example Editor or Site Administrator. Empty: the roles the frontend image suggests, or Site Administrator."
+  description = "Roles of the demo login, separated by commas, for example Editor or Site Administrator. Empty: the roles the frontend image suggests, or Editor."
   type        = string
   default     = ""
 }

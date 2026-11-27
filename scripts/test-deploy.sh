@@ -78,10 +78,10 @@
 #                          file (default: generated, read from that file)
 #   --demo-roles ROLES     with --demo-user: its roles, separated by commas
 #                          (default: empty, so the frontend image's suggestion,
-#                          or Site Administrator)
+#                          or Editor)
 #   --expect-demo-roles ROLES
 #                          with --demo-user: the roles to check it has
-#                          (default: --demo-roles, or Site Administrator)
+#                          (default: --demo-roles, or Editor)
 #   --cloudformation       AWS: create the server the way the Launch Stack
 #                          button does, as a CloudFormation stack (named like
 #                          the server) from src/aws/cloudformation.yaml, with
@@ -202,7 +202,7 @@ while (( $# )); do
 done
 [[ "$DEMO_ROLES$EXPECT_DEMO_ROLES" =~ ^[A-Za-z0-9\ ,._-]*$ ]] || die "--demo-roles: role names separated by commas"
 if [[ -z "$EXPECT_DEMO_ROLES" ]]; then
-  EXPECT_DEMO_ROLES=${DEMO_ROLES:-Site Administrator}
+  EXPECT_DEMO_ROLES=${DEMO_ROLES:-Editor}
   # With email, setup gives Editor instead of Site Administrator.
   [[ -z "$MAIL_TO" ]] || EXPECT_DEMO_ROLES=$(sed -E 's/(^|,)[[:space:]]*Site Administrator[[:space:]]*(,|$)/\1Editor\2/g' <<<"$EXPECT_DEMO_ROLES")
 fi

@@ -109,7 +109,7 @@ def settings(entry):
     if entry["backend_addons"]:
         out.append(("ADDONS", "Addons", "Backend add-ons", entry["backend_addons"]))
     if roles(entry):
-        out.append(("DEMO_ROLES", "DemoRoles", "Roles of the demo login", ", ".join(roles(entry))))
+        out.append(("DEMO_ROLES", "DemoRoles", "Demo login roles", ", ".join(roles(entry))))
     return out
 
 
@@ -418,19 +418,38 @@ def aws_link(entry):
             f"?templateURL={quote(TEMPLATE_URL, safe='')}&stackName={entry['id']}-demo{query}")
 
 
+# Where the Try It pages' fields are in the Linode form (src/StackScript's
+# header fields), and their order there.
+LINODE_SECTIONS = {
+    "Admin password": "Your site",
+    "Demo username": "Demo login",
+    "Demo password": "Demo login",
+    "Demo login roles": "Demo login",
+    "Frontend image": "Advanced",
+    "Backend image": "Advanced",
+    "Backend add-ons": "Advanced",
+}
+LINODE_FIELD_ORDER = ["Demo login roles", "Backend add-ons", "Frontend image", "Backend image"]
+
+
 def try_page(entry, version):
     e = {k: html.escape(v) for k, v in entry.items()}
     name = e["name"]
-    role_text = ", ".join(roles(entry)) or "Site Administrator"
+    role_text = ", ".join(roles(entry)) or "Editor"
     linode_ss = entry["linode_stackscript"] or LINODE_STACKSCRIPT
     linode_url = f"https://cloud.linode.com/stackscripts/{linode_ss}"
 
-    fields = [("Plone admin password", "a password of at least 12 characters, for you")]
+    # The StackScript's field labels, in the form's order, with the heading
+    # each is under.
+    fields = [("Admin password", "a password of at least 12 characters, for you")]
     if not entry["linode_stackscript"]:
-        fields.append(("Demo login", "<code>demo</code>"))
-        fields += [(field, f"<code>{html.escape(value)}</code>") for _var, _param, field, value in settings(entry)]
-    fields.append(("Demo login password", "at least 12 characters, for the people you let try it"))
-    rows = "\n".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in fields)
+        fields.append(("Demo username", "<code>demo</code>"))
+    fields.append(("Demo password", "at least 12 characters, for the people you let try it"))
+    if not entry["linode_stackscript"]:
+        values = {field: f"<code>{html.escape(value)}</code>" for _var, _param, field, value in settings(entry)}
+        fields += [(f, values[f]) for f in LINODE_FIELD_ORDER if f in values]
+    rows = "\n".join(f"<tr><th>{k} <span class=\"note\">({LINODE_SECTIONS[k]})</span></th><td>{v}</td></tr>"
+                     for k, v in fields)
     if entry["linode_stackscript"]:
         linode_steps = f"""<p>The <a href="{linode_url}">{name} StackScript</a> has {name} and the demo login filled in.</p>
 <ol>

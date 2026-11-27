@@ -11,31 +11,42 @@
 #
 # Tested target: Ubuntu 26.04 or 24.04 LTS (amd64 or arm64). Run as root.
 #
-# <UDF name="ADMIN_PASSWORD" label="Plone admin password, at least 12 characters. Leave empty to have one generated and saved on the server" default="" />
-# <UDF name="DOMAIN" label="Domain name for the site, optional. DNS must already point here to get HTTPS" default="" />
-# <UDF name="LETSENCRYPT_EMAIL" label="Email for Lets Encrypt certificate notices, required if a domain is set" default="" />
-# <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
-# <UDF name="SITE_LANGUAGE" label="Site language: a language code such as en, de, fr, es or pt-br" default="en" example="de" />
-# <UDF name="STARTER_CONTENT" label="Starter content: yes creates the sample pages a new site or Plone distribution comes with; no starts with an empty site" oneOf="yes,no" default="yes" />
-# <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.2" />
-# <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
-# <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />
-# <UDF name="FRONTEND_IMAGE" label="Frontend image, optional: a ready-made Plone in a Box image such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own. Empty: the standard Volto image" default="" />
-# <UDF name="BACKEND_IMAGE" label="Backend image, optional: replaces the official Plone backend, for example a Plone distribution such as ghcr.io/kitconcept/kitconcept-intranet-backend:3.11 (with its frontend image above), or your own project's. Empty: the official Plone backend" default="" />
-# <UDF name="REGISTRY_USER" label="Registry login for private images, optional: the username for the registry of the frontend and backend images above, for example your GitHub username for ghcr.io" default="" />
-# <UDF name="REGISTRY_TOKEN" label="Registry token: a read-only access token for that registry, such as a GitHub token with only read:packages" default="" />
-# <UDF name="DEMO_USER" label="Demo login, optional: a username such as demo, for people you let try the site. Setup creates it with a generated password, saved next to the admin password" default="" />
-# <UDF name="DEMO_PASSWORD" label="Demo login password, optional, at least 12 characters. Leave empty to have one generated and saved next to the admin password" default="" />
-# <UDF name="DEMO_ROLES" label="Roles of the demo login, optional, separated by commas, for example Editor or Site Administrator. Empty: what the frontend image suggests, or Site Administrator" default="" />
-# <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL patch releases every week, after a database backup, and undo them if the site doesn't come back" oneOf="yes,no" default="yes" />
-# <UDF name="NOTIFY_URL" label="Notification URL, optional: update reports go here, for example https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook" default="" />
-# <UDF name="SMTP_HOST" label="Email: SMTP server of an email relay service, optional, for example mail.smtp2go.com. Empty: the site doesn't send email" default="" />
-# <UDF name="SMTP_PORT" label="Email: SMTP port" default="587" />
-# <UDF name="SMTP_USER" label="Email: SMTP username" default="" />
-# <UDF name="SMTP_PASSWORD" label="Email: SMTP password" default="" />
-# <UDF name="EMAIL_FROM" label="Email: the site's From address, at a domain the email service has verified, for example plone@example.org" default="" />
-# <UDF name="REPORT_EMAIL" label="Email: your address for a test email and the update reports. Empty: the From address" default="" />
-# <UDF name="SPAMHAUS_KEY" label="Spamhaus DQS key, optional: a free key from spamhaus.com, so the blocklist checks can ask Spamhaus from any cloud provider" default="" />
+# Every field is optional, with a default that works: only the admin password
+# is worth filling in. In Cloud Manager, a label is the field's name, and
+# example= is the help text shown under a text box (not under password fields
+# or choices, so those labels carry their own explanation). header="Yes" fields
+# are section headings, not settings.
+#
+# <UDF name="HEADER_SITE" label="Your site" header="Yes" default="" />
+# <UDF name="ADMIN_PASSWORD" label="Admin password, at least 12 characters (recommended). Leave empty and one is generated and saved on the server, where you need SSH to read it" default="" />
+# <UDF name="SITE_LANGUAGE" label="Site language (optional, default: en)" default="en" example="A language code, for example en, de, fr, es or pt-br." />
+# <UDF name="SITE_TIMEZONE" label="Time zone (optional, default: UTC)" default="UTC" example="For example Europe/London, America/Chicago or Africa/Johannesburg." />
+# <UDF name="STARTER_CONTENT" label="Sample pages: yes starts your site with a few example pages, no starts it empty (default: yes)" oneOf="yes,no" default="yes" />
+# <UDF name="DOMAIN" label="Domain name (optional)" default="" example="For example www.example.org, if its DNS already points to this server. Leave empty to use the server's IP address; you can add a domain later." />
+# <UDF name="LETSENCRYPT_EMAIL" label="Your email for HTTPS certificate notices (only with a domain name)" default="" example="Let's Encrypt writes to you here if the certificate for your domain has a problem." />
+# <UDF name="HEADER_DEMO" label="Demo login (optional): a second login for people you let try the site" header="Yes" default="" />
+# <UDF name="DEMO_USER" label="Demo username (optional)" default="" example="For example demo. Leave empty for no demo login." />
+# <UDF name="DEMO_PASSWORD" label="Demo password, at least 12 characters (optional). Leave empty and one is generated, and saved next to the admin password" default="" />
+# <UDF name="DEMO_ROLES" label="Demo login roles (optional, default: Editor)" default="" example="What the demo login may do, separated by commas: Editor, Contributor, Reviewer or Site Administrator. Leave empty for Editor, or for the roles a ready-made theme suggests." />
+# <UDF name="HEADER_EMAIL" label="Email (optional): lets the site send password resets, form results and update reports" header="Yes" default="" />
+# <UDF name="SMTP_HOST" label="Email service SMTP server (optional)" default="" example="From an email relay service, for example mail.smtp2go.com. Leave empty and the site doesn't send email; you can set it up later in Site Setup, Mail." />
+# <UDF name="SMTP_PORT" label="SMTP port (optional, default: 587)" default="587" />
+# <UDF name="SMTP_USER" label="SMTP username" default="" />
+# <UDF name="SMTP_PASSWORD" label="SMTP password" default="" />
+# <UDF name="EMAIL_FROM" label="The site's From address" default="" example="At a domain the email service has verified, for example plone@example.org." />
+# <UDF name="REPORT_EMAIL" label="Your email address (optional)" default="" example="Gets a test email now, and the update reports later. Leave empty to use the From address." />
+# <UDF name="HEADER_UPDATES" label="Updates and notices" header="Yes" default="" />
+# <UDF name="AUTO_UPDATE" label="Automatic updates: install Plone, Volto and PostgreSQL bug-fix releases every week, after a backup, and undo them if the site doesn't come back (default: yes)" oneOf="yes,no" default="yes" />
+# <UDF name="NOTIFY_URL" label="Notification link (optional)" default="" example="Where update reports and security notices go: an ntfy topic such as https://ntfy.sh/your-own-topic, or a Slack, Discord, Google Chat, Mattermost or Microsoft Teams webhook." />
+# <UDF name="HEADER_ADVANCED" label="Advanced: leave these as they are unless you know you need them" header="Yes" default="" />
+# <UDF name="PLONE_VERSION" label="Plone version (default: 6.2)" default="6.2" example="The Plone backend image tag. For the previous release line, 6.1 with Volto 18." />
+# <UDF name="VOLTO_VERSION" label="Volto version (default: 19)" default="19" example="The Volto frontend image tag." />
+# <UDF name="ADDONS" label="Backend add-ons (optional)" default="" example="Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons." />
+# <UDF name="FRONTEND_IMAGE" label="Frontend image (optional)" default="" example="A ready-made theme such as ghcr.io/collective/plone-in-a-box-frontend:19-vlt (Volto Light Theme), or your own image. Leave empty for the standard Volto image." />
+# <UDF name="BACKEND_IMAGE" label="Backend image (optional)" default="" example="Replaces the official Plone backend, for example a Plone distribution such as ghcr.io/kitconcept/kitconcept-intranet-backend:3.11 (with its frontend image above). Leave empty for the official one." />
+# <UDF name="REGISTRY_USER" label="Registry username, for private images (optional)" default="" example="The username for the registry of the images above, for example your GitHub username for ghcr.io." />
+# <UDF name="REGISTRY_TOKEN" label="Registry token, for private images (optional)" default="" example="A read-only access token for that registry, such as a GitHub token with only read:packages." />
+# <UDF name="SPAMHAUS_KEY" label="Spamhaus DQS key (optional, not needed on Linode)" default="" example="A free key from spamhaus.com, for the email blocklist checks. Spamhaus already answers on Linode without one." />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -98,9 +109,9 @@ REGISTRY_USER="$(printf '%s' "${REGISTRY_USER:-}" | tr -d ' \t\r\n')"
 REGISTRY_TOKEN="$(printf '%s' "${REGISTRY_TOKEN:-}" | tr -d ' \t\r\n')"
 # Demo login: an extra Plone user, created once at setup, for letting other
 # people try the site (DEMO_USER, with the roles DEMO_ROLES, separated by
-# commas). Empty: the roles the frontend image's label suggests, or Site
-# Administrator. DEMO_ROLE is the one-role setting of 2.13; its old default,
-# Site Administrator, counts as no choice.
+# commas). Empty: the roles the frontend image's label suggests, or Editor.
+# DEMO_ROLE is the one-role setting of 2.13; its old default, Site
+# Administrator, counts as no choice.
 DEMO_USER="$(printf '%s' "${DEMO_USER:-}" | tr -d ' \t\r\n')"
 DEMO_PASSWORD="${DEMO_PASSWORD:-}"
 DEMO_ROLES="$(printf '%s' "${DEMO_ROLES:-}" | tr '\t\r\n' '   ')"
@@ -2908,7 +2919,7 @@ fi
 
 # The demo login, once: a username of lowercase letters, digits, dots,
 # hyphens and underscores, not admin. Its roles: DEMO_ROLES, or the frontend
-# image's suggestion, or Site Administrator.
+# image's suggestion, or Editor.
 DEMO_LINE=""
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
   if [[ ! "$DEMO_USER" =~ ^[a-z][a-z0-9._-]{1,31}$ || "$DEMO_USER" == admin ]]; then
@@ -2917,7 +2928,7 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
   else
     roles="${DEMO_ROLES}"
     [[ -n "${roles// /}" ]] || roles="${IMAGE_DEMO_ROLES}"
-    [[ -n "${roles// /}" ]] || roles="Site Administrator"
+    [[ -n "${roles// /}" ]] || roles="Editor"
     # With email set up, a Site Administrator could point Site Setup > Mail
     # at another server and have Plone send it the email service's password,
     # so the demo login is an Editor instead.

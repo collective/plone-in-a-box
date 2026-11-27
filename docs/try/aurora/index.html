@@ -98,12 +98,12 @@ delete the stack.</p>
 <li>Log in to <a href="https://cloud.linode.com" target="_blank" rel="noopener">Cloud Manager</a>, open the
 <a href="https://cloud.linode.com/stackscripts/931893" target="_blank" rel="noopener">Plone in a Box StackScript</a>, and click <strong>Deploy New Linode</strong>.</li>
 <li>Fill in these fields, and leave the others as they are:
-<table><tr><th>Plone admin password</th><td>a password of at least 12 characters, for you</td></tr>
-<tr><th>Demo login</th><td><code>demo</code></td></tr>
-<tr><th>Frontend image</th><td><code>plone/aurora:1.0.0-alpha.26</code></td></tr>
-<tr><th>Backend image</th><td><code>ghcr.io/collective/plone-in-a-box-backend:6.2-aurora</code></td></tr>
-<tr><th>Roles of the demo login</th><td><code>Editor</code></td></tr>
-<tr><th>Demo login password</th><td>at least 12 characters, for the people you let try it</td></tr></table></li>
+<table><tr><th>Admin password <span class="note">(Your site)</span></th><td>a password of at least 12 characters, for you</td></tr>
+<tr><th>Demo username <span class="note">(Demo login)</span></th><td><code>demo</code></td></tr>
+<tr><th>Demo password <span class="note">(Demo login)</span></th><td>at least 12 characters, for the people you let try it</td></tr>
+<tr><th>Demo login roles <span class="note">(Demo login)</span></th><td><code>Editor</code></td></tr>
+<tr><th>Frontend image <span class="note">(Advanced)</span></th><td><code>plone/aurora:1.0.0-alpha.26</code></td></tr>
+<tr><th>Backend image <span class="note">(Advanced)</span></th><td><code>ghcr.io/collective/plone-in-a-box-backend:6.2-aurora</code></td></tr></table></li>
 <li>Choose <strong>Ubuntu 26.04 LTS</strong>, a region, a 1 GB <strong>Nanode</strong> and <strong>No firewall</strong>,
 set a root password, and click <strong>Create Linode</strong>.</li>
 </ol>

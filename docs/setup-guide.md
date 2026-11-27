@@ -187,7 +187,7 @@ ssh_public_key_path = "~/.ssh/id_rsa.pub"
 # backups           = true  # daily disk snapshots, the newest 7 kept (extra cost); see Backups
 # addons            = "collective.easyform"
 # frontend_image    = "ghcr.io/collective/plone-in-a-box-frontend:19-vlt"
-# demo_user         = "demo"   # demo_roles = "Editor"; by default the image's suggestion, or Site Administrator
+# demo_user         = "demo"   # demo_roles = "Editor"; by default the image's suggestion, or Editor
 # auto_update       = false  # weekly patch releases are on by default
 # notify_url        = "https://ntfy.sh/a-long-random-topic"
 # smtp_host         = "mail.smtp2go.com"  # email, optional: see Sending email
@@ -871,7 +871,7 @@ Its roles (`DEMO_ROLES`, `DemoRoles`, `demo_roles`) are one or more role names s
 `Editor` or `Editor, Reviewer`: **Site Administrator**, **Editor**, **Contributor**, **Reviewer**, **Member**, or a
 role an add-on adds. Left empty, it gets the roles the frontend image suggests (its
 [`demo-roles` label](../frontend-image/README.md#how-setup-uses-an-image), for example Editor and Site Activity Viewer
-for Juizi Dashboard), or Site Administrator. A role the site doesn't have, such as an add-on's that failed to
+for Juizi Dashboard), or Editor. A role the site doesn't have, such as an add-on's that failed to
 install, is skipped, and so is Manager. (2.13's single-role setting, `DEMO_ROLE`, still works when set to
 another role than Site Administrator.)
 

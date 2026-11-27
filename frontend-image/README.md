@@ -55,7 +55,7 @@ You need a GitHub account; the build runs on GitHub, so nothing needs installing
      (`name==1.2.3`); setup installs and activates them
    * `site_behaviors`: behaviors to enable on the Plone Site type, if the add-on's instructions ask for any
    * `demo_roles`: the roles a [demo login](../docs/setup-guide.md#demo-login) needs to try the add-ons, separated
-     by commas, for example `Editor, Site Activity Viewer`. Empty: Site Administrator. Choose the narrowest roles
+     by commas, for example `Editor, Site Activity Viewer`. Empty: Editor. Choose the narrowest roles
      that show the add-on off; they can include roles the add-on defines.
 
    The comments at the top of `addons.yml` list every key. `python3 scripts/catalog.py check` checks the file.

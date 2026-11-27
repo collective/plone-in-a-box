@@ -69,7 +69,7 @@ another pull request that changes the versions in your entry.
 
 **Choose the demo login's roles carefully:** the narrowest ones that show off the add-on, for example **Editor**,
 or a role your add-on defines for looking without administering. People who get the demo login can do anything those
-roles allow on that site. Without `demo_roles`, it's a Site Administrator. Manager isn't allowed.
+roles allow on that site. Without `demo_roles`, it's an Editor. Manager isn't allowed.
 
 CI checks each entry (exact versions, allowed roles) and builds the image before anyone merges it, and
 `python3 scripts/catalog.py check` does the same on your computer. For ready-made images, it also checks that they
@@ -97,7 +97,7 @@ Choose the roles the demo login gets: the narrowest ones that show off the add-o
 the add-on defines for looking without administering. People who get the demo login can do anything those roles
 allow on that site. For an add-on with a frontend image, set them once in the image's `demo_roles`
 ([Frontend images](../frontend-image/README.md#how-setup-uses-an-image)): every button then gets them without saying
-so. Otherwise the demo login is a Site Administrator unless the button sets its roles.
+so. Otherwise the demo login is an Editor unless the button sets its roles.
 
 ### Linode
 
@@ -132,7 +132,7 @@ https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/s
 ```
 
 The parameters are `FrontendImage`, `BackendImage`, `Addons`, `DemoUser` and `DemoRoles` (for example `param_DemoRoles=Editor`;
-by default, the image's suggestion or Site Administrator). The person still sets the admin password and the server size, then clicks
+by default, the image's suggestion or Editor). The person still sets the admin password and the server size, then clicks
 **Create stack**.
 
 ### DigitalOcean and Hetzner

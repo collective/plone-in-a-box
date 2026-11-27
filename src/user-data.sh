@@ -69,7 +69,7 @@ export REGISTRY_TOKEN=''
 # site. Setup creates it with a generated password, saved next to the admin
 # password in /root/plone-credentials.txt. Its roles, separated by commas, for
 # example 'Editor' or 'Site Administrator'; leave empty for the roles the
-# frontend image suggests, or Site Administrator.
+# frontend image suggests, or Editor.
 export DEMO_USER=''
 # Its password, optional, at least 12 characters; leave empty to have one
 # generated and saved in /root/plone-credentials.txt.

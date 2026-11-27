@@ -268,7 +268,7 @@ Parameters:
     ConstraintDescription: Must be role names separated by commas, such as Editor, or empty.
     Description: >-
       Roles of the demo login, separated by commas, for example Editor or Site Administrator. Leave
-      empty for the roles the frontend image suggests, or Site Administrator.
+      empty for the roles the frontend image suggests, or Editor.
   AutoUpdate:
     Type: String
     Default: "yes"

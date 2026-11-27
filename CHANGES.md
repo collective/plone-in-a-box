@@ -1,3 +1,24 @@
+2.26 (unreleased)
+-----------------
+
+- **A clearer Linode form**: the StackScript's fields are grouped under
+  headings (Your site, Demo login, Email, Updates and notices, Advanced),
+  in that order, with short labels that say which are optional and what
+  their defaults are, and the details as help text under each box. The
+  settings for images, versions and private registries come last, under
+  Advanced. Try It pages name the fields as the form now does, with the
+  heading each is under. The add-on StackScripts get the same form when
+  they're next updated (`scripts/update-public-stackscripts.sh`).
+
+- **The demo login is an Editor by default**, instead of a Site
+  Administrator, when neither its roles nor the frontend image's suggestion
+  say otherwise: the narrowest role that still lets people try the site.
+  Set Site Administrator in the demo login's roles to get it as before.
+
+- **Try It pages** open links to other sites (Cloud Manager, the AWS
+  console, GitHub, Discord) in a new tab, so you keep your place in the
+  steps.
+
 2.25 (2026-11-26)
 -----------------
 
