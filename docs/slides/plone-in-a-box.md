@@ -78,7 +78,7 @@ One Ubuntu 26.04 LTS server, running the **official Plone Docker images**:
 - best practices for application and server setup and maintenance
 - standard deployment tooling, easily extendable and customizable by a Plone developer 
 
-Choose the site's language, Plone & Volto versions, add-ons, themes and whether you want sample content. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
+Choose the site's language, Plone & Volto versions, add-ons, themes and whether to start with Plone's welcome page. A **Plone distribution**, such as kitconcept's intranet, can replace the standard site.
 
 ---
 

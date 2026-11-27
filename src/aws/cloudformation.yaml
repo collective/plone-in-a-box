@@ -178,8 +178,8 @@ Parameters:
     Default: "yes"
     AllowedValues: ["yes", "no"]
     Description: >-
-      yes creates the sample pages a new site (or a Plone distribution) comes with; no starts with an
-      empty site.
+      yes starts the site with Plone's welcome page (or a Plone distribution's own sample content); no
+      starts with an empty site.
   InstanceType:
     Type: String
     Default: t3.small

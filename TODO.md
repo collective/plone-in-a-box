@@ -111,6 +111,26 @@ registry and credentials before deploying, which breaks the no-command-line Lino
 Plone/Volto versions when the project is generated, add template churn to maintain, and overlap the existing
 nginx + Compose setup. Custom images as an option get most of the benefit without those costs.
 
+## Demo content for trying Plone
+
+Plone 6.2's starter content is one welcome page, so someone trying Plone has
+to make content before they see what it can do. An optional set of demo
+content would show it right away: a few pages with different blocks (text,
+images, teasers, a listing, a table, a video), a news item and an event, a
+folder with images and a file.
+
+- **A choice in the launch form**, such as Starter content: `welcome` (Plone's
+  welcome page, as now), `demo` (the demo content) or `no` (empty). Only for
+  the standard site: a Plone distribution keeps its own.
+- **Loaded with plone.exportimport**, which Plone 6.1 and later have built in,
+  from a small export kept in this repository.
+- **Ours or freely licensed:** text we write, and images we make or that are
+  public domain or CC0, so anyone can use the content on their site.
+- **In each language the site can start in,** or at least English first,
+  with the rest as people contribute.
+- A Try It page for plain Plone with the demo content and a demo login would
+  then be the quickest way to show someone Plone.
+
 ## A control panel for Plone in a Box™
 
 Like a big control panel for Plone in a Box™, but user friendly: one place to

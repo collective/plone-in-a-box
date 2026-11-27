@@ -40,7 +40,7 @@ This page is for add-on authors.
      backend_image: ghcr.io/me/my-distribution-backend:1.2
      demo_roles: Editor
      try_it: yes
-     try_hint: look around the sample pages and edit one
+     try_hint: look around and edit the home page
    ```
 
    The images must be public and built for `linux/amd64`, and the backend image must start like the official

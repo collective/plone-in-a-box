@@ -13,7 +13,7 @@
 # <UDF name="LETSENCRYPT_EMAIL" label="Email for Lets Encrypt certificate notices, required if a domain is set" default="" />
 # <UDF name="SITE_TIMEZONE" label="Site time zone" default="UTC" example="America/Chicago" />
 # <UDF name="SITE_LANGUAGE" label="Site language: a language code such as en, de, fr, es or pt-br" default="en" example="de" />
-# <UDF name="STARTER_CONTENT" label="Starter content: yes creates the sample pages a new site or Plone distribution comes with; no starts with an empty site" oneOf="yes,no" default="yes" />
+# <UDF name="STARTER_CONTENT" label="Starter content: yes starts the site with Plone's welcome page, or a Plone distribution's own sample content; no starts with an empty site" oneOf="yes,no" default="yes" />
 # <UDF name="PLONE_VERSION" label="Plone backend image tag" default="6.2" />
 # <UDF name="VOLTO_VERSION" label="Volto frontend image tag" default="19" />
 # <UDF name="ADDONS" label="Backend add-ons, optional: Python package names separated by spaces, for example collective.easyform. Activate them afterwards in Site Setup, Add-ons" default="" />

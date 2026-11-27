@@ -101,7 +101,7 @@ Volto front end and PostgreSQL) behind nginx.
   DigitalOcean and Hetzner, Terraform picks a region that offers the server size you chose.
 * The admin password you choose, or a randomly generated one (there's no `admin:admin`).
 * A page that shows setup progress while you wait, and turns into your site in about 10 minutes.
-* The site's language and time zone, and whether it starts with sample pages or empty.
+* The site's language and time zone, and whether it starts with Plone's welcome page or empty.
 * Plone 6.2 with Volto 19 by default; both are configurable (for the previous release line, use Plone `6.1` with
   Volto `18`).
 
