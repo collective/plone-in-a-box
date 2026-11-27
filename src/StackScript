@@ -3526,7 +3526,16 @@ case "${1:-status}" in
     } > /etc/sudoers.d/plone-panel
     chmod 440 /etc/sudoers.d/plone-panel
     visudo -cf /etc/sudoers.d/plone-panel >/dev/null || { rm -f /etc/sudoers.d/plone-panel; die "The sudo rule for $USER_NAME was refused"; }
+    # The box login is for the control panel only: no SSH.
+    printf '# The control panel login can only use the control panel.\nDenyUsers %s\n' "$USER_NAME" > /etc/ssh/sshd_config.d/50-plone-panel.conf
+    sshd -t 2>/dev/null && systemctl reload ssh 2>/dev/null
     write_page
+    # Only our page in Cockpit's menu: its Overview, Services, Logs, Accounts
+    # and Terminal are for administrators, and box isn't one. (Hiding them is
+    # for clarity: what box can do is set by its account and sudo rules.)
+    install -d -m 755 /etc/cockpit
+    printf '{ "menu": { "index": null, "services": null, "logs": null }, "tools": { "terminal": null } }\n' > /etc/cockpit/systemd.override.json
+    printf '{ "menu": { "index": null } }\n' > /etc/cockpit/users.override.json
 
     if is_ip "$site_host"; then
       # No domain name: port 8443, with the IP address certificate.
@@ -3565,6 +3574,8 @@ server {
   ssl_protocols TLSv1.2 TLSv1.3;
   server_tokens off;
   add_header Strict-Transport-Security max-age=31536000 always;
+  # Straight to our page, before and after logging in.
+  location = / { return 302 /plone-in-a-box; }
   location / {
     proxy_pass https://127.0.0.1:9090;
     proxy_set_header Host \$http_host;
@@ -3598,7 +3609,7 @@ EOF
     ;;
   off)
     url=$(cat "$STATE" 2>/dev/null)
-    rm -f "$NGINX_CONF" /etc/sudoers.d/plone-panel "$STATE"
+    rm -f "$NGINX_CONF" /etc/sudoers.d/plone-panel "$STATE" /etc/cockpit/systemd.override.json /etc/cockpit/users.override.json
     nginx -t >/dev/null 2>&1 && systemctl reload nginx
     ufw delete allow "$PORT/tcp" >/dev/null 2>&1
     systemctl disable --now cockpit.socket cockpit.service >/dev/null 2>&1
