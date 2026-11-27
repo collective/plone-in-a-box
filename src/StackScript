@@ -3309,14 +3309,16 @@ chmod 755 /usr/local/bin/plone-status
 # Command for the Plone in a Box control panel: sudo plone-panel on|off|status|password
 # Off until turned on. Cockpit (Ubuntu's web console) behind nginx: at
 # box.<your domain> for a site with a domain name, or on port 8443 of the
-# server's address for one without. Its own login, "box", which can only read
-# plone-status for now (stage 2 in TODO.md: a status page, read only).
+# server's address for one without. Its own login, "box", which can read
+# plone-status and run a few low-risk actions (plone-panel do ...), nothing else.
 cat > /usr/local/bin/plone-panel <<'PLONE_PANEL_EOF'
 #!/bin/bash
 # Usage: sudo plone-panel on [--address box.example.org]
 #        sudo plone-panel off
 #        sudo plone-panel status
 #        sudo plone-panel password     (a new password for the box login)
+#        sudo plone-panel do ACTION    (what the page's buttons run: backup,
+#             restore-test, test-notification, test-email, logs-off, graphs-off)
 set -uo pipefail
 [[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-panel ${1:-}" >&2; exit 1; }
 STATE_DIR=/var/lib/plone-in-a-box
@@ -3325,6 +3327,8 @@ NGINX_CONF=/etc/nginx/sites-enabled/plone-panel
 PAGE=/usr/share/cockpit/plone-in-a-box
 USER_NAME=box
 PORT=8443
+# What the page's buttons may run as root, each a fixed command (sudo rules).
+ACTIONS="backup restore-test test-notification test-email logs-off graphs-off"
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-panel.log; }
 die() { say "$*" >&2; exit 1; }
 
@@ -3367,7 +3371,10 @@ EOF
 <p class="lead" id="lead">Checking your site&hellip;</p>
 <div id="cards" class="cards"></div>
 <p><button id="again" type="button">Check again</button> <span id="when" class="muted"></span></p>
-<p class="muted">This page only shows how things are; it changes nothing. The setup guide says how to change each one.</p>
+<h2 class="section">Things you can do</h2>
+<div id="actions" class="actions"></div>
+<p id="result" class="result" role="status"></p>
+<p class="muted">Everything else is changed over SSH for now; the setup guide says how.</p>
 </main>
 </body>
 </html>
@@ -3391,6 +3398,10 @@ h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
 .card p { margin: 0; overflow-wrap: anywhere; }
 .muted { color: var(--muted); font-size: .9rem; }
 button { font: inherit; padding: .4rem .9rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+.section { font-size: 1.15rem; margin: 2rem 0 .6rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.result { min-height: 1.5em; font-weight: 600; }
 EOF
   cat > "$PAGE/index.js" <<'EOF'
 // Plain words from plone-status --json. The box login may run only that,
@@ -3441,6 +3452,37 @@ function show(s) {
   cards.appendChild(card("Cloudflare", f.cloudflare ? "on: only Cloudflare reaches your site" : "off"));
   if (s.security_notice) cards.appendChild(card("Security", s.security_notice, "warn"));
   document.getElementById("when").textContent = "Checked " + new Date().toLocaleTimeString();
+  actions(s);
+}
+// The buttons: each runs one fixed command as root (plone-panel do ...).
+function actions(s) {
+  var f = s.features || {}, list = [
+    ["backup", "Back up now", true],
+    ["restore-test", "Run the restore test", true],
+    ["test-notification", "Send a test notification", !!f.notifications],
+    ["test-email", "Send a test email", !!f.email],
+    ["logs-off", "Stop sending logs", !!f.logs, "Stop sending the logs to " + f.logs + "? They'll stay on the server only."],
+    ["graphs-off", "Stop sending graphs", !!f.graphs, "Stop sending numbers to " + f.graphs + "?"]
+  ];
+  var box = document.getElementById("actions");
+  box.textContent = "";
+  list.forEach(function (a) {
+    if (!a[2]) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = a[1];
+    b.addEventListener("click", function () { run(a[0], a[3], b); });
+    box.appendChild(b);
+  });
+}
+function run(action, question, button) {
+  if (question && !window.confirm(question)) return;
+  var result = document.getElementById("result");
+  button.disabled = true;
+  result.textContent = "Working\u2026";
+  cockpit.spawn(["sudo", "-n", "/usr/local/bin/plone-panel", "do", action], { err: "out" })
+    .then(function (out) { button.disabled = false; result.textContent = out.trim(); check(); })
+    .catch(function (e, out) { button.disabled = false; result.textContent = String(out || e.message || e).trim(); });
 }
 function check() {
   document.getElementById("lead").textContent = "Checking your site\u2026";
@@ -3475,7 +3517,12 @@ case "${1:-status}" in
     # it may run plone-status, and nothing else as root.
     id "$USER_NAME" >/dev/null 2>&1 || useradd -m -s /bin/bash -c "Plone in a Box control panel" "$USER_NAME" \
       || die "Couldn't create the $USER_NAME login"
-    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/plone-status --json\n' "$USER_NAME" > /etc/sudoers.d/plone-panel
+    {
+      printf '%s ALL=(root) NOPASSWD: /usr/local/bin/plone-status --json\n' "$USER_NAME"
+      for action in $ACTIONS; do
+        printf '%s ALL=(root) NOPASSWD: /usr/local/bin/plone-panel do %s\n' "$USER_NAME" "$action"
+      done
+    } > /etc/sudoers.d/plone-panel
     chmod 440 /etc/sudoers.d/plone-panel
     visudo -cf /etc/sudoers.d/plone-panel >/dev/null || { rm -f /etc/sudoers.d/plone-panel; die "The sudo rule for $USER_NAME was refused"; }
     write_page
@@ -3563,6 +3610,25 @@ EOF
     say "A new password for the $USER_NAME login"
     printf '%s\n' "$pw"
     ;;
+  do)
+    # Each one is low risk and can be undone; long ones run in the
+    # background, and plone-status shows how they went.
+    case "${2:-}" in
+      backup) systemctl start --no-block plone-backup.service && echo "A backup is running; it shows under Last backup in a minute or two." ;;
+      restore-test) systemctl start --no-block plone-backup-check.service && echo "The restore test is running; it takes a few minutes, then shows under Restore test." ;;
+      test-notification)
+        /usr/local/lib/plone-in-a-box/notify "Plone in a Box: test from the control panel" \
+          "If you can read this, notifications from $(hostname) reach you." </dev/null >/dev/null 2>&1
+        case $? in 0) echo "Sent: check your phone or team chat." ;; 3) echo "No notification URL is set."; exit 1 ;; *) echo "Couldn't send it: check the notification URL."; exit 1 ;; esac ;;
+      test-email)
+        if out=$(/usr/local/bin/plone-server-mail test 2>&1); then echo "Sent: check your inbox (and spam folder)."
+        else echo "Couldn't send it: ${out##*$'\n'}"; exit 1; fi ;;
+      logs-off) /usr/local/bin/plone-syslog off >/dev/null 2>&1 && echo "The logs now stay on the server only." || { echo "Couldn't turn the logs off."; exit 1; } ;;
+      graphs-off) /usr/local/bin/plone-otel off >/dev/null 2>&1 && echo "Graphs are off: no more numbers are sent." || { echo "Couldn't turn graphs off."; exit 1; } ;;
+      *) die "Usage: sudo plone-panel do $(tr ' ' '|' <<<"$ACTIONS")" ;;
+    esac
+    say "Ran from the control panel: ${2:-}"
+    ;;
   status)
     if [[ -s "$STATE" ]]; then
       echo "On: $(cat "$STATE")/plone-in-a-box (login: $USER_NAME)"
@@ -3570,7 +3636,7 @@ EOF
       echo "Off (sudo plone-panel on)"
     fi
     ;;
-  *) die "Usage: sudo plone-panel on [--address box.example.org] | off | status | password" ;;
+  *) die "Usage: sudo plone-panel on [--address box.example.org] | off | status | password | do ACTION" ;;
 esac
 PLONE_PANEL_EOF
 chmod 755 /usr/local/bin/plone-panel

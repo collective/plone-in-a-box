@@ -416,8 +416,9 @@ features are on (notifications, email, logs, graphs, Cloudflare). It changes not
 gives the same for programs.
 
 **The same in your browser (preview):** `sudo plone-panel on` turns on the Plone in a Box™ control panel, a page
-that shows the same in plain words, on your phone or computer. It runs in Cockpit, Ubuntu's own web console, behind
-nginx, so it still works when Plone doesn't. For now it only shows; it changes nothing.
+that shows the same in plain words, on your phone or computer, with buttons for a few low-risk things: back up now,
+run the restore test, send a test notification or email, and stop sending logs or graphs. It runs in Cockpit,
+Ubuntu's own web console, behind nginx, so it still works when Plone doesn't.
 
 * **Where:** for a site with a domain name, `https://box.<your domain>` (without `www.`), so first add a DNS record
   for `box.<your domain>` pointing at the server, like the site's own; `--address` chooses another name. For a site
@@ -425,7 +426,7 @@ nginx, so it still works when Plone doesn't. For now it only shows; it changes n
   from 2.27 (nothing answers there until you turn the panel on); a cloud firewall made earlier, or one you added
   yourself, needs TCP port 8443 allowed too.
 * **Login:** `box`, with a password `plone-panel on` shows once; `sudo plone-panel password` makes a new one. It isn't
-  the Plone admin's, and it can't do anything else on the server.
+  the Plone admin's, and it can't do anything else on the server than show the status and run those buttons.
 * `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and locks the `box`
   login.
 

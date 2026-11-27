@@ -1063,6 +1063,8 @@ if (( PANEL )); then
   rm -f "$panel_cookies"
   check "box can read plone-status" rssh "sudo -u box sudo -n /usr/local/bin/plone-status --json | python3 -c 'import json, sys; json.load(sys.stdin)'"
   check "box can't do anything else as root" rssh "! sudo -u box sudo -n /usr/bin/id"
+  check "box can start a backup from the panel" rssh "sudo -u box sudo -n /usr/local/bin/plone-panel do backup | grep -q 'backup is running'"
+  check "box can't turn the panel's settings around (plone-panel on)" rssh "! sudo -u box sudo -n /usr/local/bin/plone-panel on"
   check "Cockpit itself (port 9090) is closed from outside" port_closed 9090
   check "the site still works with the control panel on" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$SITE/') == 200 ]]"
   check "the password isn't in the setup log or credentials file" \
