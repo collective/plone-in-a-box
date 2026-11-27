@@ -421,8 +421,9 @@ nginx, so it still works when Plone doesn't. For now it only shows; it changes n
 
 * **Where:** for a site with a domain name, `https://box.<your domain>` (without `www.`), so first add a DNS record
   for `box.<your domain>` pointing at the server, like the site's own; `--address` chooses another name. For a site
-  without one, `https://<server address>:8443`; with a cloud firewall (AWS, or one you added on DigitalOcean or
-  Hetzner), allow TCP port 8443 there too.
+  without one, `https://<server address>:8443`. The Launch Stack template and the Terraform plans allow port 8443
+  from 2.27 (nothing answers there until you turn the panel on); a cloud firewall made earlier, or one you added
+  yourself, needs TCP port 8443 allowed too.
 * **Login:** `box`, with a password `plone-panel on` shows once; `sudo plone-panel password` makes a new one. It isn't
   the Plone admin's, and it can't do anything else on the server.
 * `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and locks the `box`

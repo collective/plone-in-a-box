@@ -309,6 +309,15 @@ resource "hcloud_firewall" "plone" {
     port       = "443"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
+
+  # The control panel on a site without a domain name: nothing answers until
+  # you turn it on (sudo plone-panel on).
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "8443"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
 }
 
 # Which locations offer the server type right now (not every location offers

@@ -329,6 +329,17 @@ resource "aws_security_group" "plone" {
     ipv6_cidr_blocks = ["::/0"]
   }
 
+  # The control panel on a site without a domain name: nothing answers until
+  # you turn it on (sudo plone-panel on).
+  ingress {
+    description      = "Plone in a Box control panel"
+    from_port        = 8443
+    to_port          = 8443
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
   egress {
     from_port        = 0
     to_port          = 0

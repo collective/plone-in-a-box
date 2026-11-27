@@ -3546,7 +3546,7 @@ EOF
     pw=$(new_password)
     say "The control panel is on: $url/plone-in-a-box"
     printf 'Log in as %s with this password (store it in a password manager; sudo plone-panel password makes a new one):\n%s\n' "$USER_NAME" "$pw"
-    [[ "$url" == *:$PORT ]] && echo "On AWS, DigitalOcean or Hetzner with a cloud firewall, allow TCP port $PORT there too."
+    [[ "$url" == *:$PORT ]] && echo "A cloud firewall made before 2.27 (AWS, or Terraform on DigitalOcean or Hetzner) needs TCP port $PORT allowed too."
     ;;
   off)
     url=$(cat "$STATE" 2>/dev/null)

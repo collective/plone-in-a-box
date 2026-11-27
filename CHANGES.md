@@ -23,7 +23,9 @@
   port 8443 for a site without a domain name. Its own login, `box`, which
   can read the status and nothing else; Cockpit itself listens only on the
   server. Off until you turn it on; `plone-panel off` turns it off again.
-  `scripts/test-deploy.sh --panel` tests it.
+  `scripts/test-deploy.sh --panel` tests it. The Launch Stack template and
+  the Terraform plans' firewalls allow port 8443 (nothing answers there until
+  the panel is on).
 - **Security headers**, reviewed against OWASP's current recommendations:
   `Referrer-Policy` (what browsers do by default, now said), a
   `Content-Security-Policy` with only the parts that can't break a Plone site

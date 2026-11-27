@@ -450,6 +450,18 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIpv6: ::/0
+        # The control panel on a site without a domain name: nothing answers
+        # until you turn it on (sudo plone-panel on).
+        - Description: Plone in a Box control panel
+          IpProtocol: tcp
+          FromPort: 8443
+          ToPort: 8443
+          CidrIp: 0.0.0.0/0
+        - Description: Plone in a Box control panel (IPv6)
+          IpProtocol: tcp
+          FromPort: 8443
+          ToPort: 8443
+          CidrIpv6: ::/0
 
   # The server is never deleted by accident: termination protection makes AWS
   # refuse to terminate it (deleting the stack, the EC2 console, anything else),

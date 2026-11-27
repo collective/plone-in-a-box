@@ -433,6 +433,14 @@ resource "digitalocean_firewall" "plone" {
     source_addresses = ["0.0.0.0/0", "::/0"]
   }
 
+  # The control panel on a site without a domain name: nothing answers until
+  # you turn it on (sudo plone-panel on).
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "8443"
+    source_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
