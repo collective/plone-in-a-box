@@ -115,12 +115,14 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
   saved next to each backup, and the update report warns when the newest backup is more than two days old. AWS
   server backups (2.24): Terraform `backups` (daily EBS snapshots through Data Lifecycle Manager), and the console
   steps for Launch Stack servers, documented. Not in the template, which would then need IAM acknowledgment.
-- [ ] **OpenTelemetry.** Whether to offer tracing and metrics for the backend, frontend and nginx, and where
-  the data would go on a single small server.
+- [ ] **OpenTelemetry.** Decided for the release after 2.25: see "OpenTelemetry, and launch fields for logs"
+  above. Logs went first, as syslog (2.25, `plone-syslog`).
 - [ ] **Other Plone best practices.** Review the box against current Plone deployment recommendations
   (backups, monitoring, security headers, upgrades) and note any gaps. Partly done in 2.24, from running three
   production sites: restarts after security updates, disk warnings, notices when a tool is cut off, backup problems
-  by email, SSH keys only and fail2ban, and the guide's uptime checks and outgoing ports. Still open: review the
+  by email, SSH keys only and fail2ban, and the guide's uptime checks and outgoing ports. In 2.25: a monthly
+  restore test, the server's own mail, logs to a syslog service, `plone-cloudflare`, DigitalOcean's free alerts
+  from Terraform, and the GitHub Actions pinned to commit hashes. Still open: review the
   security headers against current recommendations, and moving to a new Plone version (6.3) still takes a person.
 - [ ] **More add-ons in the catalog.** Suggest Plone and Volto add-ons that work on a box, and invite their
   authors to add a Try It page (`addons.yml`, see docs/try-it-buttons.md), for example starting from

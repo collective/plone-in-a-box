@@ -345,7 +345,7 @@ Parameters:
     Description: plone/plone-frontend Docker image tag.
   Release:
     Type: String
-    Default: "2.24"
+    Default: "2.25"
     AllowedPattern: '^[A-Za-z0-9._/-]+$'
     Description: The Plone in a Box release whose provisioning script the server downloads.
   LatestAmiId:

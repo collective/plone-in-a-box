@@ -55,7 +55,10 @@ One-time setup for `scripts/test-deploy.sh`:
     stored with `security add-generic-password -a "$USER" -s piab-linode-token -w`
 * **DigitalOcean**: a team `piab-test` used only for tests, so its token can't reach any other Droplets (team
   switcher → **Create a team**). In it, **API → Tokens → Generate New Token** with custom scopes `droplet`
-  create/read/delete, `ssh_key` create/read and `tag` create/read (30-day expiry), stored with
+  create/read/update/delete, `ssh_key` create/read/update/delete, `tag` create/read/delete, `firewall`,
+  `monitoring` and `uptime` create/read/update/delete, and read for `account`, `actions`, `regions`, `sizes`,
+  `image`, `snapshot` and `vpc` (90-day expiry; the Terraform test needs `firewall`, `monitoring`, `uptime` and
+  `account`), stored with
   `security add-generic-password -a "$USER" -s piab-do-token -w`. The first run adds the SSH key to the team as
   `piab-test`.
 * **Hetzner**: in the [Hetzner Console](https://console.hetzner.com), a project `piab-test` used only for tests, so its
