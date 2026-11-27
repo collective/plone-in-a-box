@@ -113,10 +113,17 @@ nginx + Compose setup. Custom images as an option get most of the benefit withou
 
 ## A control panel for Plone in a Box™
 
-One friendly place to turn Plone in a Box™ features on and off and change their
-settings, instead of commands over SSH: backups and offsite copies, the restore
-test, updates, notifications, email, logs, graphs, Cloudflare, the demo login,
-HTTPS, and restoring a backup.
+Like a big control panel for Plone in a Box™, but user friendly: one place to
+turn its features on and off and change their settings, instead of commands
+over SSH. Backups and offsite copies, the restore test, updates,
+notifications, email, logs, graphs, Cloudflare, the demo login, HTTPS, and
+restoring a backup.
+
+- **User friendly first:** plain words, not settings names; each switch says
+  what it does and what it costs (free, or the service's price); sensible
+  choices already filled in; a test button where there's something to test
+  (send a test email, a test log line); and a clear way back (turn it off
+  again, or restore the backup taken before).
 
 - **Separate from the Plone site**, so it still works when Plone doesn't: that's
   exactly when you need it (restore a backup, see why an update failed, turn
