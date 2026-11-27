@@ -376,8 +376,14 @@ document.querySelectorAll('.copy').forEach(function (box) {
 GENERATED = "<!-- Written by scripts/catalog.py from addons.yml; don't edit by hand. -->"
 
 
+def new_tab(text):
+    """Make links that leave the page (http and https) open in a new tab, so
+    people following the steps keep their place; links within the site stay."""
+    return re.sub(r'<a ([^>]*?)href="(https?://[^"]*)"', r'<a \1href="\2" target="_blank" rel="noopener"', text)
+
+
 def page(title, description, body):
-    return f"""<!doctype html>
+    return new_tab(f"""<!doctype html>
 {GENERATED}
 <html lang="en">
 <head>
@@ -397,7 +403,7 @@ Plone and the Plone logo are trademarks of the Plone Foundation.</footer>
 <script>{SCRIPT}</script>
 </body>
 </html>
-"""
+""")
 
 
 def copyable(text):

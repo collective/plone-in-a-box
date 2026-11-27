@@ -56,13 +56,13 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; }
 <body>
 <main>
 <h1>Try Plone Aurora</h1>
-<p class="lead">Your own Plone 6 site with <a href="https://github.com/plone/aurora">Plone Aurora</a>, the new React frontend for Plone, still in development, in about
+<p class="lead">Your own Plone 6 site with <a href="https://github.com/plone/aurora" target="_blank" rel="noopener">Plone Aurora</a>, the new React frontend for Plone, still in development, in about
 10 minutes.</p>
 <p>It runs on a cloud server in your own account, set up by Plone in a Box. A small server costs a few cents an
 hour, paid to the cloud provider; delete it when you're done, which deletes the site too.</p>
 
 <div class="buttons">
-<a class="button" href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=aurora-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=plone%2Faurora%3A1.0.0-alpha.26&amp;param_BackendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-backend%3A6.2-aurora&amp;param_DemoRoles=Editor">Launch on AWS</a>
+<a class="button" href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=aurora-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=plone%2Faurora%3A1.0.0-alpha.26&amp;param_BackendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-backend%3A6.2-aurora&amp;param_DemoRoles=Editor" target="_blank" rel="noopener">Launch on AWS</a>
 <a class="button" href="#linode">Deploy on Linode</a>
 <a class="button" href="#digitalocean-and-hetzner">DigitalOcean or Hetzner</a>
 </div>
@@ -82,8 +82,8 @@ on the site, and nothing more. Share it with whoever you want to try Plone Auror
 
 <h2 id="aws">Amazon AWS</h2>
 <ol>
-<li>Sign in to the <a href="https://console.aws.amazon.com/">AWS console</a>, then click
-<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=aurora-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=plone%2Faurora%3A1.0.0-alpha.26&amp;param_BackendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-backend%3A6.2-aurora&amp;param_DemoRoles=Editor">Launch on AWS</a>: a form with Plone Aurora and the demo login filled in.</li>
+<li>Sign in to the <a href="https://console.aws.amazon.com/" target="_blank" rel="noopener">AWS console</a>, then click
+<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=aurora-demo&amp;param_DemoUser=demo&amp;param_FrontendImage=plone%2Faurora%3A1.0.0-alpha.26&amp;param_BackendImage=ghcr.io%2Fcollective%2Fplone-in-a-box-backend%3A6.2-aurora&amp;param_DemoRoles=Editor" target="_blank" rel="noopener">Launch on AWS</a>: a form with Plone Aurora and the demo login filled in.</li>
 <li>Fill in <strong>AdminPassword</strong> and <strong>DemoPassword</strong> (at least 12 characters each), and click
 <strong>Create stack</strong>.</li>
 <li>When the stack says <strong>CREATE_COMPLETE</strong>, open the <strong>SiteURL</strong> on its
@@ -95,8 +95,8 @@ delete the stack.</p>
 <h2 id="linode">Linode (Akamai)</h2>
 <p>Linode can't fill in the form from a link, so you paste a few values into it.</p>
 <ol>
-<li>Log in to <a href="https://cloud.linode.com">Cloud Manager</a>, open the
-<a href="https://cloud.linode.com/stackscripts/931893">Plone in a Box StackScript</a>, and click <strong>Deploy New Linode</strong>.</li>
+<li>Log in to <a href="https://cloud.linode.com" target="_blank" rel="noopener">Cloud Manager</a>, open the
+<a href="https://cloud.linode.com/stackscripts/931893" target="_blank" rel="noopener">Plone in a Box StackScript</a>, and click <strong>Deploy New Linode</strong>.</li>
 <li>Fill in these fields, and leave the others as they are:
 <table><tr><th>Plone admin password</th><td>a password of at least 12 characters, for you</td></tr>
 <tr><th>Demo login</th><td><code>demo</code></td></tr>
@@ -123,8 +123,8 @@ export DEMO_USER=&#x27;demo&#x27;
 export DEMO_PASSWORD=&#x27;CHANGE-ME-TOO&#x27;
 curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.25/src/StackScript &amp;&amp; bash /root/plone-in-a-box.sh</code></pre></div>
 <p class="note">Then open the server's IP address in a browser. More detail:
-<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-c-digitalocean">DigitalOcean</a>,
-<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-d-hetzner">Hetzner</a>.</p>
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-c-digitalocean" target="_blank" rel="noopener">DigitalOcean</a>,
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-d-hetzner" target="_blank" rel="noopener">Hetzner</a>.</p>
 
 <h2 id="password">Forgot the demo password?</h2>
 <p>Log in as <code>admin</code>, open <strong>Site Setup → Users</strong>, click <code>demo</code> and set a new one.
@@ -137,8 +137,8 @@ Connect</strong>, Hetzner's <strong>&gt;_ Console</strong>) and run:</p>
 <p>A button that links here:</p>
 <div class="copy"><pre><code>[![Try It in Plone in a Box](https://img.shields.io/badge/Try%20It-Plone%20in%20a%20Box-0083be)](https://collective.github.io/plone-in-a-box/try/aurora/)</code></pre></div>
 
-<footer>Set up by <a href="https://github.com/tkimnguyen/plone-in-a-box">Plone in a Box</a>, which installs Plone 6 on a cloud server of your own.
-Questions? Ask in <a href="https://discord.com/channels/786421998426521600/903993234248835082" style="white-space: nowrap"><strong>#plone-in-a-box</strong></a> on <a href="https://discord.gg/jRrsnYkNvS">the Plone Discord</a>.
+<footer>Set up by <a href="https://github.com/tkimnguyen/plone-in-a-box" target="_blank" rel="noopener">Plone in a Box</a>, which installs Plone 6 on a cloud server of your own.
+Questions? Ask in <a href="https://discord.com/channels/786421998426521600/903993234248835082" target="_blank" rel="noopener" style="white-space: nowrap"><strong>#plone-in-a-box</strong></a> on <a href="https://discord.gg/jRrsnYkNvS" target="_blank" rel="noopener">the Plone Discord</a>.
 Plone and the Plone logo are trademarks of the Plone Foundation.</footer>
 </main>
 <script>
