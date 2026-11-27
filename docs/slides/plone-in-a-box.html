@@ -58,7 +58,7 @@ section.dense code { font-size: 0.85em; }
 <h1 id="plone-in-a-box%E2%84%A2">Plone in a Box™</h1>
 <p>Your own Plone 6 website on a cloud server,<br />
 easily installed without a command line.</p>
-<p><small>Release 2.25 · November 2026</small></p>
+<p><small>Release 2.26 · November 2026</small></p>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="2" data-paginate="true" data-theme="default" data-style=":root {
   --blue: #0083be;
@@ -593,11 +593,13 @@ footer { color: var(--muted); }
 section.dense { font-size: 25px; }
 section.dense code { font-size: 0.85em; }
 ;" data-marpit-pagination-total="17">
-<h2 id="keeping-an-eye-on-it">Keeping an eye on it</h2>
+<h2 id="comprehensive-monitoring">Comprehensive monitoring</h2>
 <ul>
 <li><strong>Stay in the loop:</strong> receive notifications of errors (failed backup, update or restore test, disk getting full) via email and/or other channels.</li>
 <li><strong>External checks:</strong> get notified when the site is down and, on DigitalOcean, alerts for disk, memory and CPU spikes.</li>
 <li><strong>View server logs centrally:</strong> <code>plone-syslog</code> sends the server's logs to Better Stack's free plan, Papertrail or your own log server.</li>
+<li><strong>See how your site is doing over time:</strong> <code>plone-otel</code> sends graphs of your server and site (memory, disk, response times, errors) to Grafana Cloud's free plan or another OpenTelemetry service, with a ready-made dashboard. Thanks to Jean Jordaan for the idea!</li>
+<li><strong>From the start:</strong> turn on logs &amp; graphs in the launch form.</li>
 <li><strong>Secured by Cloudflare:</strong> optional <code>plone-cloudflare</code> lets only Cloudflare reach the site and helps block bots and DDOS attacks.</li>
 </ul>
 </section>
@@ -929,8 +931,8 @@ section.dense code { font-size: 0.85em; }
 ;" data-marpit-pagination-total="17">
 <h2 id="whats-next">What's next</h2>
 <ul>
-<li><strong>Logs and metrics</strong> so a new server sends them from the moment it launches.</li>
-<li><strong>OpenTelemetry metrics:</strong> graphs of memory, disk and slow pages over time, sent to a service such as Grafana Cloud.</li>
+<li><strong>A control panel for Plone in a Box™:</strong> turn features on and off and change their settings, without SSH.</li>
+<li><strong>MCP:</strong> ask an AI assistant &quot;is my site healthy?&quot; or &quot;when was the last backup?&quot;, and have it answer from your server.</li>
 <li><strong>Plone distributions to try:</strong> kitconcept's intranet and website, and PortalBrasil.</li>
 <li><strong>More add-ons</strong> in the catalog, each with its own Try It page.</li>
 </ul>
