@@ -37,8 +37,8 @@ export LETSENCRYPT_EMAIL=''
 export SITE_TIMEZONE='UTC'
 # Site language: a language code such as 'en', 'de', 'fr', 'es' or 'pt-br'.
 export SITE_LANGUAGE='en'
-# Starter content: 'yes' creates the sample pages a new site (or a Plone
-# distribution) comes with; 'no' starts with an empty site.
+# Starter content: 'yes' starts the site with Plone's welcome page (or a Plone
+# distribution's own sample content); 'no' starts with an empty site.
 export STARTER_CONTENT='yes'
 
 # Plone backend and Volto frontend image tags.

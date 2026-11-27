@@ -1,0 +1,166 @@
+<!doctype html>
+<!-- Written by scripts/catalog.py from addons.yml; don't edit by hand. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plone in a Box™</title>
+<meta name="description" content="Your own Plone 6 website on a cloud server, without needing a command line.">
+<style>
+:root {
+  --bg: #ffffff; --fg: #1d2329; --muted: #5a6570; --line: #d9dee3; --panel: #f4f6f8;
+  --link: #0068a8; --accent: #0083be; --code: #eef1f4;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
+    --link: #6cc4f0; --accent: #3aa9dc; --code: #222a31;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
+  --link: #6cc4f0; --accent: #3aa9dc; --code: #222a31;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 46rem; margin: 0 auto; padding: 2rem 16px 4rem; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+a { color: var(--link); }
+p, ol, ul { margin: .6rem 0; }
+li { margin: .3rem 0; }
+.lead { font-size: 1.1rem; color: var(--muted); }
+.buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.4rem 0; }
+.button { display: inline-block; padding: .65rem 1.1rem; border-radius: 6px; background: var(--accent);
+  color: #fff; font-weight: 600; text-decoration: none; }
+.button:hover { filter: brightness(1.1); }
+.steps { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .6rem 1.2rem .6rem 2.4rem; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+code { background: var(--code); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: var(--code); padding: .8rem 5rem .8rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0; }
+pre code { background: none; padding: 0; overflow-wrap: normal; }
+.copy { position: relative; margin: .6rem 0; }
+.copy button { position: absolute; top: .4rem; right: .4rem; font: inherit; font-size: .8rem; padding: .2rem .6rem;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); cursor: pointer; }
+table { border-collapse: collapse; width: 100%; margin: .6rem 0; }
+th, td { text-align: left; vertical-align: top; padding: .45rem .5rem; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; width: 40%; }
+.note { color: var(--muted); font-size: .95rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Plone in a Box™</h1>
+<p class="lead">Your own Plone 6 website on a cloud server, without needing a command line.</p>
+
+<ol class="steps">
+<li><strong>Pick a provider:</strong> Linode, DigitalOcean, AWS or Hetzner.</li>
+<li><strong>Choose a password</strong> for your site's <code>admin</code> account.</li>
+<li><strong>Click Create.</strong> About 10 minutes later, your server's address shows your new Plone site.</li>
+</ol>
+
+<div class="buttons">
+<a class="button" href="#linode">Deploy on Linode</a>
+<a class="button" href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=plone-in-a-box">Launch on AWS</a>
+<a class="button" href="#digitalocean-and-hetzner">DigitalOcean or Hetzner</a>
+</div>
+
+<p><strong>New to all of them?</strong> Choose Linode: a form, nothing to paste, and among the lowest prices.
+<strong>Already have an account somewhere?</strong> Use that one. <strong>Prefer a European provider?</strong>
+Hetzner.</p>
+<p class="note">You need an account with the provider and a way to pay. A small server costs a few cents an hour,
+paid to the provider. Nothing to install on your computer.</p>
+
+<h2 id="later">No need to decide everything now</h2>
+<p>Everything else can be added once your site is running:</p>
+<ul>
+<li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#adding-a-domain-later">your domain name</a></li>
+<li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#sending-email">email</a>, so your site can send password resets and form results</li>
+<li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#day-to-day-administration">offsite backups</a>, encrypted copies in cloud storage</li>
+<li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#updates">notifications</a> on your phone or in your team chat</li>
+<li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#where-to-send-the-logs">logs</a> &amp; <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#graphs">graphs</a> of your server and site</li>
+<li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#add-ons">add-ons</a> and a <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#themes-and-frontend-images">theme</a></li>
+</ul>
+
+<h2 id="linode">Linode (Akamai)</h2>
+<ol>
+<li>Log in to <a href="https://cloud.linode.com">Cloud Manager</a>, open the
+<a href="https://cloud.linode.com/stackscripts/931893">Plone in a Box StackScript</a>, and click <strong>Deploy New Linode</strong>.</li>
+<li>Fill in the <strong>Plone admin password</strong> (at least 12 characters).</li>
+<li>Choose <strong>Ubuntu 26.04 LTS</strong>, a region, a 1 GB <strong>Nanode</strong> and <strong>No firewall</strong>,
+set a root password, and click <strong>Create Linode</strong>.</li>
+</ol>
+<p class="note">Then open the Linode's IP address in a browser. More detail:
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-a-linode">setup guide</a>.</p>
+
+<h2 id="aws">Amazon AWS</h2>
+<ol>
+<li>Sign in to the <a href="https://console.aws.amazon.com/">AWS console</a>, then click
+<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https%3A%2F%2Fplone-in-a-box-templates.s3.us-east-1.amazonaws.com%2Flatest%2Fcloudformation.yaml&amp;stackName=plone-in-a-box">Launch on AWS</a>.</li>
+<li>Fill in the <strong>AdminPassword</strong> (at least 12 characters), and click <strong>Create stack</strong>.</li>
+<li>When the stack says <strong>CREATE_COMPLETE</strong>, open the <strong>SiteURL</strong> on its
+<strong>Outputs</strong> tab.</li>
+</ol>
+<p class="note">The default <code>t3.small</code> server costs more than the other providers' 1 GB ones. More detail:
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#console-deployment-easiest">setup guide</a>.</p>
+
+<h2 id="digitalocean-and-hetzner">DigitalOcean and Hetzner</h2>
+<p>Create an Ubuntu 26.04 server with 1 GB of memory or more, and paste these lines into <strong>Additional Options →
+Startup scripts</strong> (DigitalOcean) or <strong>Cloud config</strong> (Hetzner). Replace <code>CHANGE-ME</code>
+with your admin password (at least 12 characters), keeping the quotes:</p>
+<div class="copy"><pre><code>#!/bin/bash
+export ADMIN_PASSWORD=&#x27;CHANGE-ME&#x27;
+curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/StackScript &amp;&amp; bash /root/plone-in-a-box.sh</code></pre></div>
+<p class="note">Then open the server's IP address in a browser. More detail:
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-c-digitalocean">DigitalOcean</a>,
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-d-hetzner">Hetzner</a>.</p>
+
+<h2 id="make-it-yours">Make it yours</h2>
+<p>Know what the site is for? Fill in just these fields when you create the server:</p>
+<table>
+<tr><th>Just trying Plone</th><td>Nothing more: your site opens on a welcome page that shows you where to start.</td></tr>
+<tr><th>A site for your organization</th><td><strong>Domain name</strong>, the <strong>Email</strong> fields and a
+<strong>Notification URL</strong>; then <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#day-to-day-administration">offsite backups</a>.</td></tr>
+<tr><th>An intranet</th><td><strong>Backend image</strong> and <strong>Frontend image</strong>:
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#custom-backend-image">kitconcept's intranet</a>.</td></tr>
+<tr><th>Letting others try your site</th><td>A <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#demo-login">demo login</a>, with the roles you
+choose.</td></tr>
+<tr><th>Training or a workshop</th><td>A server per person, each with a demo login, or
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#terraform-deployment-automated-more-technical">Terraform</a> for many at once.</td></tr>
+<tr><th>Showing off your add-on</th><td>A <a href="try/">Try It page</a> and button for your README
+(<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/try-it-buttons.md">how</a>).</td></tr>
+<tr><th>Full control</th><td>Terraform, your own images, and every setting in the
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md">setup guide</a>.</td></tr>
+</table>
+
+<h2 id="more">More</h2>
+<ul>
+<li><a href="slides/">The slides</a>: Plone in a Box™ in a few minutes</li>
+<li><a href="try/">Try a Plone add-on</a> on a site of your own</li>
+<li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md">The setup guide</a>, and the code, on <a href="https://github.com/tkimnguyen/plone-in-a-box">GitHub</a></li>
+</ul>
+
+<footer><a href="https://github.com/tkimnguyen/plone-in-a-box">Plone in a Box™</a> is open source, and part of the <a href="https://github.com/collective">Plone collective</a>.
+Questions? Ask in <a href="https://discord.com/channels/786421998426521600/903993234248835082" style="white-space: nowrap"><strong>#plone-in-a-box</strong></a> on <a href="https://discord.gg/jRrsnYkNvS">the Plone Discord</a>.
+Plone and the Plone logo are trademarks of the Plone Foundation.</footer>
+</main>
+<script>
+document.querySelectorAll('.copy').forEach(function (box) {
+  var button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Copy';
+  button.addEventListener('click', function () {
+    var text = box.querySelector('code').textContent;
+    var done = function () { button.textContent = 'Copied'; setTimeout(function () { button.textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done, function () {}); }
+  });
+  box.appendChild(button);
+});
+</script>
+</body>
+</html>

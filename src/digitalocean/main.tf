@@ -117,7 +117,7 @@ variable "site_language" {
 }
 
 variable "starter_content" {
-  description = "Create the sample pages a new site (or a Plone distribution) comes with; false starts with an empty site."
+  description = "Start the site with Plone's welcome page (or a Plone distribution's own sample content); false starts with an empty site."
   type        = bool
   default     = true
 }

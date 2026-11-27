@@ -49,8 +49,8 @@ locations are in Germany and Finland. All four offer automatic server backups fo
    * **Domain name** and **Email for Lets Encrypt**: both are needed for HTTPS.
    * **Site time zone**, for example `America/Chicago` (default `UTC`).
    * **Site language**, a language code such as `en` (the default), `de`, `fr`, `es` or `pt-br`, and **Starter
-     content**: `yes` (the default) creates the sample pages a new site, or a [Plone distribution](#custom-backend-image),
-     comes with; `no` starts with an empty site.
+     content**: `yes` (the default) starts the site with Plone's welcome page, or a [Plone distribution's](#custom-backend-image)
+     own sample content; `no` starts with an empty site.
    * **Plone backend image tag** and **Volto frontend image tag** (defaults `6.2` and `19`).
    * **Backend add-ons**, for example `collective.easyform` (see [Add-ons](#add-ons)).
    * **Frontend image**, for example `ghcr.io/collective/plone-in-a-box-frontend:19-vlt` for Volto Light Theme

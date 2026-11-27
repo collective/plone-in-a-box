@@ -1,3 +1,19 @@
+2.27 (unreleased)
+-----------------
+
+- **A start page** at https://collective.github.io/plone-in-a-box/: the
+  easiest way first (pick a provider, choose the admin password, click
+  Create), with a button for each provider; what can wait until the site is
+  running (domain name, email, offsite backups, notifications, logs, graphs,
+  add-ons, a theme); and which fields to fill in for what the site is for
+  (trying Plone, an organization's site, an intranet, a demo, a workshop, an
+  add-on). `scripts/catalog.py pages` writes it with the Try It pages, so it
+  always names the current release. The README starts with the same three
+  steps, and the slides have a "Choose your path" slide.
+- **Starter content** now says what it is in every form and in the guide:
+  Plone's welcome page (or a Plone distribution's own sample content), not
+  "sample pages", which a standard Plone 6.2 site doesn't have.
+
 2.26 (2026-11-27)
 -----------------
 

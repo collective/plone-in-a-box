@@ -114,7 +114,7 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
    `release` variable's `default` in `src/aws/main.tf`, `src/hetzner/main.tf` and `src/digitalocean/main.tf`, and
    the three-line launchers in `README.md`, `docs/setup-guide.md` and `docs/try-it-buttons.md` (the `.../plone-in-a-box/<version>/src/StackScript`
    URL), so pasted launchers and the Launch Stack button download it, and run `python3 scripts/catalog.py pages` so the
-   Try It pages in `docs/try/` name it too. CI checks that they all match. Update the slides too
+   start page (`docs/index.html`) and the Try It pages in `docs/try/` name it too. CI checks that they all match. Update the slides too
    (`docs/slides/plone-in-a-box.md`): the release number and month on the title slide, new features on their slides,
    and "What's next". Rebuild `docs/slides/plone-in-a-box.html` with Marp (`marp --html docs/slides/plone-in-a-box.md
    -o docs/slides/plone-in-a-box.html`), and render the slides to PNG (`--images png`) to check nothing overflows.
@@ -308,3 +308,11 @@ contribute there, bring it into this repo first with `git pull collective main`.
 
 Pushing needs an SSH key added to GitHub (`ssh -T git@github.com` should greet you by name). HTTPS pushes with a
 password are rejected.
+
+## 5. Announce it on the Plone forum
+
+Once the Discord notice is out, post the release in the forum thread
+[github/collective/plone-in-a-box: an easy way to deploy a secure cloud server](https://community.plone.org/t/github-collective-plone-in-a-box-an-easy-way-to-deploy-a-secure-cloud-server/23310),
+so people who aren't on Discord hear about it too. Use the summary for site owners from `CHANGES.md`, with links to
+the GitHub release and the slides (https://collective.github.io/plone-in-a-box/slides/), and thank anyone who
+contributed, with their forum handle.
