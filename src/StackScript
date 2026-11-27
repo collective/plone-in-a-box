@@ -3508,18 +3508,58 @@ function actions(s) {
     box.appendChild(b);
   });
 }
+// The actions that run in the background, as systemd services: the page
+// follows them until they finish, then says how it went.
+var BACKGROUND = {
+  "backup": { unit: "plone-backup.service", running: "Backing up your site\u2026",
+              done: function (s) { return "Backed up " + local(s.backups.newest_iso, s.backups.newest) + "."; },
+              failed: "The backup failed. If notifications or email are set up, a notice is on its way." },
+  "restore-test": { unit: "plone-backup-check.service", running: "Running the restore test\u2026 This takes a few minutes.",
+                    done: function (s) { return "Restore test: " + s.backups.restore_test_summary; },
+                    failed: "The restore test failed. If notifications or email are set up, a notice is on its way." }
+};
 function run(action, question, button) {
   if (question && !window.confirm(question)) return;
   var result = document.getElementById("result");
   button.disabled = true;
   result.textContent = "Working\u2026";
   cockpit.spawn(["sudo", "-n", "/usr/local/bin/plone-panel", "do", action], { err: "out" })
-    .then(function (out) { button.disabled = false; result.textContent = out.trim(); check(); })
+    .then(function (out) {
+      if (BACKGROUND[action]) { follow(action, button); return; }
+      button.disabled = false;
+      result.textContent = out.trim();
+      check();
+    })
     .catch(function (e, out) { button.disabled = false; result.textContent = String(out || e.message || e).trim(); });
+}
+// Every few seconds: is it still running? (systemctl show needs no root.)
+function follow(action, button) {
+  var job = BACKGROUND[action], result = document.getElementById("result");
+  var cards = document.getElementById("cards");
+  result.textContent = job.running;
+  if (button) button.disabled = true;
+  cards.classList.add("checking");
+  function poll() {
+    cockpit.spawn(["systemctl", "show", "--property=ActiveState,Result", "--value", job.unit])
+      .then(function (out) {
+        var lines = out.trim().split("\n"), state = lines[0], ok = lines[1] === "success";
+        if (state === "activating" || state === "active" || state === "deactivating") {
+          setTimeout(poll, 3000);
+          return;
+        }
+        cards.classList.remove("checking");
+        check(function (s) {
+          if (button) button.disabled = false;
+          result.textContent = ok ? job.done(s) : job.failed;
+        });
+      })
+      .catch(function () { cards.classList.remove("checking"); if (button) button.disabled = false; result.textContent = ""; });
+  }
+  setTimeout(poll, 1500);
 }
 // Checking takes a second or two: the button says so, and the cards fade
 // until the new ones are in.
-function check() {
+function check(then) {
   var again = document.getElementById("again"), cards = document.getElementById("cards");
   var started = Date.now();
   again.disabled = true;
@@ -3534,12 +3574,24 @@ function check() {
   cockpit.spawn(["sudo", "-n", "/usr/local/bin/plone-status", "--json"], { err: "message" })
     .then(function (out) {
       // At least half a second, so the change can be seen.
-      setTimeout(function () { show(JSON.parse(out)); done(); }, Math.max(0, 500 - (Date.now() - started)));
+      setTimeout(function () {
+        var s = JSON.parse(out);
+        show(s);
+        done();
+        if (then) then(s);
+      }, Math.max(0, 500 - (Date.now() - started)));
     })
     .catch(function (e) { done(); document.getElementById("lead").textContent = "Couldn't check: " + (e.message || e); });
 }
-document.getElementById("again").addEventListener("click", check);
-check();
+document.getElementById("again").addEventListener("click", function () { check(); });
+// A backup or restore test already running (from another tab, or the nightly
+// one) is followed too.
+check(function () {
+  Object.keys(BACKGROUND).forEach(function (action) {
+    cockpit.spawn(["systemctl", "show", "--property=ActiveState", "--value", BACKGROUND[action].unit])
+      .then(function (out) { if (out.trim() === "activating") follow(action, null); });
+  });
+});
 EOF
 }
 
