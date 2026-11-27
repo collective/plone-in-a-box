@@ -10,13 +10,19 @@
   add-on). `scripts/catalog.py pages` writes it with the Try It pages, so it
   always names the current release. The README starts with the same three
   steps, and the slides have a "Choose your path" slide.
+- **`plone-status`**: how the server and site are doing, in one place: whether
+  the site answers, its parts, the versions, disk and memory, the last backup
+  and restore test, the last update, and which features are on. Read only.
+  `--json` gives the same for programs, the groundwork for the box control
+  panel and MCP. Older servers get it from `src/add-updates.sh`.
 - **Security headers**, reviewed against OWASP's current recommendations:
   `Referrer-Policy` (what browsers do by default, now said), a
   `Content-Security-Policy` with only the parts that can't break a Plone site
   (`frame-ancestors 'self'; base-uri 'self'; object-src 'none'`; Volto's
   pages have inline scripts, so a full one can't), a `Permissions-Policy`
   turning off camera, microphone, payment and USB, no `X-Powered-By`
-  naming Zope and Python, and one `X-Frame-Options` instead of two. "Adding a domain later" in the setup guide now adds
+  naming Zope and Python, and one `X-Frame-Options` instead of two.
+  "Adding a domain later" in the setup guide now adds
   `Strict-Transport-Security`, as setup does for a domain. Older servers get
   the headers from `src/add-updates.sh`.
 - **Starter content** now says what it is in every form and in the guide:
