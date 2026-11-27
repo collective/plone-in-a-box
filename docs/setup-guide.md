@@ -410,6 +410,11 @@ protection), also in its web console. To remove a box on purpose, see [Removing 
 
 ## Day-to-day administration
 
+**How it's doing, in one place:** `sudo plone-status` shows whether the site answers, its parts (backend,
+frontend, database), the versions, disk and memory, the last backup and restore test, the last update, and which
+features are on (notifications, email, logs, graphs, Cloudflare). It changes nothing. `sudo plone-status --json`
+gives the same for programs.
+
 The stack lives in `/opt/plone` (`docker-compose.yml`, plus `.env` with the versions and database password), which
 only root can read. Use `sudo -i` first, or prefix each command with `sudo`:
 
