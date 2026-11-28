@@ -194,16 +194,28 @@ restoring a backup.
   (`plone-syslog on`, `plone-otel off`, ...), so the panel, SSH and the launch
   fields always agree.
 - **Done so far (2.27):** stage 1, `plone-status` (and `--json`); stage 2,
-  `plone-panel on`: a status page of cards in Cockpit, at `box.<domain>` or
-  port 8443 (open in the Launch Stack template and the Terraform firewalls),
-  with a `box` login that isn't an administrator; and the first of stage 3:
-  back up now, the restore test (followed until done), a test notification,
-  a test email, logs and graphs off. Times in your own time zone. Next: a
-  launch field to turn it on, and the rest of stage 3.
-- **In other languages:** Cockpit's own menus are translated, our page isn't,
-  so its Display language choice is hidden for now. Translate the page (and
-  the status words from `plone-status --json`) with Cockpit's translations
-  for a page, then show the choice again.
+  `plone-panel on`: a status page of cards at `box.<domain>` or port 8443
+  (open in the Launch Stack template and the Terraform firewalls); and the
+  first of stage 3: back up now, the restore test (followed until done), a
+  test notification, a test email, logs and graphs off. Times in your own
+  time zone. Next: a launch field to turn it on, and the rest of stage 3.
+- **Our own panel, not Cockpit (decided 2026-11-27):** Cockpit worked (branch
+  `plone-panel`, PR #124), but Ubuntu ships it in universe and hasn't fixed
+  its security issues promptly (CVE-2026-4802, high, still open in 26.04 and
+  24.04 six months on; two denial-of-service CVEs untriaged), and any Cockpit
+  login can run commands as itself, so hiding its screens didn't limit the
+  box login. Ours: nginx asks for the login (basic auth, a hashed password,
+  fail2ban's nginx-http-auth jail) and serves the page; `plone-panel-api`
+  (Python's standard library only) answers it as the sandboxed
+  `plone-panel` user (`systemd-analyze security`: 1.2), started on demand
+  and stopped after 15 idle minutes; root work only through
+  `plone-panel helper` on a socket only that user can open.
+- **Before it's on by default:** it's a preview; let it settle, then decide.
+  The address question stays: a site with a domain name needs the `box`
+  DNS record first, so start on port 8443 and move to `box.<domain>` once
+  the record works.
+- **In other languages:** the page is in English only. Translate it (and the
+  words from `plone-status --json`) when there are translators.
 - **In stages, lowest risk first:** (1) a `status` every command can report
   to a program, and one `plone-status` for the whole server (last backup and
   restore test, last update, disk, what's on), which MCP can use too; (2) a

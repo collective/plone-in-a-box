@@ -417,18 +417,24 @@ gives the same for programs.
 
 **The same in your browser (preview):** `sudo plone-panel on` turns on the Plone in a Box™ control panel, a page
 that shows the same in plain words, on your phone or computer, with buttons for a few low-risk things: back up now,
-run the restore test, send a test notification or email, and stop sending logs or graphs. It runs in Cockpit,
-Ubuntu's own web console, behind nginx, so it still works when Plone doesn't.
+run the restore test, send a test notification or email, and stop sending logs or graphs. It's separate from the
+Plone site, so it still works when Plone doesn't.
 
 * **Where:** for a site with a domain name, `https://box.<your domain>` (without `www.`), so first add a DNS record
   for `box.<your domain>` pointing at the server, like the site's own; `--address` chooses another name. For a site
   without one, `https://<server address>:8443`. The Launch Stack template and the Terraform plans allow port 8443
   from 2.27 (nothing answers there until you turn the panel on); a cloud firewall made earlier, or one you added
   yourself, needs TCP port 8443 allowed too.
-* **Login:** `box`, with a password `plone-panel on` shows once; `sudo plone-panel password` makes a new one. It isn't
-  the Plone admin's, and on the server it can only show the status and run those buttons.
-* `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and locks the `box`
-  login.
+* **Login:** `box`, with a password `plone-panel on` shows once (only a hash of it is kept); `sudo plone-panel password`
+  makes a new one. It isn't the Plone admin's, and it isn't an account on the server: the panel can show the status
+  and do what its buttons do, nothing else. Addresses that keep failing to log in are blocked for a while, as for
+  SSH. To log out, close the browser.
+* `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and deletes the
+  password.
+* **How it works:** nginx asks for the login and serves the page; a small program (Python's standard library only,
+  so Ubuntu's updates cover it) answers the page as its own user, which can't change anything on the server; and the
+  buttons go through `plone-panel helper`, which knows only the status, the six buttons, and whether a backup or
+  restore test is still running.
 
 The stack lives in `/opt/plone` (`docker-compose.yml`, plus `.env` with the versions and database password), which
 only root can read. Use `sudo -i` first, or prefix each command with `sudo`:

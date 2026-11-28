@@ -3955,7 +3955,9 @@ EOF
     else
       echo "Log in as $LOGIN with its password, as before (sudo plone-panel password makes a new one)."
     fi
-    [[ "$url" == *:$PORT ]] && echo "A cloud firewall made before 2.27 (AWS, or Terraform on DigitalOcean or Hetzner) needs TCP port $PORT allowed too."
+    if [[ "$url" == *:$PORT ]]; then
+      echo "A cloud firewall made before 2.27 (AWS, or Terraform on DigitalOcean or Hetzner) needs TCP port $PORT allowed too."
+    fi
     ;;
   off)
     url=$(cat "$STATE" 2>/dev/null)

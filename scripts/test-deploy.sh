@@ -1052,29 +1052,26 @@ if (( PANEL )); then
   panel_out=$(rssh "plone-panel on" 2>&1)
   panel_pw=$(awk '/^Log in as box/ { getline; print; exit }' <<<"$panel_out")
   PANEL_URL="https://$IP:8443"
-  check "plone-panel on says where it is" grep -qF "The control panel is on: $PANEL_URL/plone-in-a-box" <<<"$panel_out"
+  check "plone-panel on says where it is" grep -qF "The control panel is on: $PANEL_URL" <<<"$panel_out"
   check "plone-panel on gives a password" test -n "$panel_pw"
-  check "the control panel's login page answers" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$PANEL_URL/') == 200 ]]"
-  check "the control panel refuses a wrong password" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u box:wrong-password '$PANEL_URL/cockpit/login') == 401 ]]"
-  panel_cookies=$(mktemp)
-  check "the control panel lets box in" bash -c "[[ \$(curl -s -m 20 -c '$panel_cookies' -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' '$PANEL_URL/cockpit/login') == 200 ]]"
-  check "the control panel's page is there" bash -c "[[ \$(curl -s -m 20 -b '$panel_cookies' -o /dev/null -w '%{http_code}' '$PANEL_URL/cockpit/@localhost/plone-in-a-box/index.js') == 200 ]]"
-  check "the control panel's live connection works through nginx" bash -c "[[ \$(curl -s -m 5 --http1.1 -b '$panel_cookies' -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Origin: $PANEL_URL' '$PANEL_URL/cockpit/socket') == 101 ]]"
-  rm -f "$panel_cookies"
-  check "box can read plone-status" rssh "sudo -u box sudo -n /usr/local/bin/plone-status --json | python3 -c 'import json, sys; json.load(sys.stdin)'"
-  check "box can't do anything else as root" rssh "! sudo -u box sudo -n /usr/bin/id"
-  check "box can't log in over SSH" rssh "sshd -T -C user=box,host=x,addr=203.0.113.1 | grep -qix 'denyusers box'"
-  check "the control panel's address opens on our page" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{redirect_url}' '$PANEL_URL/') == '$PANEL_URL/plone-in-a-box' ]]"
-  check "the control panel's login page doesn't offer to connect to other servers" rssh "grep -qx 'LoginTo = false' /etc/cockpit/cockpit.conf"
-  check "box can start a backup from the panel" rssh "sudo -u box sudo -n /usr/local/bin/plone-panel do backup | grep -q 'backup is running'"
-  check "box can't turn the panel's settings around (plone-panel on)" rssh "! sudo -u box sudo -n /usr/local/bin/plone-panel on"
-  check "Cockpit itself (port 9090) is closed from outside" port_closed 9090
+  check "the control panel asks for the login" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$PANEL_URL/') == 401 ]]"
+  check "the control panel refuses a wrong password" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u box:wrong-password '$PANEL_URL/') == 401 ]]"
+  check "the control panel's page opens with the password" bash -c "curl -s -m 20 -u 'box:$panel_pw' '$PANEL_URL/' | grep -q 'panel.js'"
+  check "the control panel shows the status" bash -c "curl -s -m 60 -u 'box:$panel_pw' '$PANEL_URL/api/status' | python3 -c 'import json, sys; assert json.load(sys.stdin)[\"site\"][\"ok\"]'"
+  check "the control panel's buttons refuse a request from another site" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: https://example.org' '$PANEL_URL/api/do/backup') == 403 ]]"
+  check "the control panel only does what its buttons do" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/plone-panel-off') == 404 ]]"
+  check "the control panel's Back up now starts a backup" bash -c "curl -s -m 60 -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup' | grep -q 'backup is running'"
+  check "the control panel follows the backup" bash -c "curl -s -m 20 -u 'box:$panel_pw' '$PANEL_URL/api/job/backup' | grep -q '\"state\"'"
+  check "the control panel's program can't change the server" rssh "systemctl show -p User,NoNewPrivileges,ProtectSystem plone-panel.service | paste -sd ' ' | grep -qx 'User=plone-panel NoNewPrivileges=yes ProtectSystem=strict'"
+  check "only the control panel's program can ask root" rssh "! sudo -u nobody bash -c 'echo status | nc -U -q1 /run/plone-panel/helper.sock' 2>/dev/null | grep -q site"
+  check "repeated failed logins to the control panel are blocked (fail2ban)" rssh "fail2ban-client status nginx-http-auth | grep -q 'Total failed:[[:space:]]*[1-9]'"
+  check "the control panel's program (port 8091) is closed from outside" port_closed 8091
   check "the site still works with the control panel on" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$SITE/') == 200 ]]"
-  check "the password isn't in the setup log or credentials file" \
-    rssh "! grep -qF -- $(printf '%q' "${panel_pw:-none}") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
+  check "the password isn't kept or logged in plain text" \
+    rssh "! grep -rqF -- $(printf '%q' "${panel_pw:-none}") /var/log/plone-in-a-box.log /var/log/plone-panel.log /root/plone-credentials.txt /etc/nginx"
   rssh "plone-panel off" >/dev/null 2>&1
   check "plone-panel off closes port 8443" port_closed 8443
-  check "plone-panel off locks the box login" rssh "passwd -S box | grep -qE '^box L'"
+  check "plone-panel off removes the password" rssh "! test -e /etc/nginx/plone-panel.htpasswd"
 fi
 
 # --- Server state ---------------------------------------------------------------------
