@@ -3339,10 +3339,132 @@ PLONE_STATUS_EOF
 chmod 755 /usr/local/bin/plone-status
 
 # Command for the Plone in a Box control panel: sudo plone-panel on|off|status|password
-# Off until turned on. Cockpit (Ubuntu's web console) behind nginx: at
-# box.<your domain> for a site with a domain name, or on port 8443 of the
-# server's address for one without. Its own login, "box", which can read
-# plone-status and run a few low-risk actions (plone-panel do ...), nothing else.
+# Off until turned on. Our own small page behind nginx: at box.<your domain>
+# for a site with a domain name, or on port 8443 of the server's address for
+# one without. nginx asks for the login (box, with its own password) and
+# serves the page; a small program (plone-panel-api, Python's standard
+# library only, as its own unprivileged user, sandboxed) answers the page's
+# questions; and the few things it may do as root go through a socket to
+# "plone-panel helper", which knows only: the status, the six buttons, and
+# whether a backup or restore test is still running. No shell, no other
+# commands, nothing to install.
+install -d -m 755 /usr/local/lib/plone-in-a-box
+cat > /usr/local/lib/plone-in-a-box/plone-panel-api <<'PLONE_PANEL_API_EOF'
+#!/usr/bin/python3
+"""The Plone in a Box control panel's answers to its page (plone-panel).
+
+nginx asks for the login and passes /api/ here. This runs as the
+plone-panel user, which can do nothing on the server itself: it asks
+"plone-panel helper" (root, through a socket only plone-panel can open) for
+the status, to press one of the buttons, or whether a job is still running.
+Started by systemd when the page first asks, and stops after 15 minutes
+without questions.
+"""
+import json
+import os
+import re
+import socket
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+HELPER = "/run/plone-panel/helper.sock"
+ORIGIN = os.environ.get("PANEL_ORIGIN", "")
+ACTIONS = {"backup", "restore-test", "test-notification", "test-email", "logs-off", "graphs-off"}
+JOBS = {"backup", "restore-test"}
+IDLE_SECONDS = 15 * 60
+last_request = time.monotonic()
+
+
+def helper(line, timeout=120):
+    """Asks the root helper; it answers with its exit code, a newline, and text."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        s.connect(HELPER)
+        s.sendall(line.encode() + b"\n")
+        s.shutdown(socket.SHUT_WR)
+        out = b""
+        while True:
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            out += chunk
+    code, _, text = out.decode(errors="replace").partition("\n")
+    try:
+        return int(code), text
+    except ValueError:
+        return 1, text or "No answer from the server"
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "plone-panel"
+    sys_version = ""
+
+    def reply(self, status, body):
+        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        global last_request
+        last_request = time.monotonic()
+        if self.path == "/api/status":
+            code, text = helper("status")
+            if code:
+                return self.reply(502, {"error": text.strip() or "plone-status failed"})
+            return self.reply(200, text.encode())
+        m = re.fullmatch(r"/api/job/([a-z-]+)", self.path)
+        if m and m.group(1) in JOBS:
+            code, text = helper("job " + m.group(1), timeout=20)
+            state, _, result = text.strip().partition(" ")
+            return self.reply(200, {"state": state, "result": result})
+        self.reply(404, {"error": "Not found"})
+
+    def do_POST(self):
+        global last_request
+        last_request = time.monotonic()
+        # Only the panel's own page may press the buttons: a browser adds
+        # neither this header nor this Origin to a request from another site.
+        if self.headers.get("X-Plone-Panel") != "1" or (ORIGIN and self.headers.get("Origin") != ORIGIN):
+            return self.reply(403, {"ok": False, "message": "Only the control panel's own page can do that."})
+        m = re.fullmatch(r"/api/do/([a-z-]+)", self.path)
+        if not m or m.group(1) not in ACTIONS:
+            return self.reply(404, {"ok": False, "message": "Not something the control panel can do."})
+        code, text = helper("do " + m.group(1))
+        self.reply(200 if code == 0 else 500, {"ok": code == 0, "message": text.strip()})
+
+    def log_message(self, fmt, *args):
+        pass  # nginx logs the requests
+
+
+def main():
+    if os.environ.get("LISTEN_FDS") == "1":  # from systemd (plone-panel.socket)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler, bind_and_activate=False)
+        server.socket.close()
+        server.socket = socket.socket(fileno=3)
+    else:
+        server = ThreadingHTTPServer(("127.0.0.1", 8091), Handler)
+    server.daemon_threads = True
+
+    def stop_when_idle():
+        while time.monotonic() - last_request < IDLE_SECONDS:
+            time.sleep(30)
+        server.shutdown()
+
+    threading.Thread(target=stop_when_idle, daemon=True).start()
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+PLONE_PANEL_API_EOF
+chmod 755 /usr/local/lib/plone-in-a-box/plone-panel-api
+
 cat > /usr/local/bin/plone-panel <<'PLONE_PANEL_EOF'
 #!/bin/bash
 # Usage: sudo plone-panel on [--address box.example.org]
@@ -3356,10 +3478,14 @@ set -uo pipefail
 STATE_DIR=/var/lib/plone-in-a-box
 STATE=$STATE_DIR/panel
 NGINX_CONF=/etc/nginx/sites-enabled/plone-panel
-PAGE=/usr/share/cockpit/plone-in-a-box
-USER_NAME=box
+PASSWORDS=/etc/nginx/plone-panel.htpasswd
+PAGE=/usr/share/plone-panel
+UNITS=/etc/systemd/system
+JAIL=/etc/fail2ban/jail.d/plone-panel.local
+LOGIN=box
 PORT=8443
-# What the page's buttons may run as root, each a fixed command (sudo rules).
+API_PORT=8091
+# The page's buttons, each a fixed command (plone-panel do ...).
 ACTIONS="backup restore-test test-notification test-email logs-off graphs-off"
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-panel.log; }
 die() { say "$*" >&2; exit 1; }
@@ -3369,33 +3495,33 @@ site_host=${site_url#*://}
 site_host=${site_host%%/*}
 is_ip() { [[ "$1" =~ ^[0-9.]+$ || "$1" == *:* ]]; }
 
+# Only the hash is kept, readable by nginx (www-data) and root.
 new_password() {
   local pw
   pw=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
-  echo "$USER_NAME:$pw" | chpasswd || die "Couldn't set the password of the $USER_NAME login"
+  printf '%s:%s\n' "$LOGIN" "$(openssl passwd -6 -stdin <<<"$pw")" > "$PASSWORDS.new" || die "Couldn't save the password"
+  chown root:www-data "$PASSWORDS.new" && chmod 640 "$PASSWORDS.new" && mv "$PASSWORDS.new" "$PASSWORDS"
   printf '%s' "$pw"
+}
+
+job_unit() {
+  case "$1" in
+    backup) echo plone-backup.service ;;
+    restore-test) echo plone-backup-check.service ;;
+  esac
 }
 
 write_page() {
   install -d -m 755 "$PAGE"
-  cat > "$PAGE/manifest.json" <<'EOF'
-{
-  "version": 0,
-  "name": "plone-in-a-box",
-  "menu": { "index": { "label": "Plone in a Box", "order": 1 } }
-}
-EOF
-  # Cockpit allows no inline scripts or styles in a page: they're files.
   cat > "$PAGE/index.html" <<'EOF'
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Plone in a Box</title>
-<link rel="stylesheet" href="index.css">
-<script src="../base1/cockpit.js"></script>
-<script src="index.js" defer></script>
+<title>Plone in a Box control panel</title>
+<link rel="stylesheet" href="panel.css">
+<script src="panel.js" defer></script>
 </head>
 <body>
 <main>
@@ -3406,24 +3532,28 @@ EOF
 <h2 class="section">Things you can do</h2>
 <div id="actions" class="actions"></div>
 <p id="result" class="result" role="status"></p>
-<p class="muted">Everything else is changed over SSH for now; the setup guide says how.</p>
+<p class="muted">Everything else is changed over SSH for now: see the
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#day-to-day-administration" rel="noopener">setup guide</a>.
+To log out, close the browser.</p>
 </main>
 </body>
 </html>
 EOF
-  cat > "$PAGE/index.css" <<'EOF'
+  cat > "$PAGE/panel.css" <<'EOF'
 :root { --bg: #fff; --fg: #1d2329; --muted: #5a6570; --line: #d9dee3; --panel: #f4f6f8;
-  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; color-scheme: light; }
+  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --link: #0b5cad; color-scheme: light; }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
-    --ok: #3fb950; --warn: #d29922; --bad: #f85149; color-scheme: dark; }
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149; --link: #6cb6ff; color-scheme: dark; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 16px 3rem; }
+a { color: var(--link); }
 h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
 .lead { font-size: 1.1rem; margin: 0 0 1.2rem; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .8rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .8rem; transition: opacity .2s; }
+.cards.checking { opacity: .35; }
 .card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; padding: .7rem .9rem; }
 .card.ok { border-left-color: var(--ok); } .card.warn { border-left-color: var(--warn); } .card.bad { border-left-color: var(--bad); }
 .card h2 { font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 .2rem; }
@@ -3434,12 +3564,9 @@ button:disabled { opacity: .5; cursor: default; }
 .section { font-size: 1.15rem; margin: 2rem 0 .6rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .result { min-height: 1.5em; font-weight: 600; }
-.cards { transition: opacity .2s; }
-.cards.checking { opacity: .35; }
 EOF
-  cat > "$PAGE/index.js" <<'EOF'
-// Plain words from plone-status --json. The box login may run only that,
-// through sudo, so the page needs no administrative access.
+  cat > "$PAGE/panel.js" <<'EOF'
+// Plain words from plone-status --json, which /api/status passes on.
 function card(title, text, level) {
   var div = document.createElement("div");
   div.className = "card " + (level || "");
@@ -3452,14 +3579,6 @@ function card(title, text, level) {
   return div;
 }
 function onoff(v) { return v ? "on" : "off"; }
-// The restore test, with its times in the viewer's time zone.
-function restoreTest(b, withWhen) {
-  if (!b.restore_test_summary) return b.restore_test;
-  var text = b.restore_test_summary;
-  if (b.restore_test_backup && b.restore_test_backup_iso)
-    text = text.replace(b.restore_test_backup, "from " + local(b.restore_test_backup_iso, b.restore_test_backup));
-  return withWhen ? local(b.restore_test_iso, b.restore_test_date) + ": " + text : text;
-}
 // A time from the server, in the viewer's own time zone, which it names.
 function local(isoTime, fallback) {
   var d = isoTime ? new Date(isoTime) : null;
@@ -3469,6 +3588,14 @@ function local(isoTime, fallback) {
     : d.toDateString() === yesterday.toDateString() ? "yesterday"
     : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   return day + " at " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+}
+// The restore test, with its times in the viewer's time zone.
+function restoreTest(b, withWhen) {
+  if (!b.restore_test_summary) return b.restore_test;
+  var text = b.restore_test_summary;
+  if (b.restore_test_backup && b.restore_test_backup_iso)
+    text = text.replace(b.restore_test_backup, "from " + local(b.restore_test_backup_iso, b.restore_test_backup));
+  return withWhen ? local(b.restore_test_iso, b.restore_test_date) + ": " + text : text;
 }
 function show(s) {
   var cards = document.getElementById("cards");
@@ -3506,7 +3633,7 @@ function show(s) {
   document.getElementById("when").textContent = "Checked " + local(new Date().toISOString(), "just now");
   actions(s);
 }
-// The buttons: each runs one fixed command as root (plone-panel do ...).
+// The buttons: each runs one fixed command (plone-panel do ...).
 function actions(s) {
   var f = s.features || {}, list = [
     ["backup", "Back up now", true],
@@ -3527,13 +3654,22 @@ function actions(s) {
     box.appendChild(b);
   });
 }
+function api(path, post) {
+  return fetch("api/" + path, post ? { method: "POST", headers: { "X-Plone-Panel": "1" } } : {})
+    .then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (body) {
+        if (!r.ok) throw new Error(body.message || body.error || "The server answered " + r.status);
+        return body;
+      });
+    });
+}
 // The actions that run in the background, as systemd services: the page
 // follows them until they finish, then says how it went.
 var BACKGROUND = {
-  "backup": { unit: "plone-backup.service", running: "Backing up your site\u2026",
+  "backup": { running: "Backing up your site\u2026",
               done: function (s) { return "Backed up " + local(s.backups.newest_iso, s.backups.newest) + "."; },
               failed: "The backup failed. If notifications or email are set up, a notice is on its way." },
-  "restore-test": { unit: "plone-backup-check.service", running: "Running the restore test\u2026 This takes a few minutes.",
+  "restore-test": { running: "Running the restore test\u2026 This takes a few minutes.",
                     done: function (s) { return "Restore test: " + restoreTest(s.backups, false); },
                     failed: "The restore test failed. If notifications or email are set up, a notice is on its way." }
 };
@@ -3542,16 +3678,16 @@ function run(action, question, button) {
   var result = document.getElementById("result");
   button.disabled = true;
   result.textContent = "Working\u2026";
-  cockpit.spawn(["sudo", "-n", "/usr/local/bin/plone-panel", "do", action], { err: "out" })
+  api("do/" + action, true)
     .then(function (out) {
       if (BACKGROUND[action]) { follow(action, button); return; }
       button.disabled = false;
-      result.textContent = out.trim();
+      result.textContent = out.message;
       check();
     })
-    .catch(function (e, out) { button.disabled = false; result.textContent = String(out || e.message || e).trim(); });
+    .catch(function (e) { button.disabled = false; result.textContent = e.message; });
 }
-// Every few seconds: is it still running? (systemctl show needs no root.)
+// Every few seconds: is it still running?
 function follow(action, button) {
   var job = BACKGROUND[action], result = document.getElementById("result");
   var cards = document.getElementById("cards");
@@ -3559,17 +3695,16 @@ function follow(action, button) {
   if (button) button.disabled = true;
   cards.classList.add("checking");
   function poll() {
-    cockpit.spawn(["systemctl", "show", "--property=ActiveState,Result", "--value", job.unit])
-      .then(function (out) {
-        var lines = out.trim().split("\n"), state = lines[0], ok = lines[1] === "success";
-        if (state === "activating" || state === "active" || state === "deactivating") {
+    api("job/" + action)
+      .then(function (j) {
+        if (j.state === "activating" || j.state === "active" || j.state === "deactivating") {
           setTimeout(poll, 3000);
           return;
         }
         cards.classList.remove("checking");
         check(function (s) {
           if (button) button.disabled = false;
-          result.textContent = ok ? job.done(s) : job.failed;
+          result.textContent = j.result === "success" ? job.done(s) : job.failed;
         });
       })
       .catch(function () { cards.classList.remove("checking"); if (button) button.disabled = false; result.textContent = ""; });
@@ -3590,27 +3725,107 @@ function check(then) {
     again.textContent = "Check again";
     cards.classList.remove("checking");
   }
-  cockpit.spawn(["sudo", "-n", "/usr/local/bin/plone-status", "--json"], { err: "message" })
-    .then(function (out) {
+  api("status")
+    .then(function (s) {
       // At least half a second, so the change can be seen.
       setTimeout(function () {
-        var s = JSON.parse(out);
         show(s);
         done();
         if (then) then(s);
       }, Math.max(0, 500 - (Date.now() - started)));
     })
-    .catch(function (e) { done(); document.getElementById("lead").textContent = "Couldn't check: " + (e.message || e); });
+    .catch(function (e) { done(); document.getElementById("lead").textContent = "Couldn't check: " + e.message; });
 }
 document.getElementById("again").addEventListener("click", function () { check(); });
 // A backup or restore test already running (from another tab, or the nightly
 // one) is followed too.
 check(function () {
   Object.keys(BACKGROUND).forEach(function (action) {
-    cockpit.spawn(["systemctl", "show", "--property=ActiveState", "--value", BACKGROUND[action].unit])
-      .then(function (out) { if (out.trim() === "activating") follow(action, null); });
+    api("job/" + action).then(function (j) { if (j.state === "activating") follow(action, null); });
   });
 });
+EOF
+  chmod 644 "$PAGE"/*
+}
+
+write_units() {
+  local origin=$1
+  # The root helper: one connection, one question, from the plone-panel user only.
+  cat > "$UNITS/plone-panel-helper.socket" <<'EOF'
+[Unit]
+Description=Plone in a Box control panel: what it may ask root
+
+[Socket]
+ListenStream=/run/plone-panel/helper.sock
+SocketUser=root
+SocketGroup=plone-panel
+SocketMode=0660
+Accept=yes
+MaxConnections=8
+
+[Install]
+WantedBy=sockets.target
+EOF
+  cat > "$UNITS/plone-panel-helper@.service" <<'EOF'
+[Unit]
+Description=Plone in a Box control panel: one question for root
+
+[Service]
+ExecStart=/usr/local/bin/plone-panel helper
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+RuntimeMaxSec=300
+EOF
+  cat > "$UNITS/plone-panel.socket" <<EOF
+[Unit]
+Description=Plone in a Box control panel (answers its page)
+
+[Socket]
+ListenStream=127.0.0.1:$API_PORT
+
+[Install]
+WantedBy=sockets.target
+EOF
+  # The program that answers the page can't change anything on the server
+  # itself: everything it does goes through the helper.
+  cat > "$UNITS/plone-panel.service" <<EOF
+[Unit]
+Description=Plone in a Box control panel (answers its page)
+Requires=plone-panel.socket
+
+[Service]
+User=plone-panel
+Group=plone-panel
+Environment=PANEL_ORIGIN=$origin
+ExecStart=/usr/bin/python3 -I /usr/local/lib/plone-in-a-box/plone-panel-api
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=localhost
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+UMask=0077
+MemoryMax=100M
 EOF
 }
 
@@ -3626,59 +3841,6 @@ case "${1:-status}" in
       shift
     done
     [[ -n "$site_host" ]] || die "No site address in $STATE_DIR/site-url"
-    say "Installing Cockpit, Ubuntu's web console"
-    DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y --no-install-recommends \
-      cockpit-ws cockpit-bridge cockpit-system >>/var/log/plone-panel.log 2>&1 \
-      || die "Couldn't install Cockpit"
-    # Only nginx reaches it: Cockpit listens on the server itself.
-    install -d -m 755 /etc/systemd/system/cockpit.socket.d
-    printf '[Socket]\nListenStream=\nListenStream=127.0.0.1:9090\n' > /etc/systemd/system/cockpit.socket.d/listen.conf
-    # Its own login, not root (Cockpit refuses root) and not in the sudo group:
-    # it may run plone-status, and nothing else as root.
-    id "$USER_NAME" >/dev/null 2>&1 || useradd -m -s /bin/bash -c "Plone in a Box control panel" "$USER_NAME" \
-      || die "Couldn't create the $USER_NAME login"
-    {
-      printf '%s ALL=(root) NOPASSWD: /usr/local/bin/plone-status --json\n' "$USER_NAME"
-      for action in $ACTIONS; do
-        printf '%s ALL=(root) NOPASSWD: /usr/local/bin/plone-panel do %s\n' "$USER_NAME" "$action"
-      done
-    } > /etc/sudoers.d/plone-panel
-    chmod 440 /etc/sudoers.d/plone-panel
-    visudo -cf /etc/sudoers.d/plone-panel >/dev/null || { rm -f /etc/sudoers.d/plone-panel; die "The sudo rule for $USER_NAME was refused"; }
-    # The box login is for the control panel only: no SSH.
-    printf '# The control panel login can only use the control panel.\nDenyUsers %s\n' "$USER_NAME" > /etc/ssh/sshd_config.d/50-plone-panel.conf
-    sshd -t 2>/dev/null && systemctl reload ssh 2>/dev/null
-    write_page
-    # Only our page in Cockpit's menu: its Overview, Services, Logs, Accounts
-    # and Terminal are for administrators, and box isn't one. (Hiding them is
-    # for clarity: what box can do is set by its account and sudo rules.)
-    install -d -m 755 /etc/cockpit
-    printf '{ "menu": { "index": null, "services": null, "logs": null }, "tools": { "terminal": null } }\n' > /etc/cockpit/systemd.override.json
-    printf '{ "menu": { "index": null } }\n' > /etc/cockpit/users.override.json
-    # Help points to our guide; no administrative access (box can't have it).
-    cat > /etc/cockpit/shell.override.json <<'JSON'
-{
-  "docs": [ { "label": "Plone in a Box setup guide", "url": "https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#day-to-day-administration" } ],
-  "bridges": null
-}
-JSON
-    # Our name on the login page, and nothing box can't use in the top bar.
-    # Cockpit reads the branding for the OS (Ubuntu's); ours replaces it,
-    # diverted so package updates keep ours. off puts Ubuntu's back.
-    branding=/usr/share/cockpit/branding/ubuntu/branding.css
-    if [[ -d ${branding%/*} ]]; then
-      dpkg-divert --quiet --local --rename --divert "$branding.ubuntu" --add "$branding"
-      cat > "$branding" <<'CSS'
-/* Plone in a Box control panel (plone-panel). Ubuntu's own: branding.css.ubuntu */
-#badge { display: none; }
-#brand::before { content: "Plone in a Box\2122  control panel"; }
-/* What the box login can't use: administrative access, and search (one page). */
-#super-user-indicator, #super-user-indicator-mobile, .nav-system-menu .search { display: none !important; }
-/* Display language: only Cockpit's own menus are translated, not our page (yet). */
-.display-language-menu { display: none !important; }
-CSS
-    fi
-
     if is_ip "$site_host"; then
       # No domain name: port 8443, with the IP address certificate.
       cert=$(awk '$1 == "ssl_certificate" { sub(/;$/, "", $2); print $2; exit }' /etc/nginx/sites-enabled/plone-https 2>/dev/null)
@@ -3706,8 +3868,23 @@ CSS
       listen="listen 443 ssl; listen [::]:443 ssl;"
       server_name=$address
     fi
+
+    # Its own user, which can't log in and owns nothing.
+    id plone-panel >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent \
+      --shell /usr/sbin/nologin -c "Plone in a Box control panel" plone-panel \
+      || die "Couldn't create the plone-panel user"
+    write_page
+    write_units "$url"
+    # A password is kept when on runs again (a browser may have saved it).
+    pw=""
+    [[ -s "$PASSWORDS" ]] || pw=$(new_password)
+
+    # The login and the page from nginx; the answers from plone-panel-api.
+    hsts='add_header Strict-Transport-Security "max-age=31536000" always;'
+    is_ip "$site_host" && hsts=""  # browsers ignore HSTS for an address
     cat > "$NGINX_CONF" <<EOF
 # Plone in a Box control panel (sudo plone-panel off removes it).
+limit_req_zone \$binary_remote_addr zone=plone_panel:1m rate=10r/s;
 server {
   $listen
   server_name $server_name;
@@ -3715,75 +3892,87 @@ server {
   ssl_certificate_key $key;
   ssl_protocols TLSv1.2 TLSv1.3;
   server_tokens off;
-  add_header Strict-Transport-Security max-age=31536000 always;
-  # Straight to our page, before and after logging in.
-  location = / { return 302 /plone-in-a-box; }
-  location / {
-    proxy_pass https://127.0.0.1:9090;
-    proxy_set_header Host \$http_host;
-    proxy_set_header X-Forwarded-Proto \$scheme;
-    proxy_http_version 1.1;
-    proxy_buffering off;
-    proxy_set_header Upgrade \$http_upgrade;
-    proxy_set_header Connection "upgrade";
-    gzip off;
+  # Failed logins go here, where fail2ban looks.
+  error_log /var/log/nginx/plone-panel-error.log;
+  access_log /var/log/nginx/plone-panel-access.log;
+  $hsts
+  add_header Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'" always;
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy no-referrer always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+  add_header Cache-Control no-store always;
+  auth_basic "Plone in a Box control panel";
+  auth_basic_user_file $PASSWORDS;
+  limit_req zone=plone_panel burst=40 nodelay;
+  client_max_body_size 1k;
+  root $PAGE;
+  index index.html;
+  location / { try_files \$uri =404; }
+  location = / { try_files /index.html =404; }
+  location /api/ {
+    proxy_pass http://127.0.0.1:$API_PORT;
+    proxy_set_header Host \$host;
+    proxy_read_timeout 150s;
   }
 }
 EOF
-    # The IP address case has no HSTS (browsers ignore it for addresses).
-    is_ip "$site_host" && sed -i '/Strict-Transport-Security/d' "$NGINX_CONF"
-    install -d -m 755 /etc/cockpit
-    # LoginTo = false: no "Connect to" another server from the login page, so
-    # the panel can't be used to reach other machines over SSH.
-    printf '[WebService]\nOrigins = %s\nProtocolHeader = X-Forwarded-Proto\nLoginTitle = Plone in a Box control panel\nLoginTo = false\n' "$url" > /etc/cockpit/cockpit.conf
     if ! nginx -t >/dev/null 2>&1; then
       rm -f "$NGINX_CONF"
       die "nginx didn't accept the control panel's settings; nothing changed for the site"
     fi
     [[ "$url" == *:$PORT ]] && ufw allow "$PORT/tcp" comment 'Plone in a Box control panel' >/dev/null
+
+    # Repeated failed logins: blocked like SSH's (fail2ban), if it's on.
+    if systemctl is-active --quiet fail2ban; then
+      cat > "$JAIL" <<EOF
+# Plone in a Box control panel: block addresses that keep failing to log in.
+[nginx-http-auth]
+enabled = true
+backend = auto
+port = 443,$PORT
+logpath = /var/log/nginx/plone-panel-error.log
+EOF
+      touch /var/log/nginx/plone-panel-error.log
+      fail2ban-client -t >/dev/null 2>&1 && systemctl reload fail2ban || { rm -f "$JAIL"; say "fail2ban didn't accept the panel's settings; left as it was"; }
+    fi
+
     systemctl daemon-reload
-    systemctl enable cockpit.socket >/dev/null 2>&1
-    systemctl restart cockpit.socket
-    systemctl try-restart cockpit.service  # a running one reads the new settings
+    systemctl enable --now plone-panel-helper.socket plone-panel.socket >/dev/null 2>&1 \
+      || die "Couldn't start the control panel (systemctl status plone-panel.socket)"
+    systemctl try-restart plone-panel.service  # a running one reads the new settings
     systemctl reload nginx
     printf '%s\n' "$url" > "$STATE"
     # nginx reloads in the background: say it's on once it answers.
     hostport=${url#https://}
     [[ $hostport == *:* ]] || hostport="$hostport:443"
     for _ in $(seq 30); do
-      [[ $(curl -sk -m 3 -o /dev/null -w '%{http_code}' --resolve "$hostport:127.0.0.1" "$url/") == [23]* ]] && break
+      [[ $(curl -sk -m 3 -o /dev/null -w '%{http_code}' --resolve "$hostport:127.0.0.1" "$url/") == 401 ]] && break
       sleep 0.5
     done
-    say "The control panel is on: $url/plone-in-a-box"
-    # Running on again keeps the password (a browser may have saved it); a
-    # new login, or one off locked, gets a new one.
-    if [[ $(passwd -S "$USER_NAME" 2>/dev/null | awk '{print $2}') == P ]]; then
-      echo "Log in as $USER_NAME with its password, as before (sudo plone-panel password makes a new one)."
+    say "The control panel is on: $url"
+    if [[ -n "$pw" ]]; then
+      printf 'Log in as %s with this password (store it in a password manager; sudo plone-panel password makes a new one):\n%s\n' "$LOGIN" "$pw"
     else
-      pw=$(new_password)
-      printf 'Log in as %s with this password (store it in a password manager; sudo plone-panel password makes a new one):\n%s\n' "$USER_NAME" "$pw"
+      echo "Log in as $LOGIN with its password, as before (sudo plone-panel password makes a new one)."
     fi
     [[ "$url" == *:$PORT ]] && echo "A cloud firewall made before 2.27 (AWS, or Terraform on DigitalOcean or Hetzner) needs TCP port $PORT allowed too."
     ;;
   off)
     url=$(cat "$STATE" 2>/dev/null)
-    rm -f "$NGINX_CONF" /etc/sudoers.d/plone-panel "$STATE" /etc/cockpit/systemd.override.json /etc/cockpit/users.override.json \
-      /etc/cockpit/shell.override.json
-    branding=/usr/share/cockpit/branding/ubuntu/branding.css
-    if dpkg-divert --list "$branding" | grep -q .; then
-      rm -f "$branding"
-      dpkg-divert --quiet --local --rename --remove "$branding"
-    fi
+    systemctl disable --now plone-panel.socket plone-panel.service plone-panel-helper.socket >/dev/null 2>&1
+    rm -f "$NGINX_CONF" "$PASSWORDS" "$STATE" "$UNITS"/plone-panel.socket "$UNITS"/plone-panel.service \
+      "$UNITS"/plone-panel-helper.socket "$UNITS"/plone-panel-helper@.service
+    rm -rf "$PAGE"
+    systemctl daemon-reload
     nginx -t >/dev/null 2>&1 && systemctl reload nginx
+    if [[ -f "$JAIL" ]]; then rm -f "$JAIL"; systemctl reload fail2ban 2>/dev/null; fi
     ufw delete allow "$PORT/tcp" >/dev/null 2>&1
-    systemctl disable --now cockpit.socket cockpit.service >/dev/null 2>&1
-    id "$USER_NAME" >/dev/null 2>&1 && passwd -l "$USER_NAME" >/dev/null
-    say "The control panel is off${url:+ ($url no longer answers)}. Cockpit stays installed; the $USER_NAME login is locked."
+    say "The control panel is off${url:+ ($url no longer answers)}, and its password is gone."
     ;;
   password)
     [[ -s "$STATE" ]] || die "The control panel is off (sudo plone-panel on)"
     pw=$(new_password)
-    say "A new password for the $USER_NAME login"
+    say "A new password for the $LOGIN login"
     printf '%s\n' "$pw"
     ;;
   do)
@@ -3805,9 +3994,29 @@ EOF
     esac
     printf '[%s] Ran from the control panel: %s\n' "$(date '+%F %T')" "${2:-}" >> /var/log/plone-panel.log
     ;;
+  helper)
+    # One question from plone-panel-api on stdin (plone-panel-helper.socket);
+    # the answer is an exit code, a newline, and text. Nothing else is asked.
+    IFS=' ' read -r -t 10 question arg extra || [[ -n "${question:-}" ]] || exit 0
+    [[ -z "${extra:-}" ]] || { printf '2\nOne question at a time\n'; exit 0; }
+    case "$question" in
+      status)
+        out=$(/usr/local/bin/plone-status --json 2>&1); rc=$?
+        printf '%s\n%s\n' "$rc" "$out" ;;
+      do)
+        [[ " $ACTIONS " == *" ${arg:-none} "* ]] || { printf '2\nNot something the control panel can do\n'; exit 0; }
+        out=$(/usr/local/bin/plone-panel "do" "$arg" 2>&1); rc=$?
+        printf '%s\n%s\n' "$rc" "$out" ;;
+      job)
+        unit=$(job_unit "${arg:-}")
+        [[ -n "$unit" ]] || { printf '2\nNo such job\n'; exit 0; }
+        printf '0\n%s\n' "$(systemctl show --property=ActiveState,Result --value "$unit" | paste -sd ' ')" ;;
+      *) printf '2\nUnknown question\n' ;;
+    esac
+    ;;
   status)
     if [[ -s "$STATE" ]]; then
-      echo "On: $(cat "$STATE")/plone-in-a-box (login: $USER_NAME)"
+      echo "On: $(cat "$STATE") (login: $LOGIN)"
     else
       echo "Off (sudo plone-panel on)"
     fi
