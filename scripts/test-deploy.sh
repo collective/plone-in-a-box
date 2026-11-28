@@ -1063,10 +1063,10 @@ if (( PANEL )); then
   check "the control panel's Back up now starts a backup" bash -c "curl -s -m 60 -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup' | grep -q 'backup is running'"
   check "the control panel's buttons work at most once a minute" bash -c "[[ \$(curl -s -m 60 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup') == 429 ]]"
   check "the control panel follows the backup" bash -c "curl -s -m 20 -u 'box:$panel_pw' '$PANEL_URL/api/job/backup' | grep -q '\"state\"'"
-  check "the control panel's program can't change the server" rssh "systemctl show -p User,NoNewPrivileges,ProtectSystem plone-panel.service | paste -sd ' ' | grep -qx 'User=plone-panel NoNewPrivileges=yes ProtectSystem=strict'"
+  check "the control panel's program can't change the server" rssh "p=\$(systemctl show -p User,NoNewPrivileges,ProtectSystem plone-panel.service); grep -qx User=plone-panel <<<\"\$p\" && grep -qx NoNewPrivileges=yes <<<\"\$p\" && grep -qx ProtectSystem=strict <<<\"\$p\""
   check "only the control panel's program can ask root" rssh "! sudo -u nobody bash -c 'echo status | nc -U -q1 /run/plone-panel/helper.sock' 2>/dev/null | grep -q site"
   check "repeated failed logins to the control panel are blocked (fail2ban)" rssh "fail2ban-client status nginx-http-auth | grep -q 'Total failed:[[:space:]]*[1-9]'"
-  check "the control panel's program (port 8091) is closed from outside" port_closed 8091
+  check "the control panel's program (port 8092) is closed from outside" port_closed 8092
   check "the site still works with the control panel on" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$SITE/') == 200 ]]"
   check "the password isn't kept or logged in plain text" \
     rssh "! grep -rqF -- $(printf '%q' "${panel_pw:-none}") /var/log/plone-in-a-box.log /var/log/plone-panel.log /root/plone-credentials.txt /etc/nginx"

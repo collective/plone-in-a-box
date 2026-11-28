@@ -3449,7 +3449,7 @@ def main():
         server.socket.close()
         server.socket = socket.socket(fileno=3)
     else:
-        server = ThreadingHTTPServer(("127.0.0.1", 8091), Handler)
+        server = ThreadingHTTPServer(("127.0.0.1", 8092), Handler)
     server.daemon_threads = True
 
     def stop_when_idle():
@@ -3485,7 +3485,7 @@ UNITS=/etc/systemd/system
 JAIL=/etc/fail2ban/jail.d/plone-panel.local
 LOGIN=box
 PORT=8443
-API_PORT=8091
+API_PORT=8092  # 8091 is plone-otel's nginx_status
 # The page's buttons, each a fixed command (plone-panel do ...).
 ACTIONS="backup restore-test test-notification test-email logs-off graphs-off"
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-panel.log; }
@@ -3938,9 +3938,11 @@ EOF
     fi
 
     systemctl daemon-reload
-    systemctl enable --now plone-panel-helper.socket plone-panel.socket >/dev/null 2>&1 \
+    systemctl enable plone-panel-helper.socket plone-panel.socket >/dev/null 2>&1
+    # Restarted, so a running panel reads the new settings (it starts again
+    # when the page next asks).
+    systemctl restart plone-panel-helper.socket plone-panel.socket \
       || die "Couldn't start the control panel (systemctl status plone-panel.socket)"
-    systemctl try-restart plone-panel.service  # a running one reads the new settings
     systemctl reload nginx
     printf '%s\n' "$url" > "$STATE"
     # nginx reloads in the background: say it's on once it answers.
