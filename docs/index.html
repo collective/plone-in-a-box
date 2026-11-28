@@ -85,6 +85,8 @@ paid to the provider. Nothing to install on your computer.</p>
 <li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#updates">notifications</a> on your phone or in your team chat</li>
 <li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#where-to-send-the-logs">logs</a> &amp; <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#graphs">graphs</a> of your server and site</li>
 <li><a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#add-ons">add-ons</a> and a <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#themes-and-frontend-images">theme</a></li>
+<li>a <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#control-panel-preview">control panel</a>: how your site is doing, on your phone, with
+buttons to back up now and more (or tick <strong>Control panel</strong> when you create the server)</li>
 </ul>
 
 <h2 id="linode">Linode (Akamai)</h2>
@@ -115,7 +117,7 @@ Startup scripts</strong> (DigitalOcean) or <strong>Cloud config</strong> (Hetzne
 with your admin password (at least 12 characters), keeping the quotes:</p>
 <div class="copy"><pre><code>#!/bin/bash
 export ADMIN_PASSWORD=&#x27;CHANGE-ME&#x27;
-curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/StackScript &amp;&amp; bash /root/plone-in-a-box.sh</code></pre></div>
+curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.27/src/StackScript &amp;&amp; bash /root/plone-in-a-box.sh</code></pre></div>
 <p class="note">Then open the server's IP address in a browser. More detail:
 <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-c-digitalocean">DigitalOcean</a>,
 <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#option-d-hetzner">Hetzner</a>.</p>
@@ -131,7 +133,8 @@ curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.
 <tr><th>Letting others try your site</th><td>A <a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#demo-login">demo login</a>, with the roles you
 choose.</td></tr>
 <tr><th>Training or a workshop</th><td>A server per person, each with a demo login, or
-<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#terraform-deployment-automated-more-technical">Terraform</a> for many at once.</td></tr>
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#terraform-deployment-automated-more-technical">Terraform</a> for many at once; tick
+<strong>Control panel</strong> to give the demo login a new password after each session.</td></tr>
 <tr><th>Showing off your add-on</th><td>A <a href="try/">Try It page</a> and button for your README
 (<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/try-it-buttons.md">how</a>).</td></tr>
 <tr><th>Full control</th><td>Terraform, your own images, and every setting in the

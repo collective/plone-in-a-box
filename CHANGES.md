@@ -1,5 +1,22 @@
-2.27 (unreleased)
+2.27 (2026-11-28)
 -----------------
+
+Look after your site without the command line:
+
+* **A control panel (preview):** a page on your phone or computer that
+  shows how your site is doing, in plain words, with buttons to back up
+  now, run the restore test, and give the demo login a new password after
+  a workshop. Tick Control panel when you create the server.
+
+* **Ask your AI assistant (preview):** Claude and other assistants can tell
+  you whether your site is healthy, when it was last backed up, or why an
+  update failed, straight from your server.
+
+* **A start page** at https://collective.github.io/plone-in-a-box/ shows
+  the easiest way to get started, and what can wait until your site is
+  running.
+
+* **Safer pages:** up-to-date security headers on every page.
 
 - **A start page** at https://collective.github.io/plone-in-a-box/: the
   easiest way first (pick a provider, choose the admin password, click
@@ -10,6 +27,57 @@
   add-on). `scripts/catalog.py pages` writes it with the Try It pages, so it
   always names the current release. The README starts with the same three
   steps, and the slides have a "Choose your path" slide.
+- **`plone-status`**: how the server and site are doing, in one place: whether
+  the site answers, its parts, the versions, disk and memory, the last backup
+  and restore test, the last update, and which features are on. Read only.
+  `--json` gives the same for programs, the groundwork for the box control
+  panel and MCP. Older servers get it from `src/add-updates.sh`.
+- **The Plone in a Box control panel (preview)**: `sudo plone-panel on`
+  shows how your site is doing in your browser, in plain words, on your
+  phone or computer: the same as `plone-status`, with buttons for a few
+  low-risk things (back up now, run the restore test, send a test
+  notification or email, stop sending logs or graphs), and times in your own
+  time zone. Separate from the Plone site, so it still works when Plone
+  doesn't: at `box.<your domain>` (after a DNS record for it), or on port
+  8443 for a site without a domain name. Its own login, `box`, which isn't
+  an account on the server; repeated failed logins are blocked (fail2ban).
+  Our own small program, with nothing to install: nginx asks for the login,
+  and the program, which can't change the server itself, can ask root only
+  for the status and the buttons. Off until you turn it on; `plone-panel
+  off` turns it off again. `scripts/test-deploy.sh --panel` tests it. The
+  Launch Stack template and the Terraform plans' firewalls allow port 8443
+  (nothing answers there until the panel is on).
+- **Using an AI assistant (MCP, preview)**: `plone-mcp` lets Claude and
+  other assistants answer "is my site healthy?", "when was the last
+  backup?" or "why did the update fail?" from the server itself, through
+  your SSH connection (`ssh root@<server> plone-mcp`), so nothing new is
+  open to the internet. Read-only tools (status, backups, updates, logs
+  with secrets hidden, features, security notices, running jobs), and
+  three of the control panel's buttons (back up now, the restore test, a
+  test notification), each at most once a minute. Older servers get it
+  from `src/add-updates.sh`.
+- **A Control panel field in the launch form** (Linode, the Launch Stack
+  template, the Terraform plans and the launcher): turns the panel on at
+  `https://<your site>:8443` when the server is created, with its login in
+  the credentials file next to the admin password, so no SSH is needed.
+  Off by default while it's a preview.
+- **New demo password**, a button in the control panel (and `sudo plone-panel
+  do demo-password`): gives the demo login a new password after a workshop
+  or demo, shows it once, and updates the credentials file.
+- The OpenTelemetry Collector (graphs) is 0.166.0.
+- Behind Cloudflare (`plone-cloudflare on`), the control panel on port 8443
+  is reachable only through Cloudflare too, like the site, so the server's
+  own address stays hidden.
+- **Security headers**, reviewed against OWASP's current recommendations:
+  `Referrer-Policy` (what browsers do by default, now said), a
+  `Content-Security-Policy` with only the parts that can't break a Plone site
+  (`frame-ancestors 'self'; base-uri 'self'; object-src 'none'`; Volto's
+  pages have inline scripts, so a full one can't), a `Permissions-Policy`
+  turning off camera, microphone, payment and USB, no `X-Powered-By`
+  naming Zope and Python, and one `X-Frame-Options` instead of two.
+  "Adding a domain later" in the setup guide now adds
+  `Strict-Transport-Security`, as setup does for a domain. Older servers get
+  the headers from `src/add-updates.sh`.
 - **Starter content** now says what it is in every form and in the guide:
   Plone's welcome page (or a Plone distribution's own sample content), not
   "sample pages", which a standard Plone 6.2 site doesn't have.

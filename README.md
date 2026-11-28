@@ -54,7 +54,7 @@ Details: [setup guide, Linode](docs/setup-guide.md#option-a-linode).
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.27/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Create the Droplet, then open its IP address in your browser.
 
@@ -82,7 +82,7 @@ Details: [setup guide, AWS console](docs/setup-guide.md#console-deployment-easie
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.27/src/StackScript && bash /root/plone-in-a-box.sh
    ```
 3. Click **Create & Buy now**, then open the server's IPv4 address in your browser.
 
@@ -102,11 +102,17 @@ Volto front end and PostgreSQL) behind nginx.
 * The admin password you choose, or a randomly generated one (there's no `admin:admin`).
 * A page that shows setup progress while you wait, and turns into your site in about 10 minutes.
 * The site's language and time zone, and whether it starts with Plone's welcome page or empty.
+* A [control panel](docs/setup-guide.md#control-panel-preview) (preview): how your site is doing, in plain words, on
+  your phone or computer, with buttons to back up now, run the restore test and more. Tick **Control panel** when
+  you create the server, or turn it on later.
+* [Ask your AI assistant](docs/setup-guide.md#using-an-ai-assistant-preview) (preview) how your site is doing:
+  Claude and other assistants can check on it through your SSH connection (MCP).
 * Plone 6.2 with Volto 19 by default; both are configurable (for the previous release line, use Plone `6.1` with
   Volto `18`).
 
 **Security**
-* Only the website (HTTP and HTTPS) and SSH are reachable from the internet.
+* Only the website (HTTP and HTTPS) and SSH are reachable from the internet, and the control panel once you turn it
+  on.
 * HTTPS from Let's Encrypt for every site: for your domain name, now or [later](docs/setup-guide.md#adding-a-domain-later),
   or without one, for the server's IP address (`https://<ip>`), renewed automatically.
 * Standard security headers on every page, and nginx doesn't reveal its version.

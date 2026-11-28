@@ -235,7 +235,7 @@ characters), a password is generated instead; see "Forgot to set the password?" 
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.27/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    They download the provisioning script from a fixed Plone in a Box release and run it. For more settings (a
    domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead,
@@ -318,7 +318,7 @@ No command line is needed if you choose the admin password here. In the
    ```
    #!/bin/bash
    export ADMIN_PASSWORD='CHANGE-ME'
-   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/StackScript && bash /root/plone-in-a-box.sh
+   curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.27/src/StackScript && bash /root/plone-in-a-box.sh
    ```
    For more settings (a domain and Let's Encrypt email for HTTPS, the time zone, versions, add-ons, a theme), paste the contents of
    [`src/user-data.sh`](https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/main/src/user-data.sh) instead, and fill in its setting lines.
@@ -409,6 +409,87 @@ protection), also in its web console. To remove a box on purpose, see [Removing 
    ```
 
 ## Day-to-day administration
+
+**How it's doing, in one place:** `sudo plone-status` shows whether the site answers, its parts (backend,
+frontend, database), the versions, disk and memory, the last backup and restore test, the last update, and which
+features are on (notifications, email, logs, graphs, Cloudflare). It changes nothing. `sudo plone-status --json`
+gives the same for programs.
+
+### Using an AI assistant (preview)
+
+Ask your AI assistant "Is my Plone site healthy?", "When was the last backup?" or "Why did last night's update
+fail?", and have it answer from the server itself. `plone-mcp` speaks MCP (the Model Context Protocol, which Claude
+and other assistants use) through your SSH connection, so nothing new is open to the internet, and only someone who
+can already log in over SSH can use it.
+
+* **Claude Code:** `claude mcp add plone-in-a-box -- ssh -o BatchMode=yes root@<server address> plone-mcp`
+* **Claude Desktop** (Settings → Developer → Edit Config), and other assistants that run an MCP server as a command:
+
+  ```json
+  { "mcpServers": { "plone-in-a-box": {
+      "command": "ssh", "args": ["-o", "BatchMode=yes", "root@<server address>", "plone-mcp"] } } }
+  ```
+
+  On AWS, use `ubuntu@<server address>` and `sudo plone-mcp`. Your SSH key needs to work without typing its
+  passphrase (an SSH agent, such as macOS's Keychain, does that).
+
+What it can do: how the server and site are doing (the same as `plone-status`), the backups and the last restore
+test, the update history, the last lines of a log (secrets hidden), which features are on, security notices,
+and whether a backup or restore test is running. It can also do three of the control panel's buttons, each at most
+once a minute: back up now, run the restore test, and send a test notification. Your assistant asks you before
+each of those. Nothing else changes.
+
+**Working on your site's content, too:** the Plone community's own MCP server,
+[`@plone/mcp`](https://github.com/plone/plone-mcp), lets an assistant create and edit pages (Volto blocks
+included), publish them, search the site and manage translations, through the site's REST API. It runs on your
+computer (it needs [Node.js](https://nodejs.org) 22 or newer) and works with any Plone in a Box site as it is. The two
+together in Claude Desktop:
+
+```json
+{ "mcpServers": {
+    "plone-in-a-box": { "command": "ssh", "args": ["-o", "BatchMode=yes", "root@<server address>", "plone-mcp"] },
+    "plone": { "command": "npx", "args": ["-y", "@plone/mcp"],
+               "env": { "PLONE_BASE_URL": "https://<your site>", "PLONE_USERNAME": "<an Editor login>",
+                        "PLONE_PASSWORD": "<its password>" } } } }
+```
+
+Give it a login of its own with the **Editor** role (Site Setup → Users), not `admin`: its password is kept in
+that file on your computer, and an assistant then can't change the site's settings or users. `@plone/mcp` is still
+an alpha; see its README for what it can do.
+
+### Control panel (preview)
+
+The Plone in a Box™ control panel is a page that shows the same as `plone-status` in plain
+words, on your phone or computer, with buttons for a few low-risk things: back up now, run the restore test, send a
+test notification or email, stop sending logs or graphs, and give the demo login a new password. It's separate
+from the Plone site, so it still works when Plone doesn't. Turn it on with **Control panel** in the launch form
+(`CONTROL_PANEL=yes` in the launcher, `control_panel = true` in Terraform; its address and login are then in the
+credentials file), or later with `sudo plone-panel on`.
+
+* **Where:** from the launch form, `https://<your site>:8443`, which needs nothing more. For a site with a domain
+  name, `sudo plone-panel on` puts it at `https://box.<your domain>` (without `www.`) instead: first add a DNS record
+  for `box.<your domain>` pointing at the server, like the site's own; `--address` chooses another name, and
+  `--port` keeps it on port 8443. For a site without one, `https://<server address>:8443`. The Launch Stack template and the Terraform plans allow port 8443
+  from 2.27 (nothing answers there until you turn the panel on); a cloud firewall made earlier, or one you added
+  yourself, needs TCP port 8443 allowed too.
+* **Login:** `box`, with a password `plone-panel on` shows once (only a hash of it is kept); `sudo plone-panel password`
+  makes a new one. It isn't the Plone admin's, and it isn't an account on the server: the panel can show the status
+  and do what its buttons do (each at most once a minute), nothing else. A new demo password is shown once, on the
+  page, and saved in the credentials file if it's still there. To log out, close the browser.
+* **Failed logins:** an address that gets the password wrong 5 times in 10 minutes is blocked for an hour, as for
+  SSH, and for the site too when the panel is at `box.<your domain>` (the same port). Blocked yourself? From
+  another connection (your phone's mobile data, say), SSH in and run `sudo fail2ban-client unban <your address>`.
+  Behind Cloudflare, visitors arrive through Cloudflare's addresses, so nobody is blocked; the long password and
+  Cloudflare's own protection remain.
+* **Behind Cloudflare** (`plone-cloudflare on`): the panel is only reachable through Cloudflare too, so the server's
+  own address stays hidden: on port 8443, only Cloudflare's addresses get through (Cloudflare passes 8443 on), and
+  `box.<your domain>` needs the orange cloud, like the site.
+* `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and deletes the
+  password.
+* **How it works:** nginx asks for the login and serves the page; a small program (Python's standard library only,
+  so Ubuntu's updates cover it) answers the page as its own user, which can't change anything on the server; and the
+  buttons go through `plone-panel helper`, which knows only the status, the buttons, and whether a backup or
+  restore test is still running.
 
 The stack lives in `/opt/plone` (`docker-compose.yml`, plus `.env` with the versions and database password), which
 only root can read. Use `sudo -i` first, or prefix each command with `sudo`:
@@ -828,7 +909,7 @@ A server set up with an older Plone in a Box (2.0 or later) can get automatic up
 Instance Connect**, Hetzner's **Console**, or SSH) and run:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/add-updates.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.27/src/add-updates.sh | sudo bash
 ```
 
 It installs `plone-update`, the weekly updates and the login message, exactly as setup does on a new server, and
@@ -836,7 +917,7 @@ then runs `sudo plone-update` once, so the site gets any patch releases it's mis
 reports at a notification URL, put it between `sudo` and `bash`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
+curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.27/src/add-updates.sh | sudo NOTIFY_URL=https://ntfy.sh/your-long-random-topic bash
 ```
 
 `AUTO_UPDATE=no` in the same place installs `plone-update` without the weekly updates. Running the command again,
@@ -1177,11 +1258,14 @@ sudo sed -i 's/server_name _;/server_name <domain>;/' /etc/nginx/sites-available
 sudo systemctl reload nginx
 sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx --redirect -d <domain> -m <your-email> --agree-tos
+echo 'add_header Strict-Transport-Security max-age=31536000 always;' | sudo tee -a /etc/nginx/snippets/plone-headers.conf
+sudo systemctl reload nginx
 echo 'https://<domain>' | sudo tee /var/lib/plone-in-a-box/site-url
 ```
 
 The first line turns the IP address certificate off (on a server set up before 2.21, which doesn't have one, skip
-it); the last makes update reports name the new address.
+it); the `Strict-Transport-Security` line has browsers use HTTPS only for the site, for a year, as setup does for a
+domain; the last makes update reports name the new address.
 
 ### Behind Cloudflare
 

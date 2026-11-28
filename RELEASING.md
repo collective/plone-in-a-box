@@ -118,7 +118,8 @@ the AWS access key in IAM when it's not needed; it doesn't expire by itself.
    (`docs/slides/plone-in-a-box.md`): the release number and month on the title slide, new features on their slides,
    and "What's next". Rebuild `docs/slides/plone-in-a-box.html` with Marp (`marp --html docs/slides/plone-in-a-box.md
    -o docs/slides/plone-in-a-box.html`), and render the slides to PNG (`--images png`) to check nothing overflows.
-   Commit to `main` (or include it in the last PR).
+   Open a pull request with these changes (a `release-<version>` branch), and merge it once CI passes. `main`
+   takes changes only through pull requests; an account that can bypass that rule still shouldn't push to it.
 2. On GitHub, go to **Releases → Draft a new release**. Create a tag on `main` named after the version, without a
    `v` (for example `2.1`), set the title to `Plone in a Box 2.1`, and summarize the changes. End the notes with
    the invitation to the Discord channel: `Questions or ideas? Join [#plone-in-a-box](https://discord.com/channels/786421998426521600/903993234248835082) on the

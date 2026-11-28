@@ -111,11 +111,15 @@ export LOG_REQUESTS='no'
 export METRICS_ENDPOINT=''
 export METRICS_USER=''
 export METRICS_TOKEN=''
+# Control panel (preview): 'yes' turns on a page in your browser that shows how
+# your site is doing, with a few buttons, at https://<your site>:8443. Its
+# login is saved next to the admin password.
+export CONTROL_PANEL='no'
 
 # --- No need to edit below this line -----------------------------------------
 
 # The Plone in a Box release whose provisioning script is downloaded and run.
-PIAB_RELEASE='2.26'
+PIAB_RELEASE='2.27'
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
 set -uo pipefail

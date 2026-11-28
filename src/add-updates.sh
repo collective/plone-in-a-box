@@ -3,7 +3,7 @@
 # Plone in a Box: add automatic updates to a server set up before release 2.12.
 # Run it on the server (in your provider's browser console, or over SSH):
 #
-#   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.26/src/add-updates.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/2.27/src/add-updates.sh | sudo bash
 #
 # It installs plone-update, the weekly plone-update.timer, plone-backup with
 # the nightly plone-backup.timer, plone-restore, plone-offsite, plone-security-notices with
@@ -23,7 +23,7 @@ main() {
   set -euo pipefail
   exec </dev/null
 
-  local PIAB_RELEASE='2.26'
+  local PIAB_RELEASE='2.27'
   local ref=${PIAB_ADD_UPDATES_REF:-$PIAB_RELEASE}
   local APP_DIR=/opt/plone STATE_DIR=/var/lib/plone-in-a-box
   local say_prefix='[plone-in-a-box]'
@@ -61,7 +61,13 @@ main() {
   script=$(curl -fsSL --retry 5 --retry-all-errors "$url") || die "Couldn't download $url"
   block=$(sed -n '/^# >>> update tools$/,/^# <<< update tools$/p' <<<"$script")
   [[ -n "$block" ]] || die "Plone in a Box ${ref} doesn't have the update tools; use release 2.12 or later"
-  APP_DIR="$APP_DIR" bash -euo pipefail -c "$block"
+  # From a file, not bash -c: the block is bigger than one argument may be
+  # (128 KB on Linux).
+  local block_file
+  block_file=$(mktemp)
+  printf '%s\n' "$block" > "$block_file"
+  APP_DIR="$APP_DIR" bash -euo pipefail "$block_file" </dev/null
+  rm -f "$block_file"
   say "Installed plone-update and plone-backup"
   systemctl enable --now plone-backup.timer
   say "The database is backed up every night, and packed once a week (sudo plone-backup to run it now)"
@@ -81,6 +87,30 @@ main() {
     /usr/local/lib/plone-in-a-box/compose-override || true
   fi
   say "To graph the server's and the site's numbers in a service such as Grafana Cloud: sudo plone-otel on ENDPOINT (see the setup guide)"
+  say "To see how the server and site are doing, in one place: sudo plone-status (or in your browser: sudo plone-panel on)"
+  say "For an AI assistant (MCP, preview): add 'ssh root@<this server> plone-mcp' to it (see Using an AI assistant in the setup guide)"
+
+  # This release's security headers, on servers whose nginx setup has the
+  # snippets (2.x); put back as they were if nginx doesn't take them.
+  local headers=/etc/nginx/snippets/plone-headers.conf site_conf=/etc/nginx/snippets/plone-site.conf
+  if [[ -f "$headers" && -f "$site_conf" ]] && ! grep -q 'Permissions-Policy' "$headers"; then
+    cp -p "$headers" "$headers.before-2.27"
+    cp -p "$site_conf" "$site_conf.before-2.27"
+    grep -q 'Referrer-Policy' "$headers" \
+      || echo 'add_header Referrer-Policy strict-origin-when-cross-origin always;' >> "$headers"
+    grep -q 'Content-Security-Policy' "$headers" \
+      || echo "add_header Content-Security-Policy \"frame-ancestors 'self'; base-uri 'self'; object-src 'none'\" always;" >> "$headers"
+    echo 'add_header Permissions-Policy "camera=(), microphone=(), payment=(), usb=()" always;' >> "$headers"
+    grep -q 'X-Powered-By' "$site_conf" || printf '\nproxy_hide_header X-Powered-By;\nproxy_hide_header X-Frame-Options;\n' >> "$site_conf"
+    if nginx -t >/dev/null 2>&1 && systemctl reload nginx; then
+      rm -f "$headers.before-2.27" "$site_conf.before-2.27"
+      say "Added this release's security headers (Referrer-Policy, Content-Security-Policy, Permissions-Policy)"
+    else
+      mv "$headers.before-2.27" "$headers"
+      mv "$site_conf.before-2.27" "$site_conf"
+      say "nginx didn't take the new security headers, so they were left out"
+    fi
+  fi
 
   install -d -m 755 "$STATE_DIR"
   if [[ ! -s "$STATE_DIR/site-url" ]]; then

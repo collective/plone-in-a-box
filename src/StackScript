@@ -42,6 +42,7 @@
 # <UDF name="METRICS_ENDPOINT" label="Graphs, optional: an OpenTelemetry service's OTLP endpoint that gets the server's and the site's numbers, for example https://otlp-gateway-prod-us-east-2.grafana.net/otlp (see Graphs of your server and site in the setup guide)" default="" />
 # <UDF name="METRICS_USER" label="Graphs: your instance ID or user (Grafana Cloud), or header:NAME for a service that takes the token in a header (header:api-key for New Relic)" default="" />
 # <UDF name="METRICS_TOKEN" label="Graphs: the service's token" default="" />
+# <UDF name="CONTROL_PANEL" label="Control panel (preview): a page in your browser that shows how your site is doing, with a few buttons, on port 8443 of the site address. Its login is saved next to the admin password" oneOf="yes,no" default="no" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -141,6 +142,11 @@ esac
 METRICS_ENDPOINT="$(printf '%s' "${METRICS_ENDPOINT:-}" | tr -d ' \t\r\n')"
 METRICS_USER="$(printf '%s' "${METRICS_USER:-}" | tr -d ' \t\r\n')"
 METRICS_TOKEN="$(printf '%s' "${METRICS_TOKEN:-}" | tr -d ' \t\r\n')"
+# The control panel (plone-panel): off unless set to yes.
+case "${CONTROL_PANEL:-no}" in
+  [Yy]|[Yy][Ee][Ss]|[Tt]rue|1|[Oo]n) CONTROL_PANEL=yes ;;
+  *) CONTROL_PANEL=no ;;
+esac
 # Automatic updates (plone-update.timer): on unless set to no.
 case "${AUTO_UPDATE:-yes}" in
   [Nn]|[Nn][Oo]|[Ff]alse|0|[Oo]ff) AUTO_UPDATE=no ;;
@@ -337,7 +343,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN LETSENCRYPT_STAGING STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN CONTROL_PANEL LETSENCRYPT_STAGING STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -1848,10 +1854,12 @@ cat > /usr/local/bin/plone-cloudflare <<'PLONE_CLOUDFLARE_EOF'
 #        sudo plone-cloudflare off           (open ports 80 and 443 to everyone again)
 #        sudo plone-cloudflare status
 #        sudo plone-cloudflare refresh       (update Cloudflare's addresses; done once a month)
+# The control panel on port 8443 (plone-panel) gets the same treatment.
 set -uo pipefail
 [[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-cloudflare ${1:-}" >&2; exit 1; }
 STATE_DIR=/var/lib/plone-in-a-box
 RANGES=$STATE_DIR/cloudflare-ranges
+PANEL_RANGES=$STATE_DIR/cloudflare-panel-ranges
 CONF=/etc/nginx/conf.d/plone-cloudflare.conf
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-cloudflare.log; }
 die() { say "$*" >&2; exit 1; }
@@ -1880,6 +1888,31 @@ rule() {  # rule allow|delete RANGE
   fi
 }
 
+# Port 8443, where the control panel can be (plone-panel): with Cloudflare
+# on, only Cloudflare reaches it, like ports 80 and 443 (Cloudflare passes
+# 8443 on too), so the server's address stays hidden; with it off, everyone
+# does; with the panel elsewhere or off, nobody. plone-panel asks for this
+# too (plone-cloudflare panel).
+sync_panel() {
+  local want="" have="" r panel_on_port=0
+  [[ "$(cat "$STATE_DIR/panel" 2>/dev/null)" == *:8443 ]] && panel_on_port=1
+  (( panel_on_port )) && [[ -s "$RANGES" ]] && want=$(cat "$RANGES")
+  [[ -s "$PANEL_RANGES" ]] && have=$(cat "$PANEL_RANGES")
+  while read -r r; do
+    [[ -z "$r" ]] || grep -qxF "$r" <<<"$have" \
+      || ufw allow proto tcp from "$r" to any port 8443 comment 'Cloudflare: control panel' >/dev/null
+  done <<<"$want"
+  while read -r r; do
+    [[ -z "$r" ]] || grep -qxF "$r" <<<"$want" || ufw delete allow proto tcp from "$r" to any port 8443 >/dev/null
+  done <<<"$have"
+  if [[ -n "$want" ]]; then printf '%s\n' "$want" > "$PANEL_RANGES"; else rm -f "$PANEL_RANGES"; fi
+  if (( panel_on_port )) && [[ -z "$want" ]]; then
+    ufw allow 8443/tcp comment 'Plone in a Box control panel' >/dev/null
+  else
+    ufw delete allow 8443/tcp >/dev/null 2>&1
+  fi
+}
+
 # apply LIST: nginx's real-address settings and the firewall rules for LIST,
 # replacing the ones for the previous list.
 apply() {
@@ -1897,6 +1930,7 @@ apply() {
   while read -r r; do grep -qxF "$r" <<<"$old" || rule allow "$r" || die "Adding the firewall rule for $r failed"; done <<<"$list"
   while read -r r; do [[ -z "$r" ]] || grep -qxF "$r" <<<"$list" || rule delete "$r"; done <<<"$old"
   printf '%s\n' "$list" > "$RANGES"
+  sync_panel
   systemctl reload nginx
 }
 
@@ -1947,9 +1981,13 @@ off)
     while read -r r; do [[ -z "$r" ]] || rule delete "$r"; done < "$RANGES"
   fi
   rm -f "$RANGES" "$CONF"
+  sync_panel
   nginx -t -q && systemctl reload nginx
   systemctl disable --now plone-cloudflare.timer 2>/dev/null
   say "Off: ports 80 and 443 are open to everyone again"
+  ;;
+panel)
+  sync_panel
   ;;
 status)
   if [[ -s "$RANGES" ]]; then
@@ -2038,7 +2076,7 @@ STATE_DIR=/var/lib/plone-in-a-box
 APP_DIR=/opt/plone
 OVERRIDE=$APP_DIR/docker-compose.override.yml
 # The OpenTelemetry Collector's image (plone-otel).
-OTELCOL_IMAGE=otel/opentelemetry-collector-contrib:0.165.0
+OTELCOL_IMAGE=otel/opentelemetry-collector-contrib:0.166.0
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 if [[ -e "$OVERRIDE" ]] && ! grep -qE '^# Written by (Plone in a Box|plone-syslog)' "$OVERRIDE"; then
   echo "$OVERRIDE wasn't written by Plone in a Box; leaving the containers as they are" >&2
@@ -3083,6 +3121,1392 @@ for unit in plone-backup plone-backup-check plone-update plone-https-ip plone-cl
   printf '[Unit]\nOnFailure=plone-in-a-box-failed@%%n.service\n' > "/etc/systemd/system/${unit}.service.d/report-failure.conf"
 done
 
+# Command for seeing how the server and site are doing: sudo plone-status
+# (--json for programs, such as a control panel or an MCP server).
+cat > /usr/local/bin/plone-status <<'PLONE_STATUS_EOF'
+#!/usr/bin/python3
+"""How the server and site are doing, in one place.
+
+Usage: sudo plone-status          (for people)
+       sudo plone-status --json   (for programs)
+
+Read only: it changes nothing. Each part says what it found, or "unknown"
+when it can't tell, so one missing file doesn't hide the rest.
+"""
+import glob
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from urllib.parse import urlsplit
+
+STATE = "/var/lib/plone-in-a-box"
+APP = "/opt/plone"
+BACKUPS = "/var/backups/plone"
+
+
+def read(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def run(*cmd, timeout=20):
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return out.returncode, out.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return 1, ""
+
+
+def enabled(unit):
+    return run("systemctl", "is-enabled", "--quiet", unit)[0] == 0
+
+
+def when(ts):
+    """The server's local time, with its time zone (such as UTC)."""
+    return time.strftime("%Y-%m-%d %H:%M %Z", time.localtime(ts))
+
+
+def iso(ts):
+    """The same moment for programs, which show it in their own time zone."""
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(ts))
+
+
+def stamped(text, fmt, width):
+    """Splits "<time>  <summary>" (as the tools write it) into (ISO time, summary)."""
+    try:
+        ts = time.mktime(time.strptime(text[:width], fmt))
+    except (ValueError, OverflowError):
+        return "", text
+    return iso(ts), text[width:].lstrip(" :")
+
+
+def env():
+    values = {}
+    for line in read(f"{APP}/.env").splitlines():
+        if "=" in line and not line.lstrip().startswith("#"):
+            k, v = line.split("=", 1)
+            values[k.strip()] = v.strip().strip("'\"")
+    return values
+
+
+def site():
+    url = read(f"{STATE}/site-url")
+    code = "unknown"
+    if url:
+        # The site through nginx, as a visitor sees it (certificate not checked:
+        # a test certificate or an IP address one is still the site).
+        rc, out = run("curl", "-ks", "-o", "/dev/null", "-m", "15", "-w", "%{http_code}", url + "/")
+        code = out if rc == 0 and out else "no answer"
+    return {"url": url or "unknown", "http_status": code, "ok": code.startswith(("2", "3"))}
+
+
+def parts():
+    rc, out = run("docker", "compose", "--project-directory", APP, "ps", "--all", "--format", "json")
+    found = {}
+    if rc == 0:
+        rows = []
+        for line in out.splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            rows += row if isinstance(row, list) else [row]
+        for row in rows:
+            found[row.get("Service", "?")] = {"state": row.get("State", "?"), "health": row.get("Health") or ""}
+    return found
+
+
+def running():
+    """The exact versions running (such as 6.2.3), asked of the containers
+    at the same time; {} for any that doesn't answer."""
+    compose = ("docker", "compose", "--project-directory", APP, "exec", "-T")
+    asks = {
+        "plone": compose + ("backend", "/app/bin/python", "-c",
+                            'from importlib.metadata import version; print(version("Products.CMFPlone"))'),
+        "volto": compose + ("frontend", "node", "-p", 'require("@plone/volto/package.json").version'),
+        "aurora": compose + ("frontend", "node", "-p", 'require("@plone/aurora/package.json").version'),
+        "postgresql": compose + ("db", "postgres", "--version"),
+    }
+    procs = {}
+    for name, cmd in asks.items():
+        try:
+            procs[name] = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        except OSError:
+            pass
+    found = {}
+    for name, proc in procs.items():
+        try:
+            out, _ = proc.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            continue
+        words = out.split()  # postgres --version: "postgres (PostgreSQL) 17.12 (Debian ...)"
+        out = (words[2] if name == "postgresql" and len(words) > 2 else words[-1]) if words else ""
+        if proc.returncode == 0 and re.fullmatch(r"[0-9][0-9A-Za-z.+-]*", out):
+            found[name] = out
+    return found
+
+
+def versions(e):
+    exact = running()
+    frontend = "Aurora" if "aurora" in exact and "volto" not in exact else "Volto"
+    return {
+        # What's running, or the image tags in .env if a part doesn't answer.
+        "plone": exact.get("plone") or e.get("PLONE_VERSION", "unknown"),
+        "volto": exact.get("volto") or exact.get("aurora") or e.get("VOLTO_VERSION", "unknown"),
+        "frontend": frontend,
+        "postgresql": exact.get("postgresql") or e.get("POSTGRES_VERSION", "unknown"),
+        "plone_tag": e.get("PLONE_VERSION", ""),
+        "volto_tag": e.get("VOLTO_VERSION", ""),
+        "postgresql_tag": e.get("POSTGRES_VERSION", ""),
+        "backend_image": e.get("BACKEND_IMAGE", "") or "official",
+        "frontend_image": e.get("FRONTEND_IMAGE", "") or "official",
+    }
+
+
+def disk():
+    try:
+        u = shutil.disk_usage("/")
+        return {"used_percent": round(100 * u.used / u.total), "free_gb": round(u.free / 1e9, 1)}
+    except OSError:
+        return {}
+
+
+def memory():
+    info = {}
+    for line in read("/proc/meminfo").splitlines():
+        k, _, v = line.partition(":")
+        if v.strip().endswith("kB"):
+            info[k] = int(v.split()[0])
+    if "MemTotal" not in info:
+        return {}
+    total, avail = info["MemTotal"], info.get("MemAvailable", 0)
+    return {"used_mb": (total - avail) // 1024, "total_mb": total // 1024}
+
+
+def backups():
+    files = sorted(glob.glob(f"{BACKUPS}/plone-*.sql.gz"), key=os.path.getmtime)
+    newest = files[-1] if files else ""
+    out = {"nightly": enabled("plone-backup.timer"), "count": len(files),
+           "newest": when(os.path.getmtime(newest)) if newest else "none yet",
+           "newest_iso": iso(os.path.getmtime(newest)) if newest else "",
+           "newest_mb": round(os.path.getsize(newest) / 1e6, 1) if newest else 0,
+           "offsite": bool(read(f"{STATE}/offsite.conf"))}
+    if newest:
+        out["newest_age_hours"] = round((time.time() - os.path.getmtime(newest)) / 3600)
+    check = read(f"{STATE}/backup-check")
+    out["restore_test"] = check or "not run yet"
+    out["restore_test_date"], out["restore_test_summary"] = (check[:10], check[10:].lstrip(" :")) if check else ("", "")
+    out["restore_test_ok"] = bool(check) and "FAILED" not in check
+    # The date in the file is the server's (often UTC, so "tomorrow" in the
+    # evening in the Americas): when the test ran, and the backup it tested,
+    # as moments the page shows in the viewer's own time zone.
+    tested = f"{STATE}/backup-check"
+    out["restore_test_iso"] = iso(os.path.getmtime(tested)) if check else ""
+    name = re.search(r"plone-(\d{4}-\d\d-\d\d-\d{4})\.sql\.gz", check)
+    out["restore_test_backup"] = name.group(0) if name else ""
+    out["restore_test_backup_iso"] = stamped(name.group(1), "%Y-%m-%d-%H%M", 15)[0] if name else ""
+    if check:  # for people reading it on the server: with the time zone
+        out["restore_test"] = f"{when(os.path.getmtime(tested))}: {out['restore_test_summary']}"
+    return out
+
+
+def updates():
+    last = read(f"{STATE}/update-status")
+    last_iso, summary = stamped(last, "%Y-%m-%d %H:%M", 16) if last else ("", "")
+    if last_iso:  # the time zone, for people too
+        last = f"{last[:16]} {time.strftime('%Z')}  {summary}"
+    return {"automatic": enabled("plone-update.timer"),
+            "last": last or "none yet", "last_iso": last_iso, "last_summary": summary,
+            "notice": read(f"{STATE}/update-notice")}
+
+
+def host(url):
+    return urlsplit(url).hostname or "set" if url else ""
+
+
+def features():
+    notify = read(f"{STATE}/notify-url")
+    syslog = read(f"{STATE}/syslog").split()
+    otel = read(f"{STATE}/otel")
+    return {
+        # Only the host: the rest of a notification URL can be a secret.
+        "notifications": host(notify),
+        "email": read(f"{STATE}/email-domain"),
+        "logs": syslog[1] if len(syslog) > 1 else "",
+        "graphs": host(otel.split()[0]) if otel else "",
+        "cloudflare": os.path.exists("/etc/nginx/conf.d/plone-cloudflare.conf"),
+        "https_ip_certificate": enabled("plone-https-ip.timer"),
+        "demo_user": demo_user(),
+    }
+
+
+def demo_user():
+    """The demo login's name: saved at setup (2.27), or in the credentials file."""
+    name = read(f"{STATE}/demo-user")
+    if not name:
+        m = re.search(r"^Demo login: ([a-z0-9._-]+) / ", read("/root/plone-credentials.txt"), re.M)
+        name = m.group(1) if m else ""
+    return name
+
+
+def security():
+    path = f"{STATE}/security-notice"
+    if os.path.exists(path) and time.time() - os.path.getmtime(path) < 30 * 86400:
+        return read(path).splitlines()[0] if read(path) else ""
+    return ""
+
+
+def gather():
+    e = env()
+    return {"site": site(), "parts": parts(), "versions": versions(e), "disk": disk(), "memory": memory(),
+            "backups": backups(), "updates": updates(), "features": features(), "security_notice": security()}
+
+
+def onoff(value, on=None):
+    return (on or "on") if value else "off"
+
+
+def show(s):
+    site, b, u, f, d, m = s["site"], s["backups"], s["updates"], s["features"], s["disk"], s["memory"]
+    lines = [("Site", f"{site['url']} ({'working' if site['ok'] else 'not answering: ' + site['http_status']})")]
+    if s["parts"]:
+        lines.append(("Parts", ", ".join(
+            f"{name} {p['state']}{' (' + p['health'] + ')' if p['health'] else ''}" for name, p in sorted(s["parts"].items()))))
+    else:
+        lines.append(("Parts", "unknown (is Docker running?)"))
+    v = s["versions"]
+    lines.append(("Versions", f"Plone {v['plone']}, {v.get('frontend', 'Volto')} {v['volto']}, PostgreSQL {v['postgresql']}"))
+    for kind in ("backend_image", "frontend_image"):
+        if v[kind] != "official":
+            lines.append((kind.replace("_", " ").capitalize(), v[kind]))
+    if d:
+        lines.append(("Disk", f"{d['used_percent']}% used, {d['free_gb']} GB free"))
+    if m:
+        lines.append(("Memory", f"{m['used_mb']} MB of {m['total_mb']} MB used"))
+    newest = b["newest"] + (f" ({b['newest_mb']} MB)" if b["count"] else "")
+    lines.append(("Last backup", f"{newest}; nightly backups {onoff(b['nightly'])}, offsite copies {onoff(b['offsite'])}"))
+    lines.append(("Restore test", b["restore_test"]))
+    lines.append(("Last update", f"{u['last']}; automatic updates {onoff(u['automatic'])}"))
+    lines.append(("Notifications", f["notifications"] or "off"))
+    lines.append(("Email", f"from {f['email']}" if f["email"]
+                  else "not set up when the server was created (see Site Setup > Mail)"))
+    lines.append(("Logs", f"sent to {f['logs']}" if f["logs"] else "on the server only"))
+    lines.append(("Graphs", f"sent to {f['graphs']}" if f["graphs"] else "off"))
+    lines.append(("Cloudflare", onoff(f["cloudflare"], "on: only Cloudflare reaches the site")))
+    if s["security_notice"]:
+        lines.append(("Security", s["security_notice"]))
+    width = max(len(k) for k, _ in lines) + 2
+    print("\n".join(f"{(k + ':').ljust(width)}{val}" for k, val in lines))
+    if u["notice"]:
+        print("\n" + u["notice"])
+
+
+def main(argv):
+    if os.geteuid() != 0:
+        sys.exit("Please run this with sudo: sudo plone-status")
+    status = gather()
+    if "--json" in argv[1:]:
+        print(json.dumps(status, indent=2))
+    else:
+        show(status)
+
+
+if __name__ == "__main__":
+    main(sys.argv)
+PLONE_STATUS_EOF
+chmod 755 /usr/local/bin/plone-status
+
+# Command for the Plone in a Box control panel: sudo plone-panel on|off|status|password
+# Off until turned on. Our own small page behind nginx: at box.<your domain>
+# for a site with a domain name, or on port 8443 of the server's address for
+# one without. nginx asks for the login (box, with its own password) and
+# serves the page; a small program (plone-panel-api, Python's standard
+# library only, as its own unprivileged user, sandboxed) answers the page's
+# questions; and the few things it may do as root go through a socket to
+# "plone-panel helper", which knows only: the status, the six buttons, and
+# whether a backup or restore test is still running. No shell, no other
+# commands, nothing to install.
+install -d -m 755 /usr/local/lib/plone-in-a-box
+cat > /usr/local/lib/plone-in-a-box/plone-panel-api <<'PLONE_PANEL_API_EOF'
+#!/usr/bin/python3
+"""The Plone in a Box control panel's answers to its page (plone-panel).
+
+nginx asks for the login and passes /api/ here. This runs as the
+plone-panel user, which can do nothing on the server itself: it asks
+"plone-panel helper" (root, through a socket only plone-panel can open) for
+the status, to press one of the buttons, or whether a job is still running.
+Started by systemd when the page first asks, and stops after 15 minutes
+without questions.
+"""
+import json
+import os
+import re
+import socket
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+HELPER = "/run/plone-panel/helper.sock"
+ORIGIN = os.environ.get("PANEL_ORIGIN", "")
+ACTIONS = {"backup", "restore-test", "test-notification", "test-email", "logs-off", "graphs-off", "demo-password"}
+JOBS = {"backup", "restore-test"}
+IDLE_SECONDS = 15 * 60
+last_request = time.monotonic()
+
+
+def helper(line, timeout=240):
+    """Asks the root helper; it answers with its exit code, a newline, and text."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        s.connect(HELPER)
+        s.sendall(line.encode() + b"\n")
+        s.shutdown(socket.SHUT_WR)
+        out = b""
+        while True:
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            out += chunk
+    code, _, text = out.decode(errors="replace").partition("\n")
+    try:
+        return int(code), text
+    except ValueError:
+        return 1, text or "No answer from the server"
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "plone-panel"
+    sys_version = ""
+
+    def reply(self, status, body):
+        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        global last_request
+        last_request = time.monotonic()
+        if self.path == "/api/status":
+            code, text = helper("status")
+            if code:
+                return self.reply(502, {"error": text.strip() or "plone-status failed"})
+            return self.reply(200, text.encode())
+        m = re.fullmatch(r"/api/job/([a-z-]+)", self.path)
+        if m and m.group(1) in JOBS:
+            code, text = helper("job " + m.group(1), timeout=20)
+            state, _, result = text.strip().partition(" ")
+            return self.reply(200, {"state": state, "result": result})
+        self.reply(404, {"error": "Not found"})
+
+    def do_POST(self):
+        global last_request
+        last_request = time.monotonic()
+        # Only the panel's own page may press the buttons: a browser adds
+        # neither this header nor this Origin to a request from another site.
+        if self.headers.get("X-Plone-Panel") != "1" or (ORIGIN and self.headers.get("Origin") != ORIGIN):
+            return self.reply(403, {"ok": False, "message": "Only the control panel's own page can do that."})
+        m = re.fullmatch(r"/api/do/([a-z-]+)", self.path)
+        if not m or m.group(1) not in ACTIONS:
+            return self.reply(404, {"ok": False, "message": "Not something the control panel can do."})
+        code, text = helper("do " + m.group(1))
+        status = 200 if code == 0 else 429 if code == 4 else 500  # 4: pressed again too soon
+        self.reply(status, {"ok": code == 0, "message": text.strip()})
+
+    def log_message(self, fmt, *args):
+        pass  # nginx logs the requests
+
+
+def main():
+    if os.environ.get("LISTEN_FDS") == "1":  # from systemd (plone-panel.socket)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler, bind_and_activate=False)
+        server.socket.close()
+        server.socket = socket.socket(fileno=3)
+    else:
+        server = ThreadingHTTPServer(("127.0.0.1", 8092), Handler)
+    server.daemon_threads = True
+
+    def stop_when_idle():
+        while time.monotonic() - last_request < IDLE_SECONDS:
+            time.sleep(30)
+        server.shutdown()
+
+    threading.Thread(target=stop_when_idle, daemon=True).start()
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+PLONE_PANEL_API_EOF
+chmod 755 /usr/local/lib/plone-in-a-box/plone-panel-api
+
+cat > /usr/local/bin/plone-panel <<'PLONE_PANEL_EOF'
+#!/bin/bash
+# Usage: sudo plone-panel on [--address box.example.org]
+#        sudo plone-panel off
+#        sudo plone-panel status
+#        sudo plone-panel password     (a new password for the box login)
+#        sudo plone-panel do ACTION    (what the page's buttons run: backup,
+#             restore-test, test-notification, test-email, logs-off, graphs-off,
+#             demo-password)
+# on --port: on port 8443 of the site's own address, also for a site with a
+# domain name (no DNS record needed; setup does this). plone-panel on then
+# moves it to box.<domain>.
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-panel ${1:-}" >&2; exit 1; }
+STATE_DIR=/var/lib/plone-in-a-box
+STATE=$STATE_DIR/panel
+NGINX_CONF=/etc/nginx/sites-enabled/plone-panel
+PASSWORDS=/etc/nginx/plone-panel.htpasswd
+PAGE=/usr/share/plone-panel
+UNITS=/etc/systemd/system
+JAIL=/etc/fail2ban/jail.d/plone-panel.local
+LOGIN=box
+PORT=8443
+API_PORT=8092  # 8091 is plone-otel's nginx_status
+# The page's buttons, each a fixed command (plone-panel do ...).
+ACTIONS="backup restore-test test-notification test-email logs-off graphs-off demo-password"
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-panel.log; }
+die() { say "$*" >&2; exit 1; }
+
+site_url=$(cat "$STATE_DIR/site-url" 2>/dev/null)
+site_host=${site_url#*://}
+site_host=${site_host%%/*}
+is_ip() { [[ "$1" =~ ^[0-9.]+$ || "$1" == *:* ]]; }
+
+# Only the hash is kept, readable by nginx (www-data) and root.
+new_password() {
+  local pw
+  pw=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
+  printf '%s:%s\n' "$LOGIN" "$(openssl passwd -6 -stdin <<<"$pw")" > "$PASSWORDS.new" || die "Couldn't save the password"
+  chown root:www-data "$PASSWORDS.new" && chmod 640 "$PASSWORDS.new" && mv "$PASSWORDS.new" "$PASSWORDS"
+  printf '%s' "$pw"
+}
+
+# The demo login's name: saved at setup (2.27), or in the credentials file.
+demo_user() {
+  local name
+  name=$(cat "$STATE_DIR/demo-user" 2>/dev/null)
+  [[ -n "$name" ]] || name=$(sed -n 's#^Demo login: \([a-z0-9._-]*\) / .*#\1#p' /root/plone-credentials.txt 2>/dev/null | head -n 1)
+  printf '%s' "$name"
+}
+
+# Port 8443 in the firewall: open while the panel is there, closed
+# otherwise; behind Cloudflare, open to Cloudflare only (plone-cloudflare).
+firewall() {
+  if [[ -x /usr/local/bin/plone-cloudflare ]]; then
+    /usr/local/bin/plone-cloudflare panel
+  elif [[ "$(cat "$STATE" 2>/dev/null)" == *:$PORT ]]; then
+    ufw allow "$PORT/tcp" comment 'Plone in a Box control panel' >/dev/null
+  else
+    ufw delete allow "$PORT/tcp" >/dev/null 2>&1
+  fi
+}
+
+job_unit() {
+  case "$1" in
+    backup) echo plone-backup.service ;;
+    restore-test) echo plone-backup-check.service ;;
+  esac
+}
+
+write_page() {
+  install -d -m 755 "$PAGE"
+  cat > "$PAGE/index.html" <<'EOF'
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plone in a Box control panel</title>
+<link rel="stylesheet" href="panel.css">
+<script src="panel.js" defer></script>
+</head>
+<body>
+<main>
+<h1>Plone in a Box&trade;</h1>
+<p class="lead" id="lead">Checking your site&hellip;</p>
+<div id="cards" class="cards"></div>
+<p><button id="again" type="button">Check again</button> <span id="when" class="muted"></span></p>
+<h2 class="section">Things you can do</h2>
+<div id="actions" class="actions"></div>
+<p id="result" class="result" role="status"></p>
+<p class="muted">Everything else is changed over SSH for now: see the
+<a href="https://github.com/tkimnguyen/plone-in-a-box/blob/main/docs/setup-guide.md#day-to-day-administration" rel="noopener">setup guide</a>.
+To log out, close the browser.</p>
+</main>
+</body>
+</html>
+EOF
+  cat > "$PAGE/panel.css" <<'EOF'
+:root { --bg: #fff; --fg: #1d2329; --muted: #5a6570; --line: #d9dee3; --panel: #f4f6f8;
+  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --link: #0b5cad; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14181c; --fg: #e6eaee; --muted: #a3adb7; --line: #2e363e; --panel: #1c2228;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149; --link: #6cb6ff; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 16px 3rem; }
+a { color: var(--link); }
+h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+.lead { font-size: 1.1rem; margin: 0 0 1.2rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .8rem; transition: opacity .2s; }
+.cards.checking { opacity: .35; }
+.card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; padding: .7rem .9rem; }
+.card.ok { border-left-color: var(--ok); } .card.warn { border-left-color: var(--warn); } .card.bad { border-left-color: var(--bad); }
+.card h2 { font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 .2rem; }
+.card p { margin: 0; overflow-wrap: anywhere; }
+.muted { color: var(--muted); font-size: .9rem; }
+button { font: inherit; padding: .4rem .9rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+.section { font-size: 1.15rem; margin: 2rem 0 .6rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.result { min-height: 1.5em; font-weight: 600; }
+.secret-line { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .5rem; font-weight: 400; }
+.secret { font: 1.15rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .04em;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .3rem .6rem;
+  overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
+EOF
+  cat > "$PAGE/panel.js" <<'EOF'
+// Plain words from plone-status --json, which /api/status passes on.
+function card(title, text, level) {
+  var div = document.createElement("div");
+  div.className = "card " + (level || "");
+  var h = document.createElement("h2");
+  h.textContent = title;
+  var p = document.createElement("p");
+  p.textContent = text;
+  div.appendChild(h);
+  div.appendChild(p);
+  return div;
+}
+function onoff(v) { return v ? "on" : "off"; }
+// A time from the server, in the viewer's own time zone, which it names.
+function local(isoTime, fallback) {
+  var d = isoTime ? new Date(isoTime) : null;
+  if (!d || isNaN(d)) return fallback;
+  var today = new Date(), yesterday = new Date(Date.now() - 864e5);
+  var day = d.toDateString() === today.toDateString() ? "today"
+    : d.toDateString() === yesterday.toDateString() ? "yesterday"
+    : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  return day + " at " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+}
+// The restore test, with its times in the viewer's time zone.
+function restoreTest(b, withWhen) {
+  if (!b.restore_test_summary) return b.restore_test;
+  var text = b.restore_test_summary;
+  if (b.restore_test_backup && b.restore_test_backup_iso)
+    text = text.replace(b.restore_test_backup, "from " + local(b.restore_test_backup_iso, b.restore_test_backup));
+  return withWhen ? local(b.restore_test_iso, b.restore_test_date) + ": " + text : text;
+}
+function show(s) {
+  var cards = document.getElementById("cards");
+  cards.textContent = "";
+  var parts = Object.keys(s.parts || {}).sort();
+  var down = parts.filter(function (n) { var p = s.parts[n]; return p.state !== "running" || (p.health && p.health !== "healthy"); });
+  var b = s.backups || {}, u = s.updates || {}, f = s.features || {}, d = s.disk || {}, m = s.memory || {}, v = s.versions || {};
+  var problems = [];
+  if (!s.site.ok) problems.push("the site isn't answering");
+  if (down.length) problems.push(down.join(", ") + " not running well");
+  if (d.used_percent >= 90) problems.push("the disk is nearly full");
+  if (b.newest_age_hours > 48 || !b.count) problems.push("no recent backup");
+  if (/FAILED/.test(b.restore_test || "")) problems.push("the last restore test failed");
+  document.getElementById("lead").textContent = problems.length
+    ? "Needs a look: " + problems.join("; ") + "."
+    : "All good: your site is working and backed up.";
+  cards.appendChild(card("Your site", s.site.url + (s.site.ok ? ", working" : ", not answering (" + s.site.http_status + ")"), s.site.ok ? "ok" : "bad"));
+  cards.appendChild(card("Parts", parts.length ? parts.map(function (n) {
+    var p = s.parts[n]; return n + ": " + p.state + (p.health ? " (" + p.health + ")" : "");
+  }).join(", ") : "unknown", parts.length && !down.length ? "ok" : "bad"));
+  cards.appendChild(card("Versions", "Plone " + v.plone + ", " + (v.frontend || "Volto") + " " + v.volto + ", PostgreSQL " + v.postgresql));
+  cards.appendChild(card("Disk", d.used_percent + "% used, " + d.free_gb + " GB free", d.used_percent >= 90 ? "bad" : d.used_percent >= 80 ? "warn" : "ok"));
+  cards.appendChild(card("Memory", m.used_mb + " MB of " + m.total_mb + " MB in use"));
+  cards.appendChild(card("Last backup", (b.count ? local(b.newest_iso, b.newest) + " (" + b.newest_mb + " MB)" : "none yet") +
+    "; nightly backups " + onoff(b.nightly) + ", offsite copies " + onoff(b.offsite),
+    !b.count || b.newest_age_hours > 48 ? "bad" : b.offsite ? "ok" : "warn"));
+  cards.appendChild(card("Restore test", restoreTest(b, true), /FAILED/.test(b.restore_test || "") ? "bad" : b.restore_test_ok ? "ok" : ""));
+  cards.appendChild(card("Updates", (u.last_iso ? local(u.last_iso, u.last) + ": " + u.last_summary : u.last) + "; automatic updates " + onoff(u.automatic), u.automatic ? "ok" : "warn"));
+  cards.appendChild(card("Notifications", f.notifications ? "sent to " + f.notifications : "off", f.notifications ? "ok" : "warn"));
+  cards.appendChild(card("Email", f.email ? "from " + f.email : "not set up when the server was created (see Site Setup > Mail)"));
+  cards.appendChild(card("Logs", f.logs ? "sent to " + f.logs : "on the server only"));
+  cards.appendChild(card("Graphs", f.graphs ? "sent to " + f.graphs : "off"));
+  cards.appendChild(card("Cloudflare", f.cloudflare ? "on: only Cloudflare reaches your site" : "off"));
+  if (s.security_notice) cards.appendChild(card("Security", s.security_notice, "warn"));
+  document.getElementById("when").textContent = "Checked " + local(new Date().toISOString(), "just now");
+  actions(s);
+}
+// The buttons: each runs one fixed command (plone-panel do ...).
+function actions(s) {
+  var f = s.features || {}, list = [
+    ["backup", "Back up now", true],
+    ["restore-test", "Run the restore test", true],
+    ["test-notification", "Send a test notification", !!f.notifications],
+    ["test-email", "Send a test email", !!f.email],
+    ["logs-off", "Stop sending logs", !!f.logs, "Stop sending the logs to " + f.logs + "? They'll stay on the server only."],
+    ["graphs-off", "Stop sending graphs", !!f.graphs, "Stop sending numbers to " + f.graphs + "?"],
+    ["demo-password", "New demo password", !!f.demo_user, "Make a new password for the demo login " + f.demo_user + "? The old one stops working."]
+  ];
+  var box = document.getElementById("actions");
+  box.textContent = "";
+  list.forEach(function (a) {
+    if (!a[2]) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = a[1];
+    b.addEventListener("click", function () { run(a[0], a[3], b); });
+    box.appendChild(b);
+  });
+}
+function api(path, post) {
+  return fetch("api/" + path, post ? { method: "POST", headers: { "X-Plone-Panel": "1" } } : {})
+    .then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (body) {
+        if (!r.ok) throw new Error(body.message || body.error || "The server answered " + r.status);
+        return body;
+      });
+    });
+}
+// The actions that run in the background, as systemd services: the page
+// follows them until they finish, then says how it went.
+var BACKGROUND = {
+  "backup": { running: "Backing up your site\u2026",
+              done: function (s) { return "Backed up " + local(s.backups.newest_iso, s.backups.newest) + "."; },
+              failed: "The backup failed. If notifications or email are set up, a notice is on its way." },
+  "restore-test": { running: "Running the restore test\u2026 This takes a few minutes.",
+                    done: function (s) { return "Restore test: " + restoreTest(s.backups, false); },
+                    failed: "The restore test failed. If notifications or email are set up, a notice is on its way." }
+};
+function run(action, question, button) {
+  if (question && !window.confirm(question)) return;
+  var result = document.getElementById("result");
+  button.disabled = true;
+  result.textContent = "Working\u2026";
+  api("do/" + action, true)
+    .then(function (out) {
+      if (BACKGROUND[action]) { follow(action, button); return; }
+      button.disabled = false;
+      showResult(out.message);
+      check();
+    })
+    .catch(function (e) { button.disabled = false; result.textContent = e.message; });
+}
+// A message; a new password in it goes on its own line, in a monospace
+// font (0 and O, l and 1 are easier to tell apart), with a Copy button.
+function showResult(message) {
+  var result = document.getElementById("result");
+  var m = /^(.*has this password:) (\S+)$/.exec(message || "");
+  result.textContent = m ? m[1] : message;
+  if (!m) return;
+  var line = document.createElement("div");
+  line.className = "secret-line";
+  var code = document.createElement("code");
+  code.className = "secret";
+  code.textContent = m[2];
+  var copy = document.createElement("button");
+  copy.type = "button";
+  copy.textContent = "Copy";
+  function select() {
+    var range = document.createRange();
+    range.selectNodeContents(code);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    copy.textContent = "Selected: copy it";
+  }
+  copy.addEventListener("click", function () {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) return select();
+    navigator.clipboard.writeText(m[2]).then(function () {
+      copy.textContent = "Copied";
+      setTimeout(function () { copy.textContent = "Copy"; }, 2000);
+    }, select);
+  });
+  line.appendChild(code);
+  line.appendChild(copy);
+  result.appendChild(line);
+}
+// Every few seconds: is it still running?
+function follow(action, button) {
+  var job = BACKGROUND[action], result = document.getElementById("result");
+  var cards = document.getElementById("cards");
+  result.textContent = job.running;
+  if (button) button.disabled = true;
+  cards.classList.add("checking");
+  function poll() {
+    api("job/" + action)
+      .then(function (j) {
+        if (j.state === "activating" || j.state === "active" || j.state === "deactivating") {
+          setTimeout(poll, 3000);
+          return;
+        }
+        cards.classList.remove("checking");
+        check(function (s) {
+          if (button) button.disabled = false;
+          result.textContent = j.result === "success" ? job.done(s) : job.failed;
+        });
+      })
+      .catch(function () { cards.classList.remove("checking"); if (button) button.disabled = false; result.textContent = ""; });
+  }
+  setTimeout(poll, 1500);
+}
+// Checking takes a second or two: the button says so, and the cards fade
+// until the new ones are in.
+function check(then) {
+  var again = document.getElementById("again"), cards = document.getElementById("cards");
+  var started = Date.now();
+  again.disabled = true;
+  again.textContent = "Checking\u2026";
+  cards.classList.add("checking");
+  document.getElementById("when").textContent = "";
+  function done() {
+    again.disabled = false;
+    again.textContent = "Check again";
+    cards.classList.remove("checking");
+  }
+  api("status")
+    .then(function (s) {
+      // At least half a second, so the change can be seen.
+      setTimeout(function () {
+        show(s);
+        done();
+        if (then) then(s);
+      }, Math.max(0, 500 - (Date.now() - started)));
+    })
+    .catch(function (e) { done(); document.getElementById("lead").textContent = "Couldn't check: " + e.message; });
+}
+document.getElementById("again").addEventListener("click", function () { check(); });
+// A backup or restore test already running (from another tab, or the nightly
+// one) is followed too.
+check(function () {
+  Object.keys(BACKGROUND).forEach(function (action) {
+    api("job/" + action).then(function (j) { if (j.state === "activating") follow(action, null); });
+  });
+});
+EOF
+  chmod 644 "$PAGE"/*
+}
+
+write_units() {
+  local origin=$1
+  # The root helper: one connection, one question, from the plone-panel user only.
+  cat > "$UNITS/plone-panel-helper.socket" <<'EOF'
+[Unit]
+Description=Plone in a Box control panel: what it may ask root
+
+[Socket]
+ListenStream=/run/plone-panel/helper.sock
+SocketUser=root
+SocketGroup=plone-panel
+SocketMode=0660
+Accept=yes
+MaxConnections=8
+
+[Install]
+WantedBy=sockets.target
+EOF
+  cat > "$UNITS/plone-panel-helper@.service" <<'EOF'
+[Unit]
+Description=Plone in a Box control panel: one question for root
+
+[Service]
+ExecStart=/usr/local/bin/plone-panel helper
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+RuntimeMaxSec=300
+EOF
+  cat > "$UNITS/plone-panel.socket" <<EOF
+[Unit]
+Description=Plone in a Box control panel (answers its page)
+
+[Socket]
+ListenStream=127.0.0.1:$API_PORT
+
+[Install]
+WantedBy=sockets.target
+EOF
+  # The program that answers the page can't change anything on the server
+  # itself: everything it does goes through the helper.
+  cat > "$UNITS/plone-panel.service" <<EOF
+[Unit]
+Description=Plone in a Box control panel (answers its page)
+Requires=plone-panel.socket
+
+[Service]
+User=plone-panel
+Group=plone-panel
+Environment=PANEL_ORIGIN=$origin
+ExecStart=/usr/bin/python3 -I /usr/local/lib/plone-in-a-box/plone-panel-api
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=localhost
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+UMask=0077
+MemoryMax=100M
+EOF
+}
+
+case "${1:-status}" in
+  on)
+    shift
+    address="" on_port=0
+    while [[ $# -gt 0 ]]; do
+      case $1 in
+        --address) address=${2:-}; shift ;;
+        --port) on_port=1 ;;
+        *) die "Usage: sudo plone-panel on [--address box.example.org | --port]" ;;
+      esac
+      shift
+    done
+    [[ -n "$site_host" ]] || die "No site address in $STATE_DIR/site-url"
+    if is_ip "$site_host" || (( on_port )); then
+      # Port 8443 of the site's own address, with the site's certificate: for
+      # a site without a domain name, or one whose box.<domain> isn't set up.
+      cert="" key=""
+      for conf in /etc/nginx/sites-enabled/plone-https /etc/nginx/sites-enabled/plone; do
+        [[ -n "$cert" ]] && break
+        cert=$(awk '$1 == "ssl_certificate" { sub(/;$/, "", $2); print $2; exit }' "$conf" 2>/dev/null)
+        key=$(awk '$1 == "ssl_certificate_key" { sub(/;$/, "", $2); print $2; exit }' "$conf" 2>/dev/null)
+      done
+      [[ -n "$cert" && -f "$cert" ]] || die "The site has no HTTPS certificate yet"
+      [[ -z "$address" ]] || die "--address and --port don't go together"
+      url="https://$site_host:$PORT"
+      listen="listen $PORT ssl; listen [::]:$PORT ssl;"
+      server_name=_
+    else
+      # A domain name: box.<domain> (without www.), once its DNS points here.
+      address=${address:-box.${site_host#www.}}
+      [[ "$address" =~ ^[A-Za-z0-9.-]+$ ]] || die "Not an address: $address"
+      ip=$(curl -fsS -4 -m 20 https://ifconfig.me 2>/dev/null)
+      if [[ -s /etc/nginx/conf.d/plone-cloudflare.conf ]]; then
+        say "Behind Cloudflare: $address must be proxied by Cloudflare too (orange cloud)"
+      elif ! getent ahostsv4 "$address" | awk '{print $1}' | grep -qxF "$ip"; then
+        die "$address doesn't point at this server ($ip) yet. Add a DNS record for it, wait until 'dig +short $address' shows $ip, and run this again."
+      fi
+      certbot certonly --nginx --non-interactive --agree-tos --keep-until-expiring \
+        --deploy-hook 'systemctl reload nginx' -d "$address" >>/var/log/plone-panel.log 2>&1 \
+        || die "Couldn't get a certificate for $address (see /var/log/plone-panel.log)"
+      cert=/etc/letsencrypt/live/$address/fullchain.pem key=/etc/letsencrypt/live/$address/privkey.pem
+      url="https://$address"
+      listen="listen 443 ssl; listen [::]:443 ssl;"
+      server_name=$address
+    fi
+
+    # Its own user, which can't log in and owns nothing.
+    id plone-panel >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent \
+      --shell /usr/sbin/nologin -c "Plone in a Box control panel" plone-panel \
+      || die "Couldn't create the plone-panel user"
+    write_page
+    write_units "$url"
+    # A password is kept when on runs again (a browser may have saved it).
+    pw=""
+    [[ -s "$PASSWORDS" ]] || pw=$(new_password)
+
+    # The login and the page from nginx; the answers from plone-panel-api.
+    hsts='add_header Strict-Transport-Security "max-age=31536000" always;'
+    is_ip "$site_host" && hsts=""  # browsers ignore HSTS for an address
+    cat > "$NGINX_CONF" <<EOF
+# Plone in a Box control panel (sudo plone-panel off removes it).
+limit_req_zone \$binary_remote_addr zone=plone_panel:1m rate=10r/s;
+server {
+  $listen
+  server_name $server_name;
+  ssl_certificate $cert;
+  ssl_certificate_key $key;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  server_tokens off;
+  # Failed logins go here, where fail2ban looks.
+  error_log /var/log/nginx/plone-panel-error.log;
+  access_log /var/log/nginx/plone-panel-access.log;
+  $hsts
+  add_header Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'" always;
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy no-referrer always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+  add_header Cache-Control no-store always;
+  auth_basic "Plone in a Box control panel";
+  auth_basic_user_file $PASSWORDS;
+  limit_req zone=plone_panel burst=40 nodelay;
+  client_max_body_size 1k;
+  root $PAGE;
+  index index.html;
+  location / { try_files \$uri =404; }
+  location = / { try_files /index.html =404; }
+  location /api/ {
+    proxy_pass http://127.0.0.1:$API_PORT;
+    proxy_set_header Host \$host;
+    proxy_read_timeout 250s;
+  }
+}
+EOF
+    if ! nginx -t >/dev/null 2>&1; then
+      rm -f "$NGINX_CONF"
+      die "nginx didn't accept the control panel's settings; nothing changed for the site"
+    fi
+
+    # Repeated failed logins: blocked like SSH's (fail2ban), if it's on.
+    if systemctl is-active --quiet fail2ban; then
+      cat > "$JAIL" <<EOF
+# Plone in a Box control panel: block addresses that keep failing to log in.
+[nginx-http-auth]
+enabled = true
+backend = auto
+port = 443,$PORT
+logpath = /var/log/nginx/plone-panel-error.log
+EOF
+      touch /var/log/nginx/plone-panel-error.log
+      fail2ban-client -t >/dev/null 2>&1 && systemctl reload fail2ban || { rm -f "$JAIL"; say "fail2ban didn't accept the panel's settings; left as it was"; }
+    fi
+
+    systemctl daemon-reload
+    systemctl enable plone-panel-helper.socket plone-panel.socket >/dev/null 2>&1
+    # Restarted, so a running panel reads the new settings (it starts again
+    # when the page next asks).
+    systemctl restart plone-panel-helper.socket plone-panel.socket \
+      || die "Couldn't start the control panel (systemctl status plone-panel.socket)"
+    systemctl reload nginx
+    printf '%s\n' "$url" > "$STATE"
+    firewall
+    # nginx reloads in the background: say it's on once it answers.
+    hostport=${url#https://}
+    [[ $hostport == *:* ]] || hostport="$hostport:443"
+    for _ in $(seq 30); do
+      [[ $(curl -sk -m 3 -o /dev/null -w '%{http_code}' --resolve "$hostport:127.0.0.1" "$url/") == 401 ]] && break
+      sleep 0.5
+    done
+    say "The control panel is on: $url"
+    if [[ -n "$pw" ]]; then
+      printf 'Log in as %s with this password (store it in a password manager; sudo plone-panel password makes a new one):\n%s\n' "$LOGIN" "$pw"
+    else
+      echo "Log in as $LOGIN with its password, as before (sudo plone-panel password makes a new one)."
+    fi
+    if [[ "$url" == *:$PORT ]]; then
+      echo "A cloud firewall made before 2.27 (AWS, or Terraform on DigitalOcean or Hetzner) needs TCP port $PORT allowed too."
+      is_ip "$site_host" || echo "For https://box.${site_host#www.} instead: add a DNS record for it, pointing here, then run sudo plone-panel on."
+    fi
+    ;;
+  off)
+    url=$(cat "$STATE" 2>/dev/null)
+    systemctl disable --now plone-panel.socket plone-panel.service plone-panel-helper.socket >/dev/null 2>&1
+    rm -f "$NGINX_CONF" "$PASSWORDS" "$STATE" "$UNITS"/plone-panel.socket "$UNITS"/plone-panel.service \
+      "$UNITS"/plone-panel-helper.socket "$UNITS"/plone-panel-helper@.service
+    rm -rf "$PAGE"
+    rm -f "$STATE_DIR"/panel-last-*
+    systemctl daemon-reload
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx
+    if [[ -f "$JAIL" ]]; then rm -f "$JAIL"; systemctl reload fail2ban 2>/dev/null; fi
+    firewall
+    say "The control panel is off${url:+ ($url no longer answers)}, and its password is gone."
+    ;;
+  password)
+    [[ -s "$STATE" ]] || die "The control panel is off (sudo plone-panel on)"
+    pw=$(new_password)
+    say "A new password for the $LOGIN login"
+    printf '%s\n' "$pw"
+    ;;
+  do)
+    # Each one is low risk and can be undone; long ones run in the
+    # background, and plone-status shows how they went.
+    case "${2:-}" in
+      backup) systemctl start --no-block plone-backup.service && echo "A backup is running; it shows under Last backup in a minute or two." ;;
+      restore-test) systemctl start --no-block plone-backup-check.service && echo "The restore test is running; it takes a few minutes, then shows under Restore test." ;;
+      test-notification)
+        /usr/local/lib/plone-in-a-box/notify "Plone in a Box: test from the control panel" \
+          "If you can read this, notifications from $(hostname) reach you." </dev/null >/dev/null 2>&1
+        case $? in 0) echo "Sent: check your phone or team chat." ;; 3) echo "No notification URL is set."; exit 1 ;; *) echo "Couldn't send it: check the notification URL."; exit 1 ;; esac ;;
+      test-email)
+        if out=$(/usr/local/bin/plone-server-mail test 2>&1); then echo "Sent: check your inbox (and spam folder)."
+        else echo "Couldn't send it: ${out##*$'\n'}"; exit 1; fi ;;
+      logs-off) /usr/local/bin/plone-syslog off >/dev/null 2>&1 && echo "The logs now stay on the server only." || { echo "Couldn't turn the logs off."; exit 1; } ;;
+      graphs-off) /usr/local/bin/plone-otel off >/dev/null 2>&1 && echo "Graphs are off: no more numbers are sent." || { echo "Couldn't turn graphs off."; exit 1; } ;;
+      demo-password)
+        # A new password for the demo login (create_demo_user.py from setup
+        # resets it, verifies it, and keeps its roles).
+        name=$(demo_user)
+        [[ -n "$name" ]] || { echo "This site has no demo login."; exit 1; }
+        [[ -f /opt/plone/create_demo_user.py ]] || { echo "This server was set up before demo logins: change it in Site Setup > Users."; exit 1; }
+        pw=$(openssl rand -base64 18 | tr -d '/+=')
+        if out=$(DEMO_USER="$name" DEMO_PASSWORD="$pw" DEMO_ROLES="" docker compose --project-directory /opt/plone \
+            run --rm --no-deps -T -e DEMO_USER -e DEMO_PASSWORD -e DEMO_ROLES -e ADDONS= \
+            -v /opt/plone/create_demo_user.py:/app/scripts/create_demo_user.py:ro \
+            backend run /app/scripts/create_demo_user.py 2>&1) && grep -q "is set up" <<<"$out"; then
+          # The credentials file, if it's still there, gets the new one too.
+          if [[ -f /root/plone-credentials.txt ]]; then
+            python3 - "$name" "$pw" <<'PY'
+import re, sys
+name, pw = sys.argv[1:3]
+path = "/root/plone-credentials.txt"
+text = open(path).read()
+text = re.sub(r"^(Demo login: " + re.escape(name) + r" / )(\(the password you entered when deploying\)|\S+)",
+              lambda m: m.group(1) + pw, text, count=1, flags=re.M)
+open(path, "w").write(text)
+PY
+          fi
+          echo "The demo login $name now has this password: $pw"
+        else
+          echo "Couldn't change it; the old password still works. $(tail -n 1 <<<"$out")"
+          exit 1
+        fi ;;
+      *) die "Usage: sudo plone-panel do $(tr ' ' '|' <<<"$ACTIONS")" ;;
+    esac
+    printf '[%s] Ran from the control panel: %s\n' "$(date '+%F %T')" "${2:-}" >> /var/log/plone-panel.log
+    ;;
+  helper)
+    # One question from plone-panel-api on stdin (plone-panel-helper.socket);
+    # the answer is an exit code, a newline, and text. Nothing else is asked.
+    IFS=' ' read -r -t 10 question arg extra || [[ -n "${question:-}" ]] || exit 0
+    [[ -z "${extra:-}" ]] || { printf '2\nOne question at a time\n'; exit 0; }
+    case "$question" in
+      status)
+        out=$(/usr/local/bin/plone-status --json 2>&1); rc=$?
+        printf '%s\n%s\n' "$rc" "$out" ;;
+      do)
+        [[ " $ACTIONS " == *" ${arg:-none} "* ]] || { printf '2\nNot something the control panel can do\n'; exit 0; }
+        # Each button at most once a minute, so a stolen password can't, say,
+        # send test emails over and over (and hurt the domain's reputation).
+        last=$STATE_DIR/panel-last-$arg
+        if [[ -f "$last" ]]; then
+          wait=$(( $(stat -c %Y "$last") + 60 - $(date +%s) ))
+          if (( wait > 0 )); then printf '4\nYou just did that: try again in %s seconds.\n' "$wait"; exit 0; fi
+        fi
+        touch "$last"
+        out=$(/usr/local/bin/plone-panel "do" "$arg" 2>&1); rc=$?
+        printf '%s\n%s\n' "$rc" "$out" ;;
+      job)
+        unit=$(job_unit "${arg:-}")
+        [[ -n "$unit" ]] || { printf '2\nNo such job\n'; exit 0; }
+        printf '0\n%s\n' "$(systemctl show --property=ActiveState,Result --value "$unit" | paste -sd ' ')" ;;
+      *) printf '2\nUnknown question\n' ;;
+    esac
+    ;;
+  status)
+    if [[ -s "$STATE" ]]; then
+      echo "On: $(cat "$STATE") (login: $LOGIN)"
+    else
+      echo "Off (sudo plone-panel on)"
+    fi
+    ;;
+  *) die "Usage: sudo plone-panel on [--address box.example.org] | off | status | password | do ACTION" ;;
+esac
+PLONE_PANEL_EOF
+chmod 755 /usr/local/bin/plone-panel
+
+# Command for an AI assistant (MCP, the Model Context Protocol): plone-mcp
+# Run by the assistant over SSH (ssh root@<server> plone-mcp): it speaks MCP
+# on stdin and stdout, so nothing new is open to the internet, and SSH's
+# keys and fail2ban protect it. Read-only tools about the server and site,
+# and the control panel's low-risk buttons (backup, restore test, test
+# notification), each at most once a minute. Python's standard library only.
+cat > /usr/local/bin/plone-mcp <<'PLONE_MCP_EOF'
+#!/usr/bin/python3 -I
+"""Plone in a Box for AI assistants, over MCP (stdio), through SSH.
+
+Add it to an assistant as a command: ssh root@<server> plone-mcp
+(on AWS: ssh ubuntu@<server> sudo plone-mcp). See "Using an AI assistant"
+in the setup guide.
+"""
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+VERSION = "2.27"
+STATE = "/var/lib/plone-in-a-box"
+BACKUPS = "/var/backups/plone"
+PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
+LOGS = {
+    "setup": "/var/log/plone-in-a-box.log",
+    "update": "/var/log/plone-update.log",
+    "backup": "/var/log/plone-backup.log",
+    "restore-test": "/var/log/plone-backup-check.log",
+    "restore": "/var/log/plone-restore.log",
+    "security-notices": "/var/log/plone-security-notices.log",
+    "control-panel": "/var/log/plone-panel.log",
+    "cloudflare": "/var/log/plone-cloudflare.log",
+    "https": "/var/log/plone-https-ip.log",
+    "reboot": "/var/log/plone-reboot.log",
+}
+JOBS = {"backup": "plone-backup.service", "restore-test": "plone-backup-check.service"}
+# What the control panel's buttons run (plone-panel do ...), at most once a minute.
+ACTIONS = {"backup_now": "backup", "run_restore_test": "restore-test",
+           "send_test_notification": "test-notification"}
+
+
+def run(*cmd, timeout=60):
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return out.returncode, (out.stdout + out.stderr).strip()
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return 1, f"Couldn't run {cmd[0]}: {e}"
+
+
+def read(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+# Secrets don't belong in the logs, but just in case: passwords, tokens and
+# keys after their names, credentials in URLs, and bearer tokens.
+SECRET = re.compile(r"(?i)((?:password|passwd|token|secret|api[_-]?key|authorization)[\"']?\s*[:=]\s*[\"']?)[^\s\"',;]+")
+URL_CREDENTIALS = re.compile(r"(https?://)[^/\s:@]+:[^/\s@]+@")
+BEARER = re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+")
+
+
+def redact(text):
+    text = BEARER.sub(r"\1[hidden]", text)
+    text = SECRET.sub(r"\1[hidden]", text)
+    return URL_CREDENTIALS.sub(r"\1[hidden]@", text)
+
+
+def status(_args):
+    code, text = run("/usr/local/bin/plone-status", timeout=60)
+    _, data = run("/usr/local/bin/plone-status", "--json", timeout=60)
+    try:
+        structured = json.loads(data)
+    except ValueError:
+        structured = None
+    return text, structured, code != 0
+
+
+def backups(args):
+    files = sorted(glob.glob(f"{BACKUPS}/*.sql.gz"), key=os.path.getmtime, reverse=True)
+    rows = [{"file": os.path.basename(f), "size_mb": round(os.path.getsize(f) / 1e6, 1),
+             "time": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(os.path.getmtime(f)))} for f in files]
+    lines = [f"{r['time']}  {r['size_mb']:>8} MB  {r['file']}" for r in rows] or ["No backups on the server yet."]
+    check = read(f"{STATE}/backup-check")
+    lines += ["", "Last restore test: " + (check or "not run yet")]
+    offsite = bool(read(f"{STATE}/offsite.conf"))
+    lines.append("Offsite copies: " + ("on" if offsite else "off (see Backups off the server in the setup guide)"))
+    structured = {"on_server": rows, "restore_test": check, "offsite": offsite}
+    if offsite and args.get("offsite"):
+        code, out = run("/usr/local/bin/plone-offsite", "list", timeout=90)
+        lines += ["", "Offsite copies:", redact(out) if out else "(none listed)"]
+        structured["offsite_list"] = redact(out)
+    return "\n".join(lines), structured, False
+
+
+def updates(_args):
+    status_line = read(f"{STATE}/update-status") or "No update check yet."
+    notice = read(f"{STATE}/update-notice")
+    log = tail(LOGS["update"], 60)
+    text = f"Last update check: {status_line}\n"
+    if notice:
+        text += f"Notice: {notice}\n"
+    timer = run("systemctl", "is-enabled", "plone-update.timer")[1]
+    text += f"Automatic updates: {'on' if timer == 'enabled' else 'off'}\n\nThe update log's last lines:\n{log or '(empty)'}"
+    return text, {"last": status_line, "notice": notice, "automatic": timer == "enabled"}, False
+
+
+def tail(path, lines):
+    if not os.path.exists(path):
+        return ""
+    _, out = run("tail", "-n", str(lines), path, timeout=10)
+    return redact(out)
+
+
+def logs(args):
+    which = args.get("log", "setup")
+    if which not in LOGS:
+        return f"Unknown log {which!r}; one of: {', '.join(LOGS)}", None, True
+    lines = max(1, min(int(args.get("lines", 50) or 50), 300))
+    out = tail(LOGS[which], lines)
+    return out or f"{LOGS[which]} is empty or not there (that feature may never have run).", None, False
+
+
+def features(_args):
+    parts = []
+    for name, cmd in (("Logs (plone-syslog)", "plone-syslog"), ("Graphs (plone-otel)", "plone-otel"),
+                      ("Cloudflare (plone-cloudflare)", "plone-cloudflare"),
+                      ("Control panel (plone-panel)", "plone-panel")):
+        _, out = run(f"/usr/local/bin/{cmd}", "status", timeout=30)
+        parts.append(f"{name}: {redact(out) or 'unknown'}")
+    notify = read(f"{STATE}/notify-url")
+    host = re.sub(r"^https?://([^/:@]+@)?([^/:]+).*", r"\2", notify) if notify else ""
+    parts.append("Notifications: " + (f"sent to {host}" if host else "off"))
+    return "\n".join(parts), None, False
+
+
+def security(_args):
+    notice = read(f"{STATE}/security-notice")
+    log = tail(LOGS["security-notices"], 30)
+    text = ("Latest Plone security notice passed on: " + (notice or "none")) + \
+        "\n\nThe security notices log's last lines:\n" + (log or "(empty)")
+    return text, None, False
+
+
+def job(args):
+    which = args.get("job", "backup")
+    if which not in JOBS:
+        return f"Unknown job {which!r}; one of: {', '.join(JOBS)}", None, True
+    _, out = run("systemctl", "show", "--property=ActiveState,Result", "--value", JOBS[which], timeout=10)
+    state, _, result = out.replace("\n", " ").partition(" ")
+    running = state in ("activating", "active", "deactivating")
+    text = f"The {which} is running." if running else f"The {which} isn't running; the last one ended: {result or 'unknown'}."
+    return text, {"state": state, "result": result, "running": running}, False
+
+
+def action(name):
+    def do(_args):
+        what = ACTIONS[name]
+        last = f"{STATE}/panel-last-{what}"  # shared with the control panel
+        if os.path.exists(last):
+            wait = int(os.path.getmtime(last) + 60 - time.time())
+            if wait > 0:
+                return f"That was just done: try again in {wait} seconds.", None, True
+        os.makedirs(STATE, exist_ok=True)
+        open(last, "a").close()
+        os.utime(last)
+        code, out = run("/usr/local/bin/plone-panel", "do", what, timeout=120)
+        return out, None, code != 0
+    return do
+
+
+TOOLS = [
+    ("site_status", status, True, "How the server and the Plone site are doing: whether the site answers, its parts "
+     "(backend, frontend, database), exact versions, disk, memory, the last backup and restore test, the last "
+     "update, and which features are on. The same as plone-status and the control panel.", {}),
+    ("list_backups", backups, True, "The backups on the server (newest first, with sizes and times), the last restore "
+     "test, and whether offsite copies are on. Set offsite to also list the copies in cloud storage (slower).",
+     {"offsite": {"type": "boolean", "description": "Also list the offsite copies", "default": False}}),
+    ("update_history", updates, True, "The last weekly update check (Plone, Volto and PostgreSQL patch releases), "
+     "any notice about a newer Plone release, whether automatic updates are on, and the update log's last lines, "
+     "for finding out why an update failed.", {}),
+    ("recent_logs", logs, True, "The last lines of one of Plone in a Box's logs, with any secrets hidden. Use it to "
+     "find out why something failed.",
+     {"log": {"type": "string", "enum": list(LOGS), "description": "Which log", "default": "setup"},
+      "lines": {"type": "integer", "minimum": 1, "maximum": 300, "description": "How many lines", "default": 50}}),
+    ("features", features, True, "Which optional features are on and where they send things: logs, graphs, "
+     "Cloudflare, the control panel and notifications.", {}),
+    ("security_notices", security, True, "The latest Plone security announcement passed on to the site owner, and "
+     "the security notices log.", {}),
+    ("job_status", job, True, "Whether a backup or restore test is running now, and how the last one ended.",
+     {"job": {"type": "string", "enum": list(JOBS), "description": "Which job", "default": "backup"}}),
+    ("backup_now", action("backup_now"), False, "Start a database backup now, in the background (a minute or two; "
+     "follow it with job_status). At most once a minute. Changes nothing on the site.", {}),
+    ("run_restore_test", action("run_restore_test"), False, "Start the restore test now, in the background: the "
+     "newest backup is restored into a test database and checked, without touching the site (a few minutes; "
+     "follow it with job_status). At most once a minute.", {}),
+    ("send_test_notification", action("send_test_notification"), False, "Send a test message to the notification "
+     "URL (phone or team chat), to check it works. At most once a minute.", {}),
+]
+
+
+def tool_list():
+    out = []
+    for name, _, read_only, description, props in TOOLS:
+        out.append({"name": name, "description": description,
+                    "inputSchema": {"type": "object", "properties": props, "additionalProperties": False},
+                    "annotations": {"readOnlyHint": read_only, "destructiveHint": False,
+                                    "idempotentHint": read_only, "openWorldHint": False}})
+    return out
+
+
+def call(name, args):
+    for tool_name, fn, *_ in TOOLS:
+        if tool_name == name:
+            try:
+                text, structured, is_error = fn(args if isinstance(args, dict) else {})
+            except Exception as e:  # report it to the assistant, keep serving
+                text, structured, is_error = f"{name} failed: {e}", None, True
+            result = {"content": [{"type": "text", "text": text or "(no output)"}], "isError": bool(is_error)}
+            if isinstance(structured, dict):
+                result["structuredContent"] = structured
+            return result
+    return None
+
+
+def handle(msg):
+    method, mid = msg.get("method"), msg.get("id")
+    if mid is None:
+        return None  # a notification, such as notifications/initialized
+    if method == "initialize":
+        asked = (msg.get("params") or {}).get("protocolVersion")
+        result = {"protocolVersion": asked if asked in PROTOCOLS else PROTOCOLS[0],
+                  "capabilities": {"tools": {}},
+                  "serverInfo": {"name": "plone-in-a-box", "title": "Plone in a Box", "version": VERSION},
+                  "instructions": "Tools for looking after a Plone in a Box server and its Plone site. Start with "
+                                  "site_status. backup_now, run_restore_test and send_test_notification change "
+                                  "nothing on the site; everything else only reads."}
+    elif method == "ping":
+        result = {}
+    elif method == "tools/list":
+        result = {"tools": tool_list()}
+    elif method == "tools/call":
+        params = msg.get("params") or {}
+        result = call(params.get("name"), params.get("arguments") or {})
+        if result is None:
+            return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32602, "message": f"Unknown tool: {params.get('name')}"}}
+    else:
+        return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"Method not found: {method}"}}
+    return {"jsonrpc": "2.0", "id": mid, "result": result}
+
+
+def main():
+    if os.geteuid() != 0:
+        sys.exit("Please run this as root: ssh root@<server> plone-mcp (or sudo plone-mcp)")
+    if sys.stdin.isatty():
+        print("plone-mcp is for AI assistants: add 'ssh root@<this server> plone-mcp' to yours as an MCP server "
+              "(see Using an AI assistant in the setup guide). It reads MCP messages on its input.", file=sys.stderr)
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except ValueError:
+            reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}
+        else:
+            reply = handle(msg) if isinstance(msg, dict) else \
+                {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid request"}}
+        if reply is not None:
+            sys.stdout.write(json.dumps(reply) + "\n")
+            sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()
+PLONE_MCP_EOF
+chmod 755 /usr/local/bin/plone-mcp
+
 # The result of the last update check, at the top of the login message, and
 # security notices from the last 30 days.
 cat > /etc/update-motd.d/90-plone-in-a-box <<'EOF'
@@ -3355,6 +4779,8 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
       printf '%s\n' "$demo_out" | grep -v '^DEMO_ROLES_GIVEN='
       given=$(printf '%s\n' "$demo_out" | sed -n 's/^DEMO_ROLES_GIVEN=//p' | tail -n 1)
       DEMO_LINE="Demo login: ${DEMO_USER} / ${DEMO_PASSWORD_SHOWN} (${given:-$roles})${DEMO_ROLES_NOTE}${DEMO_PASSWORD_NOTE}"
+      # For a new password later (plone-panel do demo-password).
+      install -d -m 755 /var/lib/plone-in-a-box && printf '%s\n' "$DEMO_USER" > /var/lib/plone-in-a-box/demo-user
     else
       printf '%s\n' "$demo_out"
       log "Creating the demo login failed (see above); add it in Site Setup > Users"
@@ -3410,8 +4836,12 @@ rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/plone-in-a-box-s
 # For the site's server block: no nginx version in responses, compressed CSS,
 # JavaScript and JSON (overriding Ubuntu's nginx.conf here, as it sets some of
 # these itself), and security headers. A location with an add_header of its
-# own would drop the headers, so none has one. Browsers' default
-# Referrer-Policy, strict-origin-when-cross-origin, is already the right one.
+# own would drop the headers, so none has one. The Content-Security-Policy
+# only has the parts that can't break a Plone site (Volto's pages have inline
+# scripts, so a full one can't): no framing by other sites (the newer form of
+# X-Frame-Options, which older browsers still need), no <base> pointing
+# elsewhere, no plugins. Permissions-Policy turns off what a Plone site never
+# uses; geolocation stays, for maps.
 cat > /etc/nginx/snippets/plone-headers.conf <<'EOF'
 server_tokens off;
 gzip on;
@@ -3419,11 +4849,19 @@ gzip_proxied any;
 gzip_types text/css application/javascript application/json image/svg+xml;
 add_header X-Frame-Options SAMEORIGIN always;
 add_header X-Content-Type-Options nosniff always;
+add_header Referrer-Policy strict-origin-when-cross-origin always;
+add_header Content-Security-Policy "frame-ancestors 'self'; base-uri 'self'; object-src 'none'" always;
+add_header Permissions-Policy "camera=(), microphone=(), payment=(), usb=()" always;
 EOF
 # The site itself, included by the HTTP server block below, and by the HTTPS
 # one when there is one.
 cat > /etc/nginx/snippets/plone-site.conf <<'EOF'
 client_max_body_size 100m;
+
+# Zope names itself and Python in X-Powered-By; nobody needs to know. Volto
+# sends its own X-Frame-Options, the same as nginx's: one is enough.
+proxy_hide_header X-Powered-By;
+proxy_hide_header X-Frame-Options;
 
 proxy_set_header Host $host;
 proxy_set_header X-Real-IP $remote_addr;
@@ -3695,6 +5133,21 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$METRICS_ENDPOINT" ]]; then
   fi
 fi
 
+# --- Control panel ---------------------------------------------------------------
+# On the site's own address, port 8443, so it needs no DNS record yet.
+PANEL_LINE=""
+if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && "$CONTROL_PANEL" == yes ]]; then
+  if out=$(/usr/local/bin/plone-panel on --port 2>&1); then
+    panel_url=$(sed -n 's/.*The control panel is on: //p' <<<"$out" | tail -n 1)
+    panel_pw=$(awk '/^Log in as box/ { getline; print; exit }' <<<"$out")
+    log "The control panel is on: ${panel_url}"
+    PANEL_LINE="Control panel (preview): ${panel_url}, login box / ${panel_pw:-(its password, as before)}"
+  else
+    log "Turning on the control panel didn't work: $(tail -n 1 <<<"$out")"
+    PANEL_LINE="Control panel: not turned on: $(tail -n 1 <<<"$out"). Try again with sudo plone-panel on (see the setup guide)."
+  fi
+fi
+
 # --- Done ----------------------------------------------------------------------
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
@@ -3725,6 +5178,7 @@ ${NOTIFY_LINE}
 ${MAIL_LINE}
 ${LOGS_LINE}
 ${GRAPHS_LINE}
+${PANEL_LINE}
 ${BLOCKLIST_LINES}Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF

@@ -5,15 +5,17 @@
 `scripts/test-deploy.sh` runs the Linode, DigitalOcean, AWS and Hetzner tests (see RELEASING.md). Still open:
 
 - [ ] Renew the Linode token when it expires (1 month; the DigitalOcean token made on 2026-11-22 doesn't expire),
-  and rotate the AWS access key.
+  and rotate the AWS access key. The token can't read its own expiry date (it has no profile scope): check it in
+  Cloud Manager, under API Tokens.
 
 ## Per-add-on StackScripts after 2.24
 
-- [ ] 2.24 added a form field, **Spamhaus key** (`SPAMHAUS_KEY`), so per-add-on "Try It" StackScripts made with
+- [x] 2.24 added a form field, **Spamhaus key** (`SPAMHAUS_KEY`), so per-add-on "Try It" StackScripts made with
   `scripts/linode-addon-stackscript.sh` should be printed again and pasted over the old ones in Cloud Manager
   (RELEASING.md, "Per-add-on StackScripts"). The Juizi Dashboard one (2318969) is done: `update-public-stackscripts.sh`
   updated it. Check for any others, in our accounts or made by add-on authors, and tell those authors. Until then
   they keep working without the field (they download the latest release, and the field is optional).
+  Checked on 2026-11-27: the only public ones are ours (931893, 2318969, 692002), all updated by 2.26.
 
 ## OpenTelemetry, and launch fields for logs (next release after 2.25)
 
@@ -21,7 +23,9 @@
   nginx's and Plone's own numbers (plone.observability's `@@metrics`) to an
   OTLP/HTTP service, tried with Grafana Cloud.
 - [x] A ready-made Grafana dashboard (`docs/grafana/plone-in-a-box.json`).
-  Publish it on grafana.com's dashboards too, once it has settled. 
+  Saved on grafana.com on 2026-11-27 (square Plone mark as its logo, no
+  screenshots yet): link it from the setup guide by its address and number,
+  and add screenshots from a site with a day of steady data. 
 - [x] Request timings: `backend-start` adds plone.observability's filters to
   the official image's `zope.ini` at each start. Drop it once the image
   includes them (plone/container-backend#241). Traces too
@@ -162,6 +166,20 @@ restoring a backup.
   Try it on a test server first: does it install on Ubuntu 24.04 and 26.04,
   work behind nginx, and can our page be the first thing people see? Our own
   small app behind nginx only if Cockpit doesn't work out.
+  **Tried on 2026-11-27** (Linode, Ubuntu 26.04, 1 GB): Ubuntu's Cockpit 360
+  installs in about 11 seconds (6 MB); behind nginx on port 8443 with the
+  site's IP address certificate, login, a wrong password (401), our page and
+  its WebSocket all work; about 50 MB of memory with someone logged in, 13 MB
+  after, none until first opened; port 9090 stays closed from outside (the
+  server's firewall). A page of ours showed `plone-status` on an iPhone,
+  after switching on administrative access. Learned: Cockpit's
+  Content-Security-Policy for a page allows no inline scripts or styles, so
+  they go in their own files; administrative access is a separate step
+  (needs plain words, or a login that doesn't need it for read-only status);
+  plain text wraps badly on a phone (show `plone-status --json` as cards);
+  Cockpit's own screens (System, Help, Session) stay in its bottom bar;
+  Cockpit should listen on 127.0.0.1 only, and its nginx server block needs
+  `server_tokens off` (it showed nginx's version).
 - **Its own address, `box.example.org`** (the site at `www.example.org`, the
   box it runs in at `box.example.org`), titled "Plone in a Box™ control
   panel". A separate address keeps the browser from mixing the panel with
@@ -178,6 +196,34 @@ restoring a backup.
 - **The same tools underneath:** each switch runs the command it stands for
   (`plone-syslog on`, `plone-otel off`, ...), so the panel, SSH and the launch
   fields always agree.
+- **Done so far (2.27):** stage 1, `plone-status` (and `--json`); stage 2,
+  `plone-panel on`: a status page of cards at `box.<domain>` or port 8443
+  (open in the Launch Stack template and the Terraform firewalls); and the
+  first of stage 3: back up now, the restore test (followed until done), a
+  test notification, a test email, logs and graphs off. Times in your own
+  time zone. The launch field and New demo password too (2.27). Next: the rest of stage 3.
+- **Our own panel, not Cockpit (decided 2026-11-27):** Cockpit worked (branch
+  `plone-panel`, PR #124), but Ubuntu ships it in universe and hasn't fixed
+  its security issues promptly (CVE-2026-4802, high, still open in 26.04 and
+  24.04 six months on; two denial-of-service CVEs untriaged), and any Cockpit
+  login can run commands as itself, so hiding its screens didn't limit the
+  box login. Ours: nginx asks for the login (basic auth, a hashed password,
+  fail2ban's nginx-http-auth jail) and serves the page; `plone-panel-api`
+  (Python's standard library only) answers it as the sandboxed
+  `plone-panel` user (`systemd-analyze security`: 1.2), started on demand
+  and stopped after 15 idle minutes; root work only through
+  `plone-panel helper` on a socket only that user can open.
+- **Before it's on by default:** it's a preview; let it settle, then decide.
+  The address question stays: a site with a domain name needs the `box`
+  DNS record first, so start on port 8443 and move to `box.<domain>` once
+  the record works.
+- **A code from an authenticator app at login (2.28, opt-in):** set aside on
+  2026-11-27. It means our own login page, sessions and cookies instead of
+  nginx's login (TOTP itself is a few lines of the standard library), a QR
+  code at setup, and a way back for a lost phone (over SSH). Its own
+  security review.
+- **In other languages:** the page is in English only. Translate it (and the
+  words from `plone-status --json`) when there are translators.
 - **In stages, lowest risk first:** (1) a `status` every command can report
   to a program, and one `plone-status` for the whole server (last backup and
   restore test, last update, disk, what's on), which MCP can use too; (2) a
@@ -193,13 +239,20 @@ Model Context Protocol (MCP): ask "is my site healthy?", "when was the last
 backup?", "why did last night's update fail?", and have it answer from the
 server itself.
 
+- **Done in 2.27 (stage 1, preview):** `plone-mcp`, over SSH (stdio), with
+  read-only tools and three of the panel's buttons. Next: MCP over HTTPS
+  for people without SSH (at the panel's address; Claude.ai's connectors
+  want an OAuth login), and the site's content (below).
 - **The server:** an MCP server on the box with the same tools underneath as
   the control panel (above): status, backups, the restore test, updates, logs,
   graphs. Read-only first; anything that changes the site (restore, turn
   something off) only with your say-so, and a way back.
-- **The site's content:** editing pages and finding content through
-  plone.restapi. Look first for an MCP server the Plone community already has
-  or is building, and use that rather than our own.
+- **The site's content:** the Plone community's
+  [`@plone/mcp`](https://github.com/plone/plone-mcp) (MIT, an alpha as of
+  2026-11; Node.js, on your computer, through the REST API) does it; the
+  setup guide shows it next to ours, with an Editor login. Nothing to build;
+  follow its releases, and consider its HTTP version with the MCP-over-HTTPS
+  stage.
 - **Safe by default:** off until you turn it on, its own token, only over
   HTTPS, and nothing an assistant does that SSH couldn't undo. Consider the
   separate-service question as for the control panel, so it still works when
@@ -231,8 +284,8 @@ server itself.
   production sites: restarts after security updates, disk warnings, notices when a tool is cut off, backup problems
   by email, SSH keys only and fail2ban, and the guide's uptime checks and outgoing ports. In 2.25: a monthly
   restore test, the server's own mail, logs to a syslog service, `plone-cloudflare`, DigitalOcean's free alerts
-  from Terraform, and the GitHub Actions pinned to commit hashes. Still open: review the
-  security headers against current recommendations, and moving to a new Plone version (6.3) still takes a person.
+  from Terraform, and the GitHub Actions pinned to commit hashes. In 2.27: the security headers, reviewed
+  against OWASP's recommendations. Still open: moving to a new Plone version (6.3) still takes a person.
 - [ ] **More add-ons in the catalog.** Suggest Plone and Volto add-ons that work on a box, and invite their
   authors to add a Try It page (`addons.yml`, see docs/try-it-buttons.md), for example starting from
   [Awesome Volto](https://github.com/collective/awesome-volto). As of November 2026 it is still maintained but

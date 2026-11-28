@@ -58,6 +58,9 @@
 #                          PIAB_TEST_METRICS_USER, and the token in the
 #                          Keychain as piab-metrics-token; then check numbers
 #                          went out
+#   --panel                turn on the control panel from the launch form
+#                          (CONTROL_PANEL=yes: port 8443), check its login,
+#                          page, buttons and limits, then turn it off again
 #   --expect-backend-fallback
 #                          with --backend-image: expect setup to use the
 #                          official Plone backend instead (an image that can't
@@ -151,7 +154,7 @@ SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 SITE_LANGUAGE="" NO_STARTER=0 REAL_CERT=0 UPDATES=0 NOTIFY_URL="" MAIL_TO="" REGISTRY_USER="" REGISTRY_TOKEN=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM="" SPAMHAUS=0 SPAMHAUS_KEY=""
-LOGS=0 LOG_SERVER="" LOG_TOKEN="" METRICS=0 METRICS_ENDPOINT="" METRICS_USER="" METRICS_TOKEN=""
+PANEL=0 LOGS=0 LOG_SERVER="" LOG_TOKEN="" METRICS=0 METRICS_ENDPOINT="" METRICS_USER="" METRICS_TOKEN=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
@@ -185,6 +188,7 @@ while (( $# )); do
     --spamhaus) SPAMHAUS=1 ;;
     --logs) LOGS=1 ;;
     --metrics) METRICS=1 ;;
+    --panel) PANEL=1 ;;
     --site-language) SITE_LANGUAGE=${2:?--site-language needs a value}; shift ;;
     --no-starter-content) NO_STARTER=1 ;;
     --real-cert) REAL_CERT=1 ;;
@@ -252,6 +256,8 @@ if (( LOGS )); then
   [[ "$LOG_SERVER" =~ ^[A-Za-z0-9.-]+:[0-9]+$ ]] || die "--logs needs PIAB_TEST_LOG_SERVER, as HOST:PORT"
   LOG_TOKEN=$(keychain_token piab-log-token || true)
 fi
+CONTROL_PANEL=no
+(( PANEL )) && CONTROL_PANEL=yes
 if (( METRICS )); then
   METRICS_ENDPOINT=${PIAB_TEST_METRICS_ENDPOINT:-}
   METRICS_USER=${PIAB_TEST_METRICS_USER:-}
@@ -464,6 +470,7 @@ launcher() {
       ${NOTIFY_URL:+"export NOTIFY_URL='$NOTIFY_URL'"} \
       ${MAIL_TO:+"$(mail_exports)"} \
       ${obs_lines:+"$obs_lines"} \
+      "export CONTROL_PANEL='$CONTROL_PANEL'" \
       "curl -fsSL --retry 10 --retry-all-errors -o /root/plone-in-a-box.sh https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/$SHA/src/StackScript && bash /root/plone-in-a-box.sh"
     return
   fi
@@ -481,6 +488,7 @@ launcher() {
           -e "s|^export DEMO_PASSWORD=''$|export DEMO_PASSWORD='$DEMO_PASSWORD_SET'|" \
           -e "s|^export DEMO_ROLES=''$|export DEMO_ROLES='$DEMO_ROLES'|" \
           -e "s|^export NOTIFY_URL=''$|export NOTIFY_URL='${NOTIFY_URL//&/\\&}'|" \
+          -e "s/^export CONTROL_PANEL='no'$/export CONTROL_PANEL='$CONTROL_PANEL'/" \
           -e "s/^PIAB_RELEASE='[^']*'$/PIAB_RELEASE='$SHA'/")
   if [[ -n "$STAGING" ]]; then
     text=$(awk -v line="export LETSENCRYPT_STAGING='yes'" '/^export SITE_TIMEZONE=/ { print line } 1' <<<"$text")
@@ -554,7 +562,7 @@ if [[ "$PROVIDER" == linode ]]; then
       --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
       --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
       --arg log_server "$LOG_SERVER" --arg log_token "$LOG_TOKEN" --arg metrics_endpoint "$METRICS_ENDPOINT" \
-      --arg metrics_user "$METRICS_USER" --arg metrics_token "$METRICS_TOKEN" \
+      --arg metrics_user "$METRICS_USER" --arg metrics_token "$METRICS_TOKEN" --arg panel "$CONTROL_PANEL" \
       '{region: $region, type: $type, image: ("linode/ubuntu" + $ubuntu), label: $label, tags: [$tag],
         root_pass: $root, authorized_keys: [$key], stackscript_id: $ss,
         # Only the fields that are set, so older releases (without them) work too.
@@ -563,7 +571,8 @@ if [[ "$PROVIDER" == linode ]]; then
             SMTP_HOST: $smtp_host, SMTP_PORT: $smtp_port, SMTP_USER: $smtp_user, SMTP_PASSWORD: $smtp_password,
             EMAIL_FROM: $email_from, REPORT_EMAIL: $report_email, SPAMHAUS_KEY: $spamhaus,
             LOG_SERVER: $log_server, LOG_TOKEN: $log_token, METRICS_ENDPOINT: $metrics_endpoint,
-            METRICS_USER: $metrics_user, METRICS_TOKEN: $metrics_token}
+            METRICS_USER: $metrics_user, METRICS_TOKEN: $metrics_token,
+            CONTROL_PANEL: (if $panel == "yes" then "yes" else "" end)}
           | with_entries(select(.value != ""))),
         booted: true}
        + (if $fw == "" then {} else {firewall_id: ($fw | tonumber)} end)')
@@ -643,13 +652,14 @@ else
         --arg smtp_host "$SMTP_HOST" --arg smtp_port "$SMTP_PORT" --arg smtp_user "$SMTP_USER" \
         --arg smtp_password "$SMTP_PASSWORD" --arg email_from "$EMAIL_FROM" --arg report_email "$MAIL_TO" \
         --arg log_server "$LOG_SERVER" --arg log_token "$LOG_TOKEN" --arg metrics_endpoint "$METRICS_ENDPOINT" \
-        --arg metrics_user "$METRICS_USER" --arg metrics_token "$METRICS_TOKEN" \
+        --arg metrics_user "$METRICS_USER" --arg metrics_token "$METRICS_TOKEN" --arg panel "$CONTROL_PANEL" \
       '{AdminPassword: $pw, KeyName: $key, Release: $release, InstanceType: $type, Addons: $addons,
         FrontendImage: $frontend, BackendImage: $backend, RegistryUser: $reg_user, RegistryToken: $reg_token, SiteLanguage: $lang, StarterContent: $content, DemoUser: $demo, DemoPassword: $demopw, DemoRoles: $roles, NotifyUrl: $notify,
         SmtpHost: $smtp_host, SmtpPort: $smtp_port, SmtpUser: $smtp_user, SmtpPassword: $smtp_password,
         EmailFrom: $email_from, ReportEmail: $report_email, SpamhausKey: $spamhaus,
         LogServer: $log_server, LogToken: $log_token, MetricsEndpoint: $metrics_endpoint,
-        MetricsUser: $metrics_user, MetricsToken: $metrics_token}
+        MetricsUser: $metrics_user, MetricsToken: $metrics_token,
+        ControlPanel: (if $panel == "yes" then "yes" else "" end)}
        | to_entries | map(select(.value != "") | {ParameterKey: .key, ParameterValue: .value})' \
       > "$WORK/cloudformation-parameters.json"
     say "Creating stack $NAME from src/aws/cloudformation.yaml"
@@ -997,7 +1007,12 @@ headers() { curl -s -m 20 -o /dev/null -D - -H 'Accept-Encoding: gzip' "$@" | tr
 has_security_headers() {
   local h
   h=$(headers "$@")
-  grep -qix 'x-frame-options: SAMEORIGIN' <<<"$h" && grep -qix 'x-content-type-options: nosniff' <<<"$h"
+  grep -qix 'x-frame-options: SAMEORIGIN' <<<"$h" && grep -qix 'x-content-type-options: nosniff' <<<"$h" \
+    && grep -qix 'referrer-policy: strict-origin-when-cross-origin' <<<"$h" \
+    && grep -qix "content-security-policy: frame-ancestors 'self'; base-uri 'self'; object-src 'none'" <<<"$h" \
+    && grep -qix 'permissions-policy: camera=(), microphone=(), payment=(), usb=()' <<<"$h" \
+    && ! grep -qi '^x-powered-by:' <<<"$h" \
+    && [[ $(grep -ci '^x-frame-options:' <<<"$h") == 1 ]]
 }
 js=$(curl -s -m 20 "$SITE/" | grep -oE '/(static/js|assets)/[^"]*\.js' | head -n 1)
 check "security headers on pages" has_security_headers "$SITE/"
@@ -1035,6 +1050,75 @@ for secret in "$LOG_TOKEN" "$METRICS_TOKEN"; do
   check "a log or graphs token isn't in the setup log or credentials file" \
     rssh "! grep -qF -- $(printf '%q' "$secret") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
 done
+
+# --- AI assistant (MCP over SSH) -------------------------------------------------------
+
+mcp_session() {  # what an assistant would send: initialize, list the tools, call $1 with $2
+  local tool_args=${2:-'{}'}
+  printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+    "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$tool_args}}" \
+    | ssh "${SSH_OPTS[@]}" "${SSH_USER:-root}@$IP" ${SUDO:+sudo} plone-mcp 2>/dev/null
+}
+mcp_out=$(mcp_session site_status)
+check "plone-mcp answers an assistant over SSH (MCP)" \
+  jq -se '.[0].result.serverInfo.name == "plone-in-a-box" and (.[1].result.tools | length) >= 10' <<<"$mcp_out"
+check "plone-mcp's site_status says the site works" \
+  jq -se '.[2].result.isError == false and .[2].result.structuredContent.site.ok == true' <<<"$mcp_out"
+check "plone-mcp lists the backups" \
+  jq -se '.[2].result.isError == false and (.[2].result.structuredContent.on_server | type) == "array"' <<<"$(mcp_session list_backups)"
+check "plone-mcp hides secrets in the logs it shows" \
+  rssh "python3 -I -c 'import runpy; r = runpy.run_path(\"/usr/local/bin/plone-mcp\")[\"redact\"](\"SMTP_PASSWORD=s3cret Authorization: Bearer t0k https://u:pw@h/\"); assert \"s3cret\" not in r and \"t0k\" not in r and \"pw@\" not in r, r'"
+
+# --- Control panel ---------------------------------------------------------------------
+
+if (( PANEL )); then
+  # Turned on by setup (CONTROL_PANEL=yes), on port 8443 of the site's address.
+  panel_line=$(rssh "grep '^Control panel' /root/plone-credentials.txt" 2>/dev/null)
+  panel_pw=$(sed -n 's#.*, login box / \([A-Za-z0-9]*\)$#\1#p' <<<"$panel_line")
+  PANEL_URL="https://$IP:8443"
+  check "setup turned on the control panel (credentials file)" grep -qF "Control panel (preview): $PANEL_URL, login box / " <<<"$panel_line"
+  check "setup gave the control panel a password" test -n "$panel_pw"
+  check "the control panel asks for the login" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$PANEL_URL/') == 401 ]]"
+  check "the control panel refuses a wrong password" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u box:wrong-password '$PANEL_URL/') == 401 ]]"
+  check "the control panel's page opens with the password" bash -c "curl -s -m 20 -u 'box:$panel_pw' '$PANEL_URL/' | grep -q 'panel.js'"
+  check "the control panel shows the status" bash -c "curl -s -m 60 -u 'box:$panel_pw' '$PANEL_URL/api/status' | python3 -c 'import json, sys; assert json.load(sys.stdin)[\"site\"][\"ok\"]'"
+  check "the control panel's buttons refuse a request from another site" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: https://example.org' '$PANEL_URL/api/do/backup') == 403 ]]"
+  check "the control panel only does what its buttons do" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/plone-panel-off') == 404 ]]"
+  check "the control panel's Back up now starts a backup" bash -c "curl -s -m 60 -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup' | grep -q 'backup is running'"
+  check "the control panel's buttons work at most once a minute" bash -c "[[ \$(curl -s -m 60 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup') == 429 ]]"
+  if [[ -n "$DEMO_USER" ]]; then
+    demo_out=$(curl -s -m 280 -u "box:$panel_pw" -X POST -H 'X-Plone-Panel: 1' -H "Origin: $PANEL_URL" "$PANEL_URL/api/do/demo-password")
+    demo_new=$(python3 -c 'import json, sys; m = json.load(sys.stdin)["message"]; print(m.rsplit(": ", 1)[1] if "has this password: " in m else "")' <<<"$demo_out" 2>/dev/null)
+    check "the control panel makes a new demo password" test -n "$demo_new"
+    [[ -z "$demo_new" ]] || DEMO_PASSWORD=$demo_new  # the later checks use the new one
+    check "the new demo password logs in" demo_login
+    check "the credentials file has the new demo password" rssh "grep -q '^Demo login: $DEMO_USER / $demo_new' /root/plone-credentials.txt"
+  fi
+  check "the control panel follows the backup" bash -c "curl -s -m 20 -u 'box:$panel_pw' '$PANEL_URL/api/job/backup' | grep -q '\"state\"'"
+  check "the control panel's program can't change the server" rssh "p=\$(systemctl show -p User,NoNewPrivileges,ProtectSystem plone-panel.service); grep -qx User=plone-panel <<<\"\$p\" && grep -qx NoNewPrivileges=yes <<<\"\$p\" && grep -qx ProtectSystem=strict <<<\"\$p\""
+  check "only the control panel's program can ask root" rssh "! sudo -u nobody bash -c 'echo status | nc -U -q1 /run/plone-panel/helper.sock' 2>/dev/null | grep -q site"
+  check "repeated failed logins to the control panel are blocked (fail2ban)" rssh "fail2ban-client status nginx-http-auth | grep -q 'Total failed:[[:space:]]*[1-9]'"
+  check "the control panel's program (port 8092) is closed from outside" port_closed 8092
+  check "the site still works with the control panel on" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$SITE/') == 200 ]]"
+  # Only in the credentials file, like the admin password.
+  check "the control panel's password isn't logged or kept elsewhere in plain text" \
+    rssh "! grep -rqF -- $(printf '%q' "${panel_pw:-none}") /var/log/plone-in-a-box.log /var/log/plone-panel.log /etc/nginx"
+  # Behind Cloudflare, port 8443 is for Cloudflare only (a stand-in list
+  # here: turning Cloudflare on needs a domain pointing at it).
+  rssh "printf '173.245.48.0/20\n' > /var/lib/plone-in-a-box/cloudflare-ranges && plone-cloudflare panel" >/dev/null 2>&1
+  check "behind Cloudflare, the control panel's port is for Cloudflare only" \
+    rssh "ufw status | grep -q '^8443/tcp .*ALLOW.*173.245.48.0/20' && ! ufw status | grep -qE '^8443/tcp +ALLOW +Anywhere'"
+  check "behind Cloudflare, port 8443 is closed to everyone else" port_closed 8443
+  rssh "rm -f /var/lib/plone-in-a-box/cloudflare-ranges && plone-cloudflare panel" >/dev/null 2>&1
+  check "without Cloudflare, the control panel's port is open again" \
+    rssh "ufw status | grep -qE '^8443/tcp +ALLOW +Anywhere' && ! ufw status | grep -q 173.245.48.0/20"
+  rssh "plone-panel off" >/dev/null 2>&1
+  check "plone-panel off closes port 8443" port_closed 8443
+  check "plone-panel off removes the password" rssh "! test -e /etc/nginx/plone-panel.htpasswd"
+fi
 
 # --- Server state ---------------------------------------------------------------------
 

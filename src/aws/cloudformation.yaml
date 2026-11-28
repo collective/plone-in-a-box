@@ -73,6 +73,10 @@ Metadata:
           - MetricsUser
           - MetricsToken
       - Label:
+          default: Control panel (optional)
+        Parameters:
+          - ControlPanel
+      - Label:
           default: Advanced (leave as is)
         Parameters:
           - PloneVersion
@@ -146,6 +150,8 @@ Metadata:
         default: OpenTelemetry user
       MetricsToken:
         default: OpenTelemetry token
+      ControlPanel:
+        default: Control panel (preview)
       PloneVersion:
         default: Plone backend image tag
       VoltoVersion:
@@ -395,6 +401,13 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: The OpenTelemetry service's token.
+  ControlPanel:
+    Type: String
+    Default: "no"
+    AllowedValues: ["yes", "no"]
+    Description: >-
+      A page in your browser that shows how your site is doing, with a few buttons, at
+      https://<your site>:8443. Its login is saved next to the admin password.
   PloneVersion:
     Type: String
     Default: "6.2"
@@ -407,7 +420,7 @@ Parameters:
     Description: plone/plone-frontend Docker image tag.
   Release:
     Type: String
-    Default: "2.26"
+    Default: "2.27"
     AllowedPattern: '^[A-Za-z0-9._/-]+$'
     Description: The Plone in a Box release whose provisioning script the server downloads.
   LatestAmiId:
@@ -449,6 +462,18 @@ Resources:
           IpProtocol: tcp
           FromPort: 443
           ToPort: 443
+          CidrIpv6: ::/0
+        # The control panel on a site without a domain name: nothing answers
+        # until you turn it on (sudo plone-panel on).
+        - Description: Plone in a Box control panel
+          IpProtocol: tcp
+          FromPort: 8443
+          ToPort: 8443
+          CidrIp: 0.0.0.0/0
+        - Description: Plone in a Box control panel (IPv6)
+          IpProtocol: tcp
+          FromPort: 8443
+          ToPort: 8443
           CidrIpv6: ::/0
 
   # The server is never deleted by accident: termination protection makes AWS
@@ -528,9 +553,10 @@ Resources:
             METRICS_ENDPOINT="$(d '${MetricsEndpointB64}')"
             METRICS_USER='${MetricsUser}'
             METRICS_TOKEN="$(d '${MetricsTokenB64}')"
+            CONTROL_PANEL='${ControlPanel}'
             export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL
             export SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY
-            export LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN
+            export LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN CONTROL_PANEL
             SCRIPT_URL='https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${Release}/src/StackScript'
             SCRIPT=$(mktemp)
             if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \
