@@ -3742,6 +3742,7 @@ EOF
     systemctl daemon-reload
     systemctl enable cockpit.socket >/dev/null 2>&1
     systemctl restart cockpit.socket
+    systemctl try-restart cockpit.service  # a running one reads the new settings
     systemctl reload nginx
     printf '%s\n' "$url" > "$STATE"
     say "The control panel is on: $url/plone-in-a-box"
