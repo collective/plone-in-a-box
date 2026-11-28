@@ -3631,6 +3631,10 @@ button:disabled { opacity: .5; cursor: default; }
 .section { font-size: 1.15rem; margin: 2rem 0 .6rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .result { min-height: 1.5em; font-weight: 600; }
+.secret-line { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .5rem; font-weight: 400; }
+.secret { font: 1.15rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .04em;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .3rem .6rem;
+  overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
 EOF
   cat > "$PAGE/panel.js" <<'EOF'
 // Plain words from plone-status --json, which /api/status passes on.
@@ -3750,10 +3754,44 @@ function run(action, question, button) {
     .then(function (out) {
       if (BACKGROUND[action]) { follow(action, button); return; }
       button.disabled = false;
-      result.textContent = out.message;
+      showResult(out.message);
       check();
     })
     .catch(function (e) { button.disabled = false; result.textContent = e.message; });
+}
+// A message; a new password in it goes on its own line, in a monospace
+// font (0 and O, l and 1 are easier to tell apart), with a Copy button.
+function showResult(message) {
+  var result = document.getElementById("result");
+  var m = /^(.*has this password:) (\S+)$/.exec(message || "");
+  result.textContent = m ? m[1] : message;
+  if (!m) return;
+  var line = document.createElement("div");
+  line.className = "secret-line";
+  var code = document.createElement("code");
+  code.className = "secret";
+  code.textContent = m[2];
+  var copy = document.createElement("button");
+  copy.type = "button";
+  copy.textContent = "Copy";
+  function select() {
+    var range = document.createRange();
+    range.selectNodeContents(code);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    copy.textContent = "Selected: copy it";
+  }
+  copy.addEventListener("click", function () {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) return select();
+    navigator.clipboard.writeText(m[2]).then(function () {
+      copy.textContent = "Copied";
+      setTimeout(function () { copy.textContent = "Copy"; }, 2000);
+    }, select);
+  });
+  line.appendChild(code);
+  line.appendChild(copy);
+  result.appendChild(line);
 }
 // Every few seconds: is it still running?
 function follow(action, button) {
