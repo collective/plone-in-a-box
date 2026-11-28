@@ -3731,7 +3731,9 @@ EOF
     # The IP address case has no HSTS (browsers ignore it for addresses).
     is_ip "$site_host" && sed -i '/Strict-Transport-Security/d' "$NGINX_CONF"
     install -d -m 755 /etc/cockpit
-    printf '[WebService]\nOrigins = %s\nProtocolHeader = X-Forwarded-Proto\nLoginTitle = Plone in a Box control panel\n' "$url" > /etc/cockpit/cockpit.conf
+    # LoginTo = false: no "Connect to" another server from the login page, so
+    # the panel can't be used to reach other machines over SSH.
+    printf '[WebService]\nOrigins = %s\nProtocolHeader = X-Forwarded-Proto\nLoginTitle = Plone in a Box control panel\nLoginTo = false\n' "$url" > /etc/cockpit/cockpit.conf
     if ! nginx -t >/dev/null 2>&1; then
       rm -f "$NGINX_CONF"
       die "nginx didn't accept the control panel's settings; nothing changed for the site"

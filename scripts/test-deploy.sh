@@ -1065,6 +1065,7 @@ if (( PANEL )); then
   check "box can't do anything else as root" rssh "! sudo -u box sudo -n /usr/bin/id"
   check "box can't log in over SSH" rssh "sshd -T -C user=box,host=x,addr=203.0.113.1 | grep -qix 'denyusers box'"
   check "the control panel's address opens on our page" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{redirect_url}' '$PANEL_URL/') == '$PANEL_URL/plone-in-a-box' ]]"
+  check "the control panel's login page doesn't offer to connect to other servers" rssh "grep -qx 'LoginTo = false' /etc/cockpit/cockpit.conf"
   check "box can start a backup from the panel" rssh "sudo -u box sudo -n /usr/local/bin/plone-panel do backup | grep -q 'backup is running'"
   check "box can't turn the panel's settings around (plone-panel on)" rssh "! sudo -u box sudo -n /usr/local/bin/plone-panel on"
   check "Cockpit itself (port 9090) is closed from outside" port_closed 9090
