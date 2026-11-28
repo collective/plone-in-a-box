@@ -111,6 +111,10 @@ export LOG_REQUESTS='no'
 export METRICS_ENDPOINT=''
 export METRICS_USER=''
 export METRICS_TOKEN=''
+# Control panel (preview): 'yes' turns on a page in your browser that shows how
+# your site is doing, with a few buttons, at https://<your site>:8443. Its
+# login is saved next to the admin password.
+export CONTROL_PANEL='no'
 
 # --- No need to edit below this line -----------------------------------------
 

@@ -39,6 +39,7 @@
 # <UDF name="METRICS_ENDPOINT" label="Graphs, optional: an OpenTelemetry service's OTLP endpoint that gets the server's and the site's numbers, for example https://otlp-gateway-prod-us-east-2.grafana.net/otlp (see Graphs of your server and site in the setup guide)" default="" />
 # <UDF name="METRICS_USER" label="Graphs: your instance ID or user (Grafana Cloud), or header:NAME for a service that takes the token in a header (header:api-key for New Relic)" default="" />
 # <UDF name="METRICS_TOKEN" label="Graphs: the service's token" default="" />
+# <UDF name="CONTROL_PANEL" label="Control panel (preview): a page in your browser that shows how your site is doing, with a few buttons, on port 8443 of the site address. Its login is saved next to the admin password" oneOf="yes,no" default="no" />
 
 NOTICE="This server was created with an obsolete copy of the Plone in a Box StackScript (692002). Next time, use StackScript 931893: https://cloud.linode.com/stackscripts/931893"
 echo "[plone-in-a-box] $NOTICE" >> /var/log/plone-in-a-box.log
@@ -50,7 +51,7 @@ PIAB_RELEASE=$(curl -fsS -m 20 https://api.github.com/repos/tkimnguyen/plone-in-
 PIAB_RELEASE=${PIAB_RELEASE:-2.25}
 SCRIPT_URL="https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${PIAB_RELEASE}/src/StackScript"
 
-export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_PASSWORD DEMO_ROLES SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN
+export ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN AUTO_UPDATE NOTIFY_URL DEMO_USER DEMO_PASSWORD DEMO_ROLES SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN CONTROL_PANEL
 set -uo pipefail
 SCRIPT=$(mktemp)
 if ! curl --fail --silent --show-error --location --retry 10 --retry-delay 5 --retry-all-errors \

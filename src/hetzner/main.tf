@@ -265,6 +265,12 @@ variable "metrics_user" {
   default     = ""
 }
 
+variable "control_panel" {
+  description = "Turn on the control panel (preview): a page in your browser that shows how your site is doing, with a few buttons, at https://<your site>:8443. Its login is saved next to the admin password."
+  type        = bool
+  default     = false
+}
+
 variable "metrics_token" {
   description = "The OpenTelemetry service's token."
   type        = string
@@ -388,6 +394,7 @@ resource "hcloud_server" "plone" {
     "export METRICS_ENDPOINT=\"$(echo ${base64encode(var.metrics_endpoint)} | base64 -d)\"",
     "export METRICS_USER=\"$(echo ${base64encode(var.metrics_user)} | base64 -d)\"",
     "export METRICS_TOKEN=\"$(echo ${base64encode(var.metrics_token)} | base64 -d)\"",
+    "export CONTROL_PANEL=${var.control_panel ? "yes" : "no"}",
     "url=https://raw.githubusercontent.com/tkimnguyen/plone-in-a-box/${var.release}/src/StackScript",
     "if ! curl -fsSL --retry 10 --retry-delay 5 --retry-all-errors -o /root/plone-in-a-box.sh \"$url\"; then",
     "  echo \"[plone-in-a-box] Could not download $url\" | tee -a /var/log/plone-in-a-box.log >&2",
