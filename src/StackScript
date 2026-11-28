@@ -3098,6 +3098,7 @@ when it can't tell, so one missing file doesn't hide the rest.
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -3228,6 +3229,16 @@ def backups():
     out["restore_test"] = check or "not run yet"
     out["restore_test_date"], out["restore_test_summary"] = (check[:10], check[10:].lstrip(" :")) if check else ("", "")
     out["restore_test_ok"] = bool(check) and "FAILED" not in check
+    # The date in the file is the server's (often UTC, so "tomorrow" in the
+    # evening in the Americas): when the test ran, and the backup it tested,
+    # as moments the page shows in the viewer's own time zone.
+    tested = f"{STATE}/backup-check"
+    out["restore_test_iso"] = iso(os.path.getmtime(tested)) if check else ""
+    name = re.search(r"plone-(\d{4}-\d\d-\d\d-\d{4})\.sql\.gz", check)
+    out["restore_test_backup"] = name.group(0) if name else ""
+    out["restore_test_backup_iso"] = stamped(name.group(1), "%Y-%m-%d-%H%M", 15)[0] if name else ""
+    if check:  # for people reading it on the server: with the time zone
+        out["restore_test"] = f"{when(os.path.getmtime(tested))}: {out['restore_test_summary']}"
     return out
 
 
@@ -3441,6 +3452,14 @@ function card(title, text, level) {
   return div;
 }
 function onoff(v) { return v ? "on" : "off"; }
+// The restore test, with its times in the viewer's time zone.
+function restoreTest(b, withWhen) {
+  if (!b.restore_test_summary) return b.restore_test;
+  var text = b.restore_test_summary;
+  if (b.restore_test_backup && b.restore_test_backup_iso)
+    text = text.replace(b.restore_test_backup, "from " + local(b.restore_test_backup_iso, b.restore_test_backup));
+  return withWhen ? local(b.restore_test_iso, b.restore_test_date) + ": " + text : text;
+}
 // A time from the server, in the viewer's own time zone, which it names.
 function local(isoTime, fallback) {
   var d = isoTime ? new Date(isoTime) : null;
@@ -3476,7 +3495,7 @@ function show(s) {
   cards.appendChild(card("Last backup", (b.count ? local(b.newest_iso, b.newest) + " (" + b.newest_mb + " MB)" : "none yet") +
     "; nightly backups " + onoff(b.nightly) + ", offsite copies " + onoff(b.offsite),
     !b.count || b.newest_age_hours > 48 ? "bad" : b.offsite ? "ok" : "warn"));
-  cards.appendChild(card("Restore test", b.restore_test_date ? b.restore_test_date + ": " + b.restore_test_summary : b.restore_test, /FAILED/.test(b.restore_test || "") ? "bad" : b.restore_test_ok ? "ok" : ""));
+  cards.appendChild(card("Restore test", restoreTest(b, true), /FAILED/.test(b.restore_test || "") ? "bad" : b.restore_test_ok ? "ok" : ""));
   cards.appendChild(card("Updates", (u.last_iso ? local(u.last_iso, u.last) + ": " + u.last_summary : u.last) + "; automatic updates " + onoff(u.automatic), u.automatic ? "ok" : "warn"));
   cards.appendChild(card("Notifications", f.notifications ? "sent to " + f.notifications : "off", f.notifications ? "ok" : "warn"));
   cards.appendChild(card("Email", f.email ? "from " + f.email : "not set up when the server was created (see Site Setup > Mail)"));
@@ -3515,7 +3534,7 @@ var BACKGROUND = {
               done: function (s) { return "Backed up " + local(s.backups.newest_iso, s.backups.newest) + "."; },
               failed: "The backup failed. If notifications or email are set up, a notice is on its way." },
   "restore-test": { unit: "plone-backup-check.service", running: "Running the restore test\u2026 This takes a few minutes.",
-                    done: function (s) { return "Restore test: " + s.backups.restore_test_summary; },
+                    done: function (s) { return "Restore test: " + restoreTest(s.backups, false); },
                     failed: "The restore test failed. If notifications or email are set up, a notice is on its way." }
 };
 function run(action, question, button) {
