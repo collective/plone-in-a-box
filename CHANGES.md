@@ -39,6 +39,9 @@
   do demo-password`): gives the demo login a new password after a workshop
   or demo, shows it once, and updates the credentials file.
 - The OpenTelemetry Collector (graphs) is 0.166.0.
+- Behind Cloudflare (`plone-cloudflare on`), the control panel on port 8443
+  is reachable only through Cloudflare too, like the site, so the server's
+  own address stays hidden.
 - **Security headers**, reviewed against OWASP's current recommendations:
   `Referrer-Policy` (what browsers do by default, now said), a
   `Content-Security-Policy` with only the parts that can't break a Plone site

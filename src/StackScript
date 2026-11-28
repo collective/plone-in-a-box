@@ -1854,10 +1854,12 @@ cat > /usr/local/bin/plone-cloudflare <<'PLONE_CLOUDFLARE_EOF'
 #        sudo plone-cloudflare off           (open ports 80 and 443 to everyone again)
 #        sudo plone-cloudflare status
 #        sudo plone-cloudflare refresh       (update Cloudflare's addresses; done once a month)
+# The control panel on port 8443 (plone-panel) gets the same treatment.
 set -uo pipefail
 [[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-cloudflare ${1:-}" >&2; exit 1; }
 STATE_DIR=/var/lib/plone-in-a-box
 RANGES=$STATE_DIR/cloudflare-ranges
+PANEL_RANGES=$STATE_DIR/cloudflare-panel-ranges
 CONF=/etc/nginx/conf.d/plone-cloudflare.conf
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-cloudflare.log; }
 die() { say "$*" >&2; exit 1; }
@@ -1886,6 +1888,31 @@ rule() {  # rule allow|delete RANGE
   fi
 }
 
+# Port 8443, where the control panel can be (plone-panel): with Cloudflare
+# on, only Cloudflare reaches it, like ports 80 and 443 (Cloudflare passes
+# 8443 on too), so the server's address stays hidden; with it off, everyone
+# does; with the panel elsewhere or off, nobody. plone-panel asks for this
+# too (plone-cloudflare panel).
+sync_panel() {
+  local want="" have="" r panel_on_port=0
+  [[ "$(cat "$STATE_DIR/panel" 2>/dev/null)" == *:8443 ]] && panel_on_port=1
+  (( panel_on_port )) && [[ -s "$RANGES" ]] && want=$(cat "$RANGES")
+  [[ -s "$PANEL_RANGES" ]] && have=$(cat "$PANEL_RANGES")
+  while read -r r; do
+    [[ -z "$r" ]] || grep -qxF "$r" <<<"$have" \
+      || ufw allow proto tcp from "$r" to any port 8443 comment 'Cloudflare: control panel' >/dev/null
+  done <<<"$want"
+  while read -r r; do
+    [[ -z "$r" ]] || grep -qxF "$r" <<<"$want" || ufw delete allow proto tcp from "$r" to any port 8443 >/dev/null
+  done <<<"$have"
+  if [[ -n "$want" ]]; then printf '%s\n' "$want" > "$PANEL_RANGES"; else rm -f "$PANEL_RANGES"; fi
+  if (( panel_on_port )) && [[ -z "$want" ]]; then
+    ufw allow 8443/tcp comment 'Plone in a Box control panel' >/dev/null
+  else
+    ufw delete allow 8443/tcp >/dev/null 2>&1
+  fi
+}
+
 # apply LIST: nginx's real-address settings and the firewall rules for LIST,
 # replacing the ones for the previous list.
 apply() {
@@ -1903,6 +1930,7 @@ apply() {
   while read -r r; do grep -qxF "$r" <<<"$old" || rule allow "$r" || die "Adding the firewall rule for $r failed"; done <<<"$list"
   while read -r r; do [[ -z "$r" ]] || grep -qxF "$r" <<<"$list" || rule delete "$r"; done <<<"$old"
   printf '%s\n' "$list" > "$RANGES"
+  sync_panel
   systemctl reload nginx
 }
 
@@ -1953,9 +1981,13 @@ off)
     while read -r r; do [[ -z "$r" ]] || rule delete "$r"; done < "$RANGES"
   fi
   rm -f "$RANGES" "$CONF"
+  sync_panel
   nginx -t -q && systemctl reload nginx
   systemctl disable --now plone-cloudflare.timer 2>/dev/null
   say "Off: ports 80 and 443 are open to everyone again"
+  ;;
+panel)
+  sync_panel
   ;;
 status)
   if [[ -s "$RANGES" ]]; then
@@ -3571,6 +3603,18 @@ demo_user() {
   printf '%s' "$name"
 }
 
+# Port 8443 in the firewall: open while the panel is there, closed
+# otherwise; behind Cloudflare, open to Cloudflare only (plone-cloudflare).
+firewall() {
+  if [[ -x /usr/local/bin/plone-cloudflare ]]; then
+    /usr/local/bin/plone-cloudflare panel
+  elif [[ "$(cat "$STATE" 2>/dev/null)" == *:$PORT ]]; then
+    ufw allow "$PORT/tcp" comment 'Plone in a Box control panel' >/dev/null
+  else
+    ufw delete allow "$PORT/tcp" >/dev/null 2>&1
+  fi
+}
+
 job_unit() {
   case "$1" in
     backup) echo plone-backup.service ;;
@@ -4032,11 +4076,6 @@ EOF
       rm -f "$NGINX_CONF"
       die "nginx didn't accept the control panel's settings; nothing changed for the site"
     fi
-    if [[ "$url" == *:$PORT ]]; then
-      ufw allow "$PORT/tcp" comment 'Plone in a Box control panel' >/dev/null
-    else
-      ufw delete allow "$PORT/tcp" >/dev/null 2>&1  # moved to box.<domain>
-    fi
 
     # Repeated failed logins: blocked like SSH's (fail2ban), if it's on.
     if systemctl is-active --quiet fail2ban; then
@@ -4060,6 +4099,7 @@ EOF
       || die "Couldn't start the control panel (systemctl status plone-panel.socket)"
     systemctl reload nginx
     printf '%s\n' "$url" > "$STATE"
+    firewall
     # nginx reloads in the background: say it's on once it answers.
     hostport=${url#https://}
     [[ $hostport == *:* ]] || hostport="$hostport:443"
@@ -4088,7 +4128,7 @@ EOF
     systemctl daemon-reload
     nginx -t >/dev/null 2>&1 && systemctl reload nginx
     if [[ -f "$JAIL" ]]; then rm -f "$JAIL"; systemctl reload fail2ban 2>/dev/null; fi
-    ufw delete allow "$PORT/tcp" >/dev/null 2>&1
+    firewall
     say "The control panel is off${url:+ ($url no longer answers)}, and its password is gone."
     ;;
   password)

@@ -1085,6 +1085,15 @@ if (( PANEL )); then
   # Only in the credentials file, like the admin password.
   check "the control panel's password isn't logged or kept elsewhere in plain text" \
     rssh "! grep -rqF -- $(printf '%q' "${panel_pw:-none}") /var/log/plone-in-a-box.log /var/log/plone-panel.log /etc/nginx"
+  # Behind Cloudflare, port 8443 is for Cloudflare only (a stand-in list
+  # here: turning Cloudflare on needs a domain pointing at it).
+  rssh "printf '173.245.48.0/20\n' > /var/lib/plone-in-a-box/cloudflare-ranges && plone-cloudflare panel" >/dev/null 2>&1
+  check "behind Cloudflare, the control panel's port is for Cloudflare only" \
+    rssh "ufw status | grep -q '^8443/tcp .*ALLOW.*173.245.48.0/20' && ! ufw status | grep -qE '^8443/tcp +ALLOW +Anywhere'"
+  check "behind Cloudflare, port 8443 is closed to everyone else" port_closed 8443
+  rssh "rm -f /var/lib/plone-in-a-box/cloudflare-ranges && plone-cloudflare panel" >/dev/null 2>&1
+  check "without Cloudflare, the control panel's port is open again" \
+    rssh "ufw status | grep -qE '^8443/tcp +ALLOW +Anywhere' && ! ufw status | grep -q 173.245.48.0/20"
   rssh "plone-panel off" >/dev/null 2>&1
   check "plone-panel off closes port 8443" port_closed 8443
   check "plone-panel off removes the password" rssh "! test -e /etc/nginx/plone-panel.htpasswd"
