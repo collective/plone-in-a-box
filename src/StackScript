@@ -3191,11 +3191,49 @@ def parts():
     return found
 
 
+def running():
+    """The exact versions running (such as 6.2.3), asked of the containers
+    at the same time; {} for any that doesn't answer."""
+    compose = ("docker", "compose", "--project-directory", APP, "exec", "-T")
+    asks = {
+        "plone": compose + ("backend", "/app/bin/python", "-c",
+                            'from importlib.metadata import version; print(version("Products.CMFPlone"))'),
+        "volto": compose + ("frontend", "node", "-p", 'require("@plone/volto/package.json").version'),
+        "aurora": compose + ("frontend", "node", "-p", 'require("@plone/aurora/package.json").version'),
+        "postgresql": compose + ("db", "postgres", "--version"),
+    }
+    procs = {}
+    for name, cmd in asks.items():
+        try:
+            procs[name] = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        except OSError:
+            pass
+    found = {}
+    for name, proc in procs.items():
+        try:
+            out, _ = proc.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            continue
+        words = out.split()  # postgres --version: "postgres (PostgreSQL) 17.12 (Debian ...)"
+        out = (words[2] if name == "postgresql" and len(words) > 2 else words[-1]) if words else ""
+        if proc.returncode == 0 and re.fullmatch(r"[0-9][0-9A-Za-z.+-]*", out):
+            found[name] = out
+    return found
+
+
 def versions(e):
+    exact = running()
+    frontend = "Aurora" if "aurora" in exact and "volto" not in exact else "Volto"
     return {
-        "plone": e.get("PLONE_VERSION", "unknown"),
-        "volto": e.get("VOLTO_VERSION", "unknown"),
-        "postgresql": e.get("POSTGRES_VERSION", "unknown"),
+        # What's running, or the image tags in .env if a part doesn't answer.
+        "plone": exact.get("plone") or e.get("PLONE_VERSION", "unknown"),
+        "volto": exact.get("volto") or exact.get("aurora") or e.get("VOLTO_VERSION", "unknown"),
+        "frontend": frontend,
+        "postgresql": exact.get("postgresql") or e.get("POSTGRES_VERSION", "unknown"),
+        "plone_tag": e.get("PLONE_VERSION", ""),
+        "volto_tag": e.get("VOLTO_VERSION", ""),
+        "postgresql_tag": e.get("POSTGRES_VERSION", ""),
         "backend_image": e.get("BACKEND_IMAGE", "") or "official",
         "frontend_image": e.get("FRONTEND_IMAGE", "") or "official",
     }
@@ -3313,7 +3351,7 @@ def show(s):
     else:
         lines.append(("Parts", "unknown (is Docker running?)"))
     v = s["versions"]
-    lines.append(("Versions", f"Plone {v['plone']}, Volto {v['volto']}, PostgreSQL {v['postgresql']}"))
+    lines.append(("Versions", f"Plone {v['plone']}, {v.get('frontend', 'Volto')} {v['volto']}, PostgreSQL {v['postgresql']}"))
     for kind in ("backend_image", "frontend_image"):
         if v[kind] != "official":
             lines.append((kind.replace("_", " ").capitalize(), v[kind]))
@@ -3645,7 +3683,7 @@ function show(s) {
   cards.appendChild(card("Parts", parts.length ? parts.map(function (n) {
     var p = s.parts[n]; return n + ": " + p.state + (p.health ? " (" + p.health + ")" : "");
   }).join(", ") : "unknown", parts.length && !down.length ? "ok" : "bad"));
-  cards.appendChild(card("Versions", "Plone " + v.plone + ", Volto " + v.volto + ", PostgreSQL " + v.postgresql));
+  cards.appendChild(card("Versions", "Plone " + v.plone + ", " + (v.frontend || "Volto") + " " + v.volto + ", PostgreSQL " + v.postgresql));
   cards.appendChild(card("Disk", d.used_percent + "% used, " + d.free_gb + " GB free", d.used_percent >= 90 ? "bad" : d.used_percent >= 80 ? "warn" : "ok"));
   cards.appendChild(card("Memory", m.used_mb + " MB of " + m.total_mb + " MB in use"));
   cards.appendChild(card("Last backup", (b.count ? local(b.newest_iso, b.newest) + " (" + b.newest_mb + " MB)" : "none yet") +
