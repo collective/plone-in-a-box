@@ -1,22 +1,5 @@
-2.27 (2026-11-28)
+2.27 (unreleased)
 -----------------
-
-Look after your site without the command line:
-
-* **A control panel (preview):** a page on your phone or computer that
-  shows how your site is doing, in plain words, with buttons to back up
-  now, run the restore test, and give the demo login a new password after
-  a workshop. Tick Control panel when you create the server.
-
-* **Ask your AI assistant (preview):** Claude and other assistants can tell
-  you whether your site is healthy, when it was last backed up, or why an
-  update failed, straight from your server.
-
-* **A start page** at https://collective.github.io/plone-in-a-box/ shows
-  the easiest way to get started, and what can wait until your site is
-  running.
-
-* **Safer pages:** up-to-date security headers on every page.
 
 - **A start page** at https://collective.github.io/plone-in-a-box/: the
   easiest way first (pick a provider, choose the admin password, click
