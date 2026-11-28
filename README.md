@@ -106,7 +106,8 @@ Volto front end and PostgreSQL) behind nginx.
   Volto `18`).
 
 **Security**
-* Only the website (HTTP and HTTPS) and SSH are reachable from the internet.
+* Only the website (HTTP and HTTPS) and SSH are reachable from the internet, and the control panel once you turn it
+  on.
 * HTTPS from Let's Encrypt for every site: for your domain name, now or [later](docs/setup-guide.md#adding-a-domain-later),
   or without one, for the server's IP address (`https://<ip>`), renewed automatically.
 * Standard security headers on every page, and nginx doesn't reveal its version.

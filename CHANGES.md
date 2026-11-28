@@ -15,6 +15,21 @@
   and restore test, the last update, and which features are on. Read only.
   `--json` gives the same for programs, the groundwork for the box control
   panel and MCP. Older servers get it from `src/add-updates.sh`.
+- **The Plone in a Box control panel (preview)**: `sudo plone-panel on`
+  shows how your site is doing in your browser, in plain words, on your
+  phone or computer: the same as `plone-status`, with buttons for a few
+  low-risk things (back up now, run the restore test, send a test
+  notification or email, stop sending logs or graphs), and times in your own
+  time zone. Separate from the Plone site, so it still works when Plone
+  doesn't: at `box.<your domain>` (after a DNS record for it), or on port
+  8443 for a site without a domain name. Its own login, `box`, which isn't
+  an account on the server; repeated failed logins are blocked (fail2ban).
+  Our own small program, with nothing to install: nginx asks for the login,
+  and the program, which can't change the server itself, can ask root only
+  for the status and the buttons. Off until you turn it on; `plone-panel
+  off` turns it off again. `scripts/test-deploy.sh --panel` tests it. The
+  Launch Stack template and the Terraform plans' firewalls allow port 8443
+  (nothing answers there until the panel is on).
 - **Security headers**, reviewed against OWASP's current recommendations:
   `Referrer-Policy` (what browsers do by default, now said), a
   `Content-Security-Policy` with only the parts that can't break a Plone site

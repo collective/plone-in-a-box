@@ -58,6 +58,9 @@
 #                          PIAB_TEST_METRICS_USER, and the token in the
 #                          Keychain as piab-metrics-token; then check numbers
 #                          went out
+#   --panel                turn on the control panel (plone-panel on, port
+#                          8443 on a server without a domain name), check its
+#                          login, page and limits, then turn it off again
 #   --expect-backend-fallback
 #                          with --backend-image: expect setup to use the
 #                          official Plone backend instead (an image that can't
@@ -151,7 +154,7 @@ SSH_KEY="${PIAB_TEST_SSH_KEY:-$HOME/.ssh/piab_test_ed25519}"
 
 PROVIDER="" ACTION=deploy REF="" GENERATED=0 KEEP=0 KEEP_ON_FAILURE=0 ADDONS="" ADDONS_SKIPPED=0 FRONTEND_IMAGE="" FRONTEND_FALLBACK=0 BACKEND_IMAGE="" BACKEND_FALLBACK=0 SITE_LANGUAGE="" NO_STARTER=0 REAL_CERT=0 UPDATES=0 NOTIFY_URL="" MAIL_TO="" REGISTRY_USER="" REGISTRY_TOKEN=""
 SMTP_HOST="" SMTP_PORT="" SMTP_USER="" SMTP_PASSWORD="" EMAIL_FROM="" SPAMHAUS=0 SPAMHAUS_KEY=""
-LOGS=0 LOG_SERVER="" LOG_TOKEN="" METRICS=0 METRICS_ENDPOINT="" METRICS_USER="" METRICS_TOKEN=""
+PANEL=0 LOGS=0 LOG_SERVER="" LOG_TOKEN="" METRICS=0 METRICS_ENDPOINT="" METRICS_USER="" METRICS_TOKEN=""
 CLOUDFORMATION=0 DEMO_USER="" DEMO_PASSWORD_SET="" DEMO_ROLES="" EXPECT_DEMO_ROLES="" LINODE_SCRIPT=""
 SERVER_ID="" IP="" FAILURES=0
 
@@ -185,6 +188,7 @@ while (( $# )); do
     --spamhaus) SPAMHAUS=1 ;;
     --logs) LOGS=1 ;;
     --metrics) METRICS=1 ;;
+    --panel) PANEL=1 ;;
     --site-language) SITE_LANGUAGE=${2:?--site-language needs a value}; shift ;;
     --no-starter-content) NO_STARTER=1 ;;
     --real-cert) REAL_CERT=1 ;;
@@ -1040,6 +1044,36 @@ for secret in "$LOG_TOKEN" "$METRICS_TOKEN"; do
   check "a log or graphs token isn't in the setup log or credentials file" \
     rssh "! grep -qF -- $(printf '%q' "$secret") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
 done
+
+# --- Control panel ---------------------------------------------------------------------
+
+if (( PANEL )); then
+  say "Turning on the control panel"
+  panel_out=$(rssh "plone-panel on" 2>&1)
+  panel_pw=$(awk '/^Log in as box/ { getline; print; exit }' <<<"$panel_out")
+  PANEL_URL="https://$IP:8443"
+  check "plone-panel on says where it is" grep -qF "The control panel is on: $PANEL_URL" <<<"$panel_out"
+  check "plone-panel on gives a password" test -n "$panel_pw"
+  check "the control panel asks for the login" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$PANEL_URL/') == 401 ]]"
+  check "the control panel refuses a wrong password" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u box:wrong-password '$PANEL_URL/') == 401 ]]"
+  check "the control panel's page opens with the password" bash -c "curl -s -m 20 -u 'box:$panel_pw' '$PANEL_URL/' | grep -q 'panel.js'"
+  check "the control panel shows the status" bash -c "curl -s -m 60 -u 'box:$panel_pw' '$PANEL_URL/api/status' | python3 -c 'import json, sys; assert json.load(sys.stdin)[\"site\"][\"ok\"]'"
+  check "the control panel's buttons refuse a request from another site" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: https://example.org' '$PANEL_URL/api/do/backup') == 403 ]]"
+  check "the control panel only does what its buttons do" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/plone-panel-off') == 404 ]]"
+  check "the control panel's Back up now starts a backup" bash -c "curl -s -m 60 -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup' | grep -q 'backup is running'"
+  check "the control panel's buttons work at most once a minute" bash -c "[[ \$(curl -s -m 60 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup') == 429 ]]"
+  check "the control panel follows the backup" bash -c "curl -s -m 20 -u 'box:$panel_pw' '$PANEL_URL/api/job/backup' | grep -q '\"state\"'"
+  check "the control panel's program can't change the server" rssh "p=\$(systemctl show -p User,NoNewPrivileges,ProtectSystem plone-panel.service); grep -qx User=plone-panel <<<\"\$p\" && grep -qx NoNewPrivileges=yes <<<\"\$p\" && grep -qx ProtectSystem=strict <<<\"\$p\""
+  check "only the control panel's program can ask root" rssh "! sudo -u nobody bash -c 'echo status | nc -U -q1 /run/plone-panel/helper.sock' 2>/dev/null | grep -q site"
+  check "repeated failed logins to the control panel are blocked (fail2ban)" rssh "fail2ban-client status nginx-http-auth | grep -q 'Total failed:[[:space:]]*[1-9]'"
+  check "the control panel's program (port 8092) is closed from outside" port_closed 8092
+  check "the site still works with the control panel on" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' '$SITE/') == 200 ]]"
+  check "the password isn't kept or logged in plain text" \
+    rssh "! grep -rqF -- $(printf '%q' "${panel_pw:-none}") /var/log/plone-in-a-box.log /var/log/plone-panel.log /root/plone-credentials.txt /etc/nginx"
+  rssh "plone-panel off" >/dev/null 2>&1
+  check "plone-panel off closes port 8443" port_closed 8443
+  check "plone-panel off removes the password" rssh "! test -e /etc/nginx/plone-panel.htpasswd"
+fi
 
 # --- Server state ---------------------------------------------------------------------
 

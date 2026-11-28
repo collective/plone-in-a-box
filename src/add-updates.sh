@@ -61,7 +61,13 @@ main() {
   script=$(curl -fsSL --retry 5 --retry-all-errors "$url") || die "Couldn't download $url"
   block=$(sed -n '/^# >>> update tools$/,/^# <<< update tools$/p' <<<"$script")
   [[ -n "$block" ]] || die "Plone in a Box ${ref} doesn't have the update tools; use release 2.12 or later"
-  APP_DIR="$APP_DIR" bash -euo pipefail -c "$block"
+  # From a file, not bash -c: the block is bigger than one argument may be
+  # (128 KB on Linux).
+  local block_file
+  block_file=$(mktemp)
+  printf '%s\n' "$block" > "$block_file"
+  APP_DIR="$APP_DIR" bash -euo pipefail "$block_file" </dev/null
+  rm -f "$block_file"
   say "Installed plone-update and plone-backup"
   systemctl enable --now plone-backup.timer
   say "The database is backed up every night, and packed once a week (sudo plone-backup to run it now)"
@@ -81,7 +87,7 @@ main() {
     /usr/local/lib/plone-in-a-box/compose-override || true
   fi
   say "To graph the server's and the site's numbers in a service such as Grafana Cloud: sudo plone-otel on ENDPOINT (see the setup guide)"
-  say "To see how the server and site are doing, in one place: sudo plone-status"
+  say "To see how the server and site are doing, in one place: sudo plone-status (or in your browser: sudo plone-panel on)"
 
   # This release's security headers, on servers whose nginx setup has the
   # snippets (2.x); put back as they were if nginx doesn't take them.
