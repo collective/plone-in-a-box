@@ -234,6 +234,10 @@ Model Context Protocol (MCP): ask "is my site healthy?", "when was the last
 backup?", "why did last night's update fail?", and have it answer from the
 server itself.
 
+- **Done in 2.27 (stage 1, preview):** `plone-mcp`, over SSH (stdio), with
+  read-only tools and three of the panel's buttons. Next: MCP over HTTPS
+  for people without SSH (at the panel's address; Claude.ai's connectors
+  want an OAuth login), and the site's content (below).
 - **The server:** an MCP server on the box with the same tools underneath as
   the control panel (above): status, backups, the restore test, updates, logs,
   graphs. Read-only first; anything that changes the site (restore, turn

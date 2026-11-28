@@ -1051,6 +1051,26 @@ for secret in "$LOG_TOKEN" "$METRICS_TOKEN"; do
     rssh "! grep -qF -- $(printf '%q' "$secret") /var/log/plone-in-a-box.log /root/plone-credentials.txt"
 done
 
+# --- AI assistant (MCP over SSH) -------------------------------------------------------
+
+mcp_session() {  # what an assistant would send: initialize, list the tools, call $1 with $2
+  printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+    "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":${2:-\{\}}}}" \
+    | ssh "${SSH_OPTS[@]}" "${SSH_USER:-root}@$IP" ${SUDO:+sudo} plone-mcp 2>/dev/null
+}
+mcp_out=$(mcp_session site_status)
+check "plone-mcp answers an assistant over SSH (MCP)" \
+  jq -se '.[0].result.serverInfo.name == "plone-in-a-box" and (.[1].result.tools | length) >= 10' <<<"$mcp_out"
+check "plone-mcp's site_status says the site works" \
+  jq -se '.[2].result.isError == false and .[2].result.structuredContent.site.ok == true' <<<"$mcp_out"
+check "plone-mcp lists the backups" \
+  jq -se '.[2].result.isError == false and (.[2].result.structuredContent.on_server | type) == "array"' <<<"$(mcp_session list_backups)"
+check "plone-mcp hides secrets in the logs it shows" \
+  rssh "python3 -I -c 'import runpy; r = runpy.run_path(\"/usr/local/bin/plone-mcp\")[\"redact\"](\"SMTP_PASSWORD=s3cret Authorization: Bearer t0k https://u:pw@h/\"); assert \"s3cret\" not in r and \"t0k\" not in r and \"pw@\" not in r, r'"
+
 # --- Control panel ---------------------------------------------------------------------
 
 if (( PANEL )); then

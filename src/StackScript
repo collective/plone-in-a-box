@@ -4184,6 +4184,289 @@ esac
 PLONE_PANEL_EOF
 chmod 755 /usr/local/bin/plone-panel
 
+# Command for an AI assistant (MCP, the Model Context Protocol): plone-mcp
+# Run by the assistant over SSH (ssh root@<server> plone-mcp): it speaks MCP
+# on stdin and stdout, so nothing new is open to the internet, and SSH's
+# keys and fail2ban protect it. Read-only tools about the server and site,
+# and the control panel's low-risk buttons (backup, restore test, test
+# notification), each at most once a minute. Python's standard library only.
+cat > /usr/local/bin/plone-mcp <<'PLONE_MCP_EOF'
+#!/usr/bin/python3 -I
+"""Plone in a Box for AI assistants, over MCP (stdio), through SSH.
+
+Add it to an assistant as a command: ssh root@<server> plone-mcp
+(on AWS: ssh ubuntu@<server> sudo plone-mcp). See "Using an AI assistant"
+in the setup guide.
+"""
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+VERSION = "2.27"
+STATE = "/var/lib/plone-in-a-box"
+BACKUPS = "/var/backups/plone"
+PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
+LOGS = {
+    "setup": "/var/log/plone-in-a-box.log",
+    "update": "/var/log/plone-update.log",
+    "backup": "/var/log/plone-backup.log",
+    "restore-test": "/var/log/plone-backup-check.log",
+    "restore": "/var/log/plone-restore.log",
+    "security-notices": "/var/log/plone-security-notices.log",
+    "control-panel": "/var/log/plone-panel.log",
+    "cloudflare": "/var/log/plone-cloudflare.log",
+    "https": "/var/log/plone-https-ip.log",
+    "reboot": "/var/log/plone-reboot.log",
+}
+JOBS = {"backup": "plone-backup.service", "restore-test": "plone-backup-check.service"}
+# What the control panel's buttons run (plone-panel do ...), at most once a minute.
+ACTIONS = {"backup_now": "backup", "run_restore_test": "restore-test",
+           "send_test_notification": "test-notification"}
+
+
+def run(*cmd, timeout=60):
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return out.returncode, (out.stdout + out.stderr).strip()
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return 1, f"Couldn't run {cmd[0]}: {e}"
+
+
+def read(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+# Secrets don't belong in the logs, but just in case: passwords, tokens and
+# keys after their names, credentials in URLs, and bearer tokens.
+SECRET = re.compile(r"(?i)((?:password|passwd|token|secret|api[_-]?key|authorization)[\"']?\s*[:=]\s*[\"']?)[^\s\"',;]+")
+URL_CREDENTIALS = re.compile(r"(https?://)[^/\s:@]+:[^/\s@]+@")
+BEARER = re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+")
+
+
+def redact(text):
+    text = BEARER.sub(r"\1[hidden]", text)
+    text = SECRET.sub(r"\1[hidden]", text)
+    return URL_CREDENTIALS.sub(r"\1[hidden]@", text)
+
+
+def status(_args):
+    code, text = run("/usr/local/bin/plone-status", timeout=60)
+    _, data = run("/usr/local/bin/plone-status", "--json", timeout=60)
+    try:
+        structured = json.loads(data)
+    except ValueError:
+        structured = None
+    return text, structured, code != 0
+
+
+def backups(args):
+    files = sorted(glob.glob(f"{BACKUPS}/*.sql.gz"), key=os.path.getmtime, reverse=True)
+    rows = [{"file": os.path.basename(f), "size_mb": round(os.path.getsize(f) / 1e6, 1),
+             "time": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(os.path.getmtime(f)))} for f in files]
+    lines = [f"{r['time']}  {r['size_mb']:>8} MB  {r['file']}" for r in rows] or ["No backups on the server yet."]
+    check = read(f"{STATE}/backup-check")
+    lines += ["", "Last restore test: " + (check or "not run yet")]
+    offsite = bool(read(f"{STATE}/offsite.conf"))
+    lines.append("Offsite copies: " + ("on" if offsite else "off (see Backups off the server in the setup guide)"))
+    structured = {"on_server": rows, "restore_test": check, "offsite": offsite}
+    if offsite and args.get("offsite"):
+        code, out = run("/usr/local/bin/plone-offsite", "list", timeout=90)
+        lines += ["", "Offsite copies:", redact(out) if out else "(none listed)"]
+        structured["offsite_list"] = redact(out)
+    return "\n".join(lines), structured, False
+
+
+def updates(_args):
+    status_line = read(f"{STATE}/update-status") or "No update check yet."
+    notice = read(f"{STATE}/update-notice")
+    log = tail(LOGS["update"], 60)
+    text = f"Last update check: {status_line}\n"
+    if notice:
+        text += f"Notice: {notice}\n"
+    timer = run("systemctl", "is-enabled", "plone-update.timer")[1]
+    text += f"Automatic updates: {'on' if timer == 'enabled' else 'off'}\n\nThe update log's last lines:\n{log or '(empty)'}"
+    return text, {"last": status_line, "notice": notice, "automatic": timer == "enabled"}, False
+
+
+def tail(path, lines):
+    if not os.path.exists(path):
+        return ""
+    _, out = run("tail", "-n", str(lines), path, timeout=10)
+    return redact(out)
+
+
+def logs(args):
+    which = args.get("log", "setup")
+    if which not in LOGS:
+        return f"Unknown log {which!r}; one of: {', '.join(LOGS)}", None, True
+    lines = max(1, min(int(args.get("lines", 50) or 50), 300))
+    out = tail(LOGS[which], lines)
+    return out or f"{LOGS[which]} is empty or not there (that feature may never have run).", None, False
+
+
+def features(_args):
+    parts = []
+    for name, cmd in (("Logs (plone-syslog)", "plone-syslog"), ("Graphs (plone-otel)", "plone-otel"),
+                      ("Cloudflare (plone-cloudflare)", "plone-cloudflare"),
+                      ("Control panel (plone-panel)", "plone-panel")):
+        _, out = run(f"/usr/local/bin/{cmd}", "status", timeout=30)
+        parts.append(f"{name}: {redact(out) or 'unknown'}")
+    notify = read(f"{STATE}/notify-url")
+    host = re.sub(r"^https?://([^/:@]+@)?([^/:]+).*", r"\2", notify) if notify else ""
+    parts.append("Notifications: " + (f"sent to {host}" if host else "off"))
+    return "\n".join(parts), None, False
+
+
+def security(_args):
+    notice = read(f"{STATE}/security-notice")
+    log = tail(LOGS["security-notices"], 30)
+    text = ("Latest Plone security notice passed on: " + (notice or "none")) + \
+        "\n\nThe security notices log's last lines:\n" + (log or "(empty)")
+    return text, None, False
+
+
+def job(args):
+    which = args.get("job", "backup")
+    if which not in JOBS:
+        return f"Unknown job {which!r}; one of: {', '.join(JOBS)}", None, True
+    _, out = run("systemctl", "show", "--property=ActiveState,Result", "--value", JOBS[which], timeout=10)
+    state, _, result = out.replace("\n", " ").partition(" ")
+    running = state in ("activating", "active", "deactivating")
+    text = f"The {which} is running." if running else f"The {which} isn't running; the last one ended: {result or 'unknown'}."
+    return text, {"state": state, "result": result, "running": running}, False
+
+
+def action(name):
+    def do(_args):
+        what = ACTIONS[name]
+        last = f"{STATE}/panel-last-{what}"  # shared with the control panel
+        if os.path.exists(last):
+            wait = int(os.path.getmtime(last) + 60 - time.time())
+            if wait > 0:
+                return f"That was just done: try again in {wait} seconds.", None, True
+        os.makedirs(STATE, exist_ok=True)
+        open(last, "a").close()
+        os.utime(last)
+        code, out = run("/usr/local/bin/plone-panel", "do", what, timeout=120)
+        return out, None, code != 0
+    return do
+
+
+TOOLS = [
+    ("site_status", status, True, "How the server and the Plone site are doing: whether the site answers, its parts "
+     "(backend, frontend, database), exact versions, disk, memory, the last backup and restore test, the last "
+     "update, and which features are on. The same as plone-status and the control panel.", {}),
+    ("list_backups", backups, True, "The backups on the server (newest first, with sizes and times), the last restore "
+     "test, and whether offsite copies are on. Set offsite to also list the copies in cloud storage (slower).",
+     {"offsite": {"type": "boolean", "description": "Also list the offsite copies", "default": False}}),
+    ("update_history", updates, True, "The last weekly update check (Plone, Volto and PostgreSQL patch releases), "
+     "any notice about a newer Plone release, whether automatic updates are on, and the update log's last lines, "
+     "for finding out why an update failed.", {}),
+    ("recent_logs", logs, True, "The last lines of one of Plone in a Box's logs, with any secrets hidden. Use it to "
+     "find out why something failed.",
+     {"log": {"type": "string", "enum": list(LOGS), "description": "Which log", "default": "setup"},
+      "lines": {"type": "integer", "minimum": 1, "maximum": 300, "description": "How many lines", "default": 50}}),
+    ("features", features, True, "Which optional features are on and where they send things: logs, graphs, "
+     "Cloudflare, the control panel and notifications.", {}),
+    ("security_notices", security, True, "The latest Plone security announcement passed on to the site owner, and "
+     "the security notices log.", {}),
+    ("job_status", job, True, "Whether a backup or restore test is running now, and how the last one ended.",
+     {"job": {"type": "string", "enum": list(JOBS), "description": "Which job", "default": "backup"}}),
+    ("backup_now", action("backup_now"), False, "Start a database backup now, in the background (a minute or two; "
+     "follow it with job_status). At most once a minute. Changes nothing on the site.", {}),
+    ("run_restore_test", action("run_restore_test"), False, "Start the restore test now, in the background: the "
+     "newest backup is restored into a test database and checked, without touching the site (a few minutes; "
+     "follow it with job_status). At most once a minute.", {}),
+    ("send_test_notification", action("send_test_notification"), False, "Send a test message to the notification "
+     "URL (phone or team chat), to check it works. At most once a minute.", {}),
+]
+
+
+def tool_list():
+    out = []
+    for name, _, read_only, description, props in TOOLS:
+        out.append({"name": name, "description": description,
+                    "inputSchema": {"type": "object", "properties": props, "additionalProperties": False},
+                    "annotations": {"readOnlyHint": read_only, "destructiveHint": False,
+                                    "idempotentHint": read_only, "openWorldHint": False}})
+    return out
+
+
+def call(name, args):
+    for tool_name, fn, *_ in TOOLS:
+        if tool_name == name:
+            try:
+                text, structured, is_error = fn(args if isinstance(args, dict) else {})
+            except Exception as e:  # report it to the assistant, keep serving
+                text, structured, is_error = f"{name} failed: {e}", None, True
+            result = {"content": [{"type": "text", "text": text or "(no output)"}], "isError": bool(is_error)}
+            if isinstance(structured, dict):
+                result["structuredContent"] = structured
+            return result
+    return None
+
+
+def handle(msg):
+    method, mid = msg.get("method"), msg.get("id")
+    if mid is None:
+        return None  # a notification, such as notifications/initialized
+    if method == "initialize":
+        asked = (msg.get("params") or {}).get("protocolVersion")
+        result = {"protocolVersion": asked if asked in PROTOCOLS else PROTOCOLS[0],
+                  "capabilities": {"tools": {}},
+                  "serverInfo": {"name": "plone-in-a-box", "title": "Plone in a Box", "version": VERSION},
+                  "instructions": "Tools for looking after a Plone in a Box server and its Plone site. Start with "
+                                  "site_status. backup_now, run_restore_test and send_test_notification change "
+                                  "nothing on the site; everything else only reads."}
+    elif method == "ping":
+        result = {}
+    elif method == "tools/list":
+        result = {"tools": tool_list()}
+    elif method == "tools/call":
+        params = msg.get("params") or {}
+        result = call(params.get("name"), params.get("arguments") or {})
+        if result is None:
+            return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32602, "message": f"Unknown tool: {params.get('name')}"}}
+    else:
+        return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"Method not found: {method}"}}
+    return {"jsonrpc": "2.0", "id": mid, "result": result}
+
+
+def main():
+    if os.geteuid() != 0:
+        sys.exit("Please run this as root: ssh root@<server> plone-mcp (or sudo plone-mcp)")
+    if sys.stdin.isatty():
+        print("plone-mcp is for AI assistants: add 'ssh root@<this server> plone-mcp' to yours as an MCP server "
+              "(see Using an AI assistant in the setup guide). It reads MCP messages on its input.", file=sys.stderr)
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except ValueError:
+            reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}
+        else:
+            reply = handle(msg) if isinstance(msg, dict) else \
+                {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid request"}}
+        if reply is not None:
+            sys.stdout.write(json.dumps(reply) + "\n")
+            sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()
+PLONE_MCP_EOF
+chmod 755 /usr/local/bin/plone-mcp
+
 # The result of the last update check, at the top of the login message, and
 # security notices from the last 30 days.
 cat > /etc/update-motd.d/90-plone-in-a-box <<'EOF'
