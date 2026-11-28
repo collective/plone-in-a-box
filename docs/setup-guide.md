@@ -439,6 +439,24 @@ and whether a backup or restore test is running. It can also do three of the con
 once a minute: back up now, run the restore test, and send a test notification. Your assistant asks you before
 each of those. Nothing else changes.
 
+**Working on your site's content, too:** the Plone community's own MCP server,
+[`@plone/mcp`](https://github.com/plone/plone-mcp), lets an assistant create and edit pages (Volto blocks
+included), publish them, search the site and manage translations, through the site's REST API. It runs on your
+computer (it needs [Node.js](https://nodejs.org) 22 or newer) and works with any Plone in a Box site as it is. The two
+together in Claude Desktop:
+
+```json
+{ "mcpServers": {
+    "plone-in-a-box": { "command": "ssh", "args": ["-o", "BatchMode=yes", "root@<server address>", "plone-mcp"] },
+    "plone": { "command": "npx", "args": ["-y", "@plone/mcp"],
+               "env": { "PLONE_BASE_URL": "https://<your site>", "PLONE_USERNAME": "<an Editor login>",
+                        "PLONE_PASSWORD": "<its password>" } } } }
+```
+
+Give it a login of its own with the **Editor** role (Site Setup → Users), not `admin`: its password is kept in
+that file on your computer, and an assistant then can't change the site's settings or users. `@plone/mcp` is still
+an alpha; see its README for what it can do.
+
 ### Control panel (preview)
 
 The Plone in a Box™ control panel is a page that shows the same as `plone-status` in plain
