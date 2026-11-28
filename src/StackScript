@@ -3747,6 +3747,13 @@ EOF
     systemctl try-restart cockpit.service  # a running one reads the new settings
     systemctl reload nginx
     printf '%s\n' "$url" > "$STATE"
+    # nginx reloads in the background: say it's on once it answers.
+    hostport=${url#https://}
+    [[ $hostport == *:* ]] || hostport="$hostport:443"
+    for _ in $(seq 30); do
+      [[ $(curl -sk -m 3 -o /dev/null -w '%{http_code}' --resolve "$hostport:127.0.0.1" "$url/") == [23]* ]] && break
+      sleep 0.5
+    done
     say "The control panel is on: $url/plone-in-a-box"
     # Running on again keeps the password (a browser may have saved it); a
     # new login, or one off locked, gets a new one.
