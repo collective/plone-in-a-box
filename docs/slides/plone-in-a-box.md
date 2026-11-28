@@ -38,7 +38,7 @@ style: |
 Your own Plone 6 website on a cloud server,
 easily installed without a command line.
 
-<small>Release 2.26 · November 2026</small>
+<small>Release 2.27 · November 2026</small>
 
 ---
 
@@ -179,6 +179,7 @@ Start with the three steps, then add only what your site needs:
 - **View server logs centrally:** `plone-syslog` sends the server's logs to Better Stack's free plan, Papertrail or your own log server.
 - **See how your site is doing over time:** `plone-otel` sends graphs of your server and site (memory, disk, response times, errors) to Grafana Cloud's free plan or another OpenTelemetry service, with a ready-made dashboard. Thanks to Jean Jordaan for the idea!
 - **From the start:** turn on logs & graphs in the launch form.
+- **Ask your AI assistant** (preview): "is my site healthy?", "when was the last backup?", answered from your server through SSH (MCP).
 - **Secured by Cloudflare:** optional `plone-cloudflare` lets only Cloudflare reach the site and helps block bots and DDOS attacks.
 
 ---
@@ -263,8 +264,9 @@ Examples: **…/try/juizi-dashboard/** and **…/try/aurora/**, Plone's future f
 
 ## What's next
 
-- **A control panel for Plone in a Box™:** turn features on and off and change their settings, without SSH.
-- **MCP:** ask an AI assistant "is my site healthy?" or "when was the last backup?", and have it answer from your server.
+- **The control panel, on by default:** and more of its switches, each with a way back.
+- **Demo content for trying Plone:** a page for each block and content type, from demo.plone.org.
+- **AI assistants without SSH,** and a code from an authenticator app for the control panel.
 - **Plone distributions to try:** kitconcept's intranet and website, and PortalBrasil.
 - **More add-ons** in the catalog, each with its own Try It page.
 
