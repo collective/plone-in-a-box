@@ -183,6 +183,18 @@ Start with the three steps, then add only what your site needs:
 
 ---
 
+<!-- _class: dense -->
+
+## Your site at a glance: the control panel
+
+- **How your site is doing, in plain words,** on your phone or computer: the site, its parts, disk, memory, the last backup and restore test, updates, and what's turned on.
+- **Buttons for the everyday things:** back up now, run the restore test, send a test notification or email, a new demo password after a workshop. You see when each one is done.
+- **Works when Plone doesn't:** it's separate from the site, so it's there when you need it most.
+- **Safe by design:** its own login, failed logins blocked, and it can do only what its buttons do. No extra software: it's built on what the server already has.
+- **Tick Control panel** when you create the server, or turn it on later with `sudo plone-panel on`. A preview in 2.27.
+
+---
+
 ## Add-ons
 
 **Automatically install Plone add-ons** when you create the server.
