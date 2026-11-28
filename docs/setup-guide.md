@@ -415,6 +415,48 @@ frontend, database), the versions, disk and memory, the last backup and restore 
 features are on (notifications, email, logs, graphs, Cloudflare). It changes nothing. `sudo plone-status --json`
 gives the same for programs.
 
+### Using an AI assistant (preview)
+
+Ask your AI assistant "Is my Plone site healthy?", "When was the last backup?" or "Why did last night's update
+fail?", and have it answer from the server itself. `plone-mcp` speaks MCP (the Model Context Protocol, which Claude
+and other assistants use) through your SSH connection, so nothing new is open to the internet, and only someone who
+can already log in over SSH can use it.
+
+* **Claude Code:** `claude mcp add plone-in-a-box -- ssh -o BatchMode=yes root@<server address> plone-mcp`
+* **Claude Desktop** (Settings → Developer → Edit Config), and other assistants that run an MCP server as a command:
+
+  ```json
+  { "mcpServers": { "plone-in-a-box": {
+      "command": "ssh", "args": ["-o", "BatchMode=yes", "root@<server address>", "plone-mcp"] } } }
+  ```
+
+  On AWS, use `ubuntu@<server address>` and `sudo plone-mcp`. Your SSH key needs to work without typing its
+  passphrase (an SSH agent, such as macOS's Keychain, does that).
+
+What it can do: how the server and site are doing (the same as `plone-status`), the backups and the last restore
+test, the update history, the last lines of a log (secrets hidden), which features are on, security notices,
+and whether a backup or restore test is running. It can also do three of the control panel's buttons, each at most
+once a minute: back up now, run the restore test, and send a test notification. Your assistant asks you before
+each of those. Nothing else changes.
+
+**Working on your site's content, too:** the Plone community's own MCP server,
+[`@plone/mcp`](https://github.com/plone/plone-mcp), lets an assistant create and edit pages (Volto blocks
+included), publish them, search the site and manage translations, through the site's REST API. It runs on your
+computer (it needs [Node.js](https://nodejs.org) 22 or newer) and works with any Plone in a Box site as it is. The two
+together in Claude Desktop:
+
+```json
+{ "mcpServers": {
+    "plone-in-a-box": { "command": "ssh", "args": ["-o", "BatchMode=yes", "root@<server address>", "plone-mcp"] },
+    "plone": { "command": "npx", "args": ["-y", "@plone/mcp"],
+               "env": { "PLONE_BASE_URL": "https://<your site>", "PLONE_USERNAME": "<an Editor login>",
+                        "PLONE_PASSWORD": "<its password>" } } } }
+```
+
+Give it a login of its own with the **Editor** role (Site Setup → Users), not `admin`: its password is kept in
+that file on your computer, and an assistant then can't change the site's settings or users. `@plone/mcp` is still
+an alpha; see its README for what it can do.
+
 ### Control panel (preview)
 
 The Plone in a Box™ control panel is a page that shows the same as `plone-status` in plain

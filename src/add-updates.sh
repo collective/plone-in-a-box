@@ -88,6 +88,7 @@ main() {
   fi
   say "To graph the server's and the site's numbers in a service such as Grafana Cloud: sudo plone-otel on ENDPOINT (see the setup guide)"
   say "To see how the server and site are doing, in one place: sudo plone-status (or in your browser: sudo plone-panel on)"
+  say "For an AI assistant (MCP, preview): add 'ssh root@<this server> plone-mcp' to it (see Using an AI assistant in the setup guide)"
 
   # This release's security headers, on servers whose nginx setup has the
   # snippets (2.x); put back as they were if nginx doesn't take them.

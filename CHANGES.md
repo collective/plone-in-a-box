@@ -30,6 +30,15 @@
   off` turns it off again. `scripts/test-deploy.sh --panel` tests it. The
   Launch Stack template and the Terraform plans' firewalls allow port 8443
   (nothing answers there until the panel is on).
+- **Using an AI assistant (MCP, preview)**: `plone-mcp` lets Claude and
+  other assistants answer "is my site healthy?", "when was the last
+  backup?" or "why did the update fail?" from the server itself, through
+  your SSH connection (`ssh root@<server> plone-mcp`), so nothing new is
+  open to the internet. Read-only tools (status, backups, updates, logs
+  with secrets hidden, features, security notices, running jobs), and
+  three of the control panel's buttons (back up now, the restore test, a
+  test notification), each at most once a minute. Older servers get it
+  from `src/add-updates.sh`.
 - **A Control panel field in the launch form** (Linode, the Launch Stack
   template, the Terraform plans and the launcher): turns the panel on at
   `https://<your site>:8443` when the server is created, with its login in

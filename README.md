@@ -105,6 +105,8 @@ Volto front end and PostgreSQL) behind nginx.
 * A [control panel](docs/setup-guide.md#control-panel-preview) (preview): how your site is doing, in plain words, on
   your phone or computer, with buttons to back up now, run the restore test and more. Tick **Control panel** when
   you create the server, or turn it on later.
+* [Ask your AI assistant](docs/setup-guide.md#using-an-ai-assistant-preview) (preview) how your site is doing:
+  Claude and other assistants can check on it through your SSH connection (MCP).
 * Plone 6.2 with Volto 19 by default; both are configurable (for the previous release line, use Plone `6.1` with
   Volto `18`).
 

@@ -217,6 +217,11 @@ restoring a backup.
   The address question stays: a site with a domain name needs the `box`
   DNS record first, so start on port 8443 and move to `box.<domain>` once
   the record works.
+- **A code from an authenticator app at login (2.28, opt-in):** set aside on
+  2026-11-27. It means our own login page, sessions and cookies instead of
+  nginx's login (TOTP itself is a few lines of the standard library), a QR
+  code at setup, and a way back for a lost phone (over SSH). Its own
+  security review.
 - **In other languages:** the page is in English only. Translate it (and the
   words from `plone-status --json`) when there are translators.
 - **In stages, lowest risk first:** (1) a `status` every command can report
@@ -234,13 +239,20 @@ Model Context Protocol (MCP): ask "is my site healthy?", "when was the last
 backup?", "why did last night's update fail?", and have it answer from the
 server itself.
 
+- **Done in 2.27 (stage 1, preview):** `plone-mcp`, over SSH (stdio), with
+  read-only tools and three of the panel's buttons. Next: MCP over HTTPS
+  for people without SSH (at the panel's address; Claude.ai's connectors
+  want an OAuth login), and the site's content (below).
 - **The server:** an MCP server on the box with the same tools underneath as
   the control panel (above): status, backups, the restore test, updates, logs,
   graphs. Read-only first; anything that changes the site (restore, turn
   something off) only with your say-so, and a way back.
-- **The site's content:** editing pages and finding content through
-  plone.restapi. Look first for an MCP server the Plone community already has
-  or is building, and use that rather than our own.
+- **The site's content:** the Plone community's
+  [`@plone/mcp`](https://github.com/plone/plone-mcp) (MIT, an alpha as of
+  2026-11; Node.js, on your computer, through the REST API) does it; the
+  setup guide shows it next to ours, with an Editor login. Nothing to build;
+  follow its releases, and consider its HTTP version with the MCP-over-HTTPS
+  stage.
 - **Safe by default:** off until you turn it on, its own token, only over
   HTTPS, and nothing an assistant does that SSH couldn't undo. Consider the
   separate-service question as for the control panel, so it still works when
