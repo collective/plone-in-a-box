@@ -594,6 +594,8 @@ paid to the provider. Nothing to install on your computer.</p>
 <li><a href="{GUIDE}#updates">notifications</a> on your phone or in your team chat</li>
 <li><a href="{GUIDE}#where-to-send-the-logs">logs</a> &amp; <a href="{GUIDE}#graphs">graphs</a> of your server and site</li>
 <li><a href="{GUIDE}#add-ons">add-ons</a> and a <a href="{GUIDE}#themes-and-frontend-images">theme</a></li>
+<li>a <a href="{GUIDE}#control-panel-preview">control panel</a>: how your site is doing, on your phone, with
+buttons to back up now and more (or tick <strong>Control panel</strong> when you create the server)</li>
 </ul>
 
 <h2 id="linode">Linode (Akamai)</h2>
@@ -638,7 +640,8 @@ with your admin password (at least 12 characters), keeping the quotes:</p>
 <tr><th>Letting others try your site</th><td>A <a href="{GUIDE}#demo-login">demo login</a>, with the roles you
 choose.</td></tr>
 <tr><th>Training or a workshop</th><td>A server per person, each with a demo login, or
-<a href="{GUIDE}#terraform-deployment-automated-more-technical">Terraform</a> for many at once.</td></tr>
+<a href="{GUIDE}#terraform-deployment-automated-more-technical">Terraform</a> for many at once; tick
+<strong>Control panel</strong> to give the demo login a new password after each session.</td></tr>
 <tr><th>Showing off your add-on</th><td>A <a href="try/">Try It page</a> and button for your README
 (<a href="{REPO}/blob/main/docs/try-it-buttons.md">how</a>).</td></tr>
 <tr><th>Full control</th><td>Terraform, your own images, and every setting in the

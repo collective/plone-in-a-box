@@ -415,7 +415,9 @@ frontend, database), the versions, disk and memory, the last backup and restore 
 features are on (notifications, email, logs, graphs, Cloudflare). It changes nothing. `sudo plone-status --json`
 gives the same for programs.
 
-**The same in your browser (preview):** the Plone in a Box™ control panel is a page that shows the same in plain
+### Control panel (preview)
+
+The Plone in a Box™ control panel is a page that shows the same as `plone-status` in plain
 words, on your phone or computer, with buttons for a few low-risk things: back up now, run the restore test, send a
 test notification or email, stop sending logs or graphs, and give the demo login a new password. It's separate
 from the Plone site, so it still works when Plone doesn't. Turn it on with **Control panel** in the launch form

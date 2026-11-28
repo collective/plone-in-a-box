@@ -102,6 +102,9 @@ Volto front end and PostgreSQL) behind nginx.
 * The admin password you choose, or a randomly generated one (there's no `admin:admin`).
 * A page that shows setup progress while you wait, and turns into your site in about 10 minutes.
 * The site's language and time zone, and whether it starts with Plone's welcome page or empty.
+* A [control panel](docs/setup-guide.md#control-panel-preview) (preview): how your site is doing, in plain words, on
+  your phone or computer, with buttons to back up now, run the restore test and more. Tick **Control panel** when
+  you create the server, or turn it on later.
 * Plone 6.2 with Volto 19 by default; both are configurable (for the previous release line, use Plone `6.1` with
   Volto `18`).
 
