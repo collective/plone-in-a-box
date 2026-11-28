@@ -427,8 +427,12 @@ Plone site, so it still works when Plone doesn't.
   yourself, needs TCP port 8443 allowed too.
 * **Login:** `box`, with a password `plone-panel on` shows once (only a hash of it is kept); `sudo plone-panel password`
   makes a new one. It isn't the Plone admin's, and it isn't an account on the server: the panel can show the status
-  and do what its buttons do, nothing else. Addresses that keep failing to log in are blocked for a while, as for
-  SSH. To log out, close the browser.
+  and do what its buttons do (each at most once a minute), nothing else. To log out, close the browser.
+* **Failed logins:** an address that gets the password wrong 5 times in 10 minutes is blocked for an hour, as for
+  SSH, and for the site too when the panel is at `box.<your domain>` (the same port). Blocked yourself? From
+  another connection (your phone's mobile data, say), SSH in and run `sudo fail2ban-client unban <your address>`.
+  Behind Cloudflare, visitors arrive through Cloudflare's addresses, so nobody is blocked; the long password and
+  Cloudflare's own protection remain.
 * `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and deletes the
   password.
 * **How it works:** nginx asks for the login and serves the page; a small program (Python's standard library only,

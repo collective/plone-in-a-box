@@ -3436,7 +3436,8 @@ class Handler(BaseHTTPRequestHandler):
         if not m or m.group(1) not in ACTIONS:
             return self.reply(404, {"ok": False, "message": "Not something the control panel can do."})
         code, text = helper("do " + m.group(1))
-        self.reply(200 if code == 0 else 500, {"ok": code == 0, "message": text.strip()})
+        status = 200 if code == 0 else 429 if code == 4 else 500  # 4: pressed again too soon
+        self.reply(status, {"ok": code == 0, "message": text.strip()})
 
     def log_message(self, fmt, *args):
         pass  # nginx logs the requests
@@ -3965,6 +3966,7 @@ EOF
     rm -f "$NGINX_CONF" "$PASSWORDS" "$STATE" "$UNITS"/plone-panel.socket "$UNITS"/plone-panel.service \
       "$UNITS"/plone-panel-helper.socket "$UNITS"/plone-panel-helper@.service
     rm -rf "$PAGE"
+    rm -f "$STATE_DIR"/panel-last-*
     systemctl daemon-reload
     nginx -t >/dev/null 2>&1 && systemctl reload nginx
     if [[ -f "$JAIL" ]]; then rm -f "$JAIL"; systemctl reload fail2ban 2>/dev/null; fi
@@ -4007,6 +4009,14 @@ EOF
         printf '%s\n%s\n' "$rc" "$out" ;;
       do)
         [[ " $ACTIONS " == *" ${arg:-none} "* ]] || { printf '2\nNot something the control panel can do\n'; exit 0; }
+        # Each button at most once a minute, so a stolen password can't, say,
+        # send test emails over and over (and hurt the domain's reputation).
+        last=$STATE_DIR/panel-last-$arg
+        if [[ -f "$last" ]]; then
+          wait=$(( $(stat -c %Y "$last") + 60 - $(date +%s) ))
+          if (( wait > 0 )); then printf '4\nYou just did that: try again in %s seconds.\n' "$wait"; exit 0; fi
+        fi
+        touch "$last"
         out=$(/usr/local/bin/plone-panel "do" "$arg" 2>&1); rc=$?
         printf '%s\n%s\n' "$rc" "$out" ;;
       job)

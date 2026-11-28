@@ -1061,6 +1061,7 @@ if (( PANEL )); then
   check "the control panel's buttons refuse a request from another site" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: https://example.org' '$PANEL_URL/api/do/backup') == 403 ]]"
   check "the control panel only does what its buttons do" bash -c "[[ \$(curl -s -m 20 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/plone-panel-off') == 404 ]]"
   check "the control panel's Back up now starts a backup" bash -c "curl -s -m 60 -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup' | grep -q 'backup is running'"
+  check "the control panel's buttons work at most once a minute" bash -c "[[ \$(curl -s -m 60 -o /dev/null -w '%{http_code}' -u 'box:$panel_pw' -X POST -H 'X-Plone-Panel: 1' -H 'Origin: $PANEL_URL' '$PANEL_URL/api/do/backup') == 429 ]]"
   check "the control panel follows the backup" bash -c "curl -s -m 20 -u 'box:$panel_pw' '$PANEL_URL/api/job/backup' | grep -q '\"state\"'"
   check "the control panel's program can't change the server" rssh "systemctl show -p User,NoNewPrivileges,ProtectSystem plone-panel.service | paste -sd ' ' | grep -qx 'User=plone-panel NoNewPrivileges=yes ProtectSystem=strict'"
   check "only the control panel's program can ask root" rssh "! sudo -u nobody bash -c 'echo status | nc -U -q1 /run/plone-panel/helper.sock' 2>/dev/null | grep -q site"
