@@ -439,6 +439,9 @@ credentials file), or later with `sudo plone-panel on`.
   another connection (your phone's mobile data, say), SSH in and run `sudo fail2ban-client unban <your address>`.
   Behind Cloudflare, visitors arrive through Cloudflare's addresses, so nobody is blocked; the long password and
   Cloudflare's own protection remain.
+* **Behind Cloudflare** (`plone-cloudflare on`): the panel is only reachable through Cloudflare too, so the server's
+  own address stays hidden: on port 8443, only Cloudflare's addresses get through (Cloudflare passes 8443 on), and
+  `box.<your domain>` needs the orange cloud, like the site.
 * `sudo plone-panel status` says whether it's on and where; `sudo plone-panel off` turns it off and deletes the
   password.
 * **How it works:** nginx asks for the login and serves the page; a small program (Python's standard library only,
