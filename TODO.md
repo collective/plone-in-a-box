@@ -23,7 +23,9 @@
   nginx's and Plone's own numbers (plone.observability's `@@metrics`) to an
   OTLP/HTTP service, tried with Grafana Cloud.
 - [x] A ready-made Grafana dashboard (`docs/grafana/plone-in-a-box.json`).
-  Publish it on grafana.com's dashboards too, once it has settled. 
+  Saved on grafana.com on 2026-11-27 (square Plone mark as its logo, no
+  screenshots yet): link it from the setup guide by its address and number,
+  and add screenshots from a site with a day of steady data. 
 - [x] Request timings: `backend-start` adds plone.observability's filters to
   the official image's `zope.ini` at each start. Drop it once the image
   includes them (plone/container-backend#241). Traces too
