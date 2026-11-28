@@ -42,6 +42,7 @@
 # <UDF name="METRICS_ENDPOINT" label="Graphs, optional: an OpenTelemetry service's OTLP endpoint that gets the server's and the site's numbers, for example https://otlp-gateway-prod-us-east-2.grafana.net/otlp (see Graphs of your server and site in the setup guide)" default="" />
 # <UDF name="METRICS_USER" label="Graphs: your instance ID or user (Grafana Cloud), or header:NAME for a service that takes the token in a header (header:api-key for New Relic)" default="" />
 # <UDF name="METRICS_TOKEN" label="Graphs: the service's token" default="" />
+# <UDF name="CONTROL_PANEL" label="Control panel (preview): a page in your browser that shows how your site is doing, with a few buttons, on port 8443 of the site address. Its login is saved next to the admin password" oneOf="yes,no" default="no" />
 #
 # After provisioning finishes, open the site and log in as "admin" with the
 # password you chose. If you left it empty, a password is generated: log in over
@@ -141,6 +142,11 @@ esac
 METRICS_ENDPOINT="$(printf '%s' "${METRICS_ENDPOINT:-}" | tr -d ' \t\r\n')"
 METRICS_USER="$(printf '%s' "${METRICS_USER:-}" | tr -d ' \t\r\n')"
 METRICS_TOKEN="$(printf '%s' "${METRICS_TOKEN:-}" | tr -d ' \t\r\n')"
+# The control panel (plone-panel): off unless set to yes.
+case "${CONTROL_PANEL:-no}" in
+  [Yy]|[Yy][Ee][Ss]|[Tt]rue|1|[Oo]n) CONTROL_PANEL=yes ;;
+  *) CONTROL_PANEL=no ;;
+esac
 # Automatic updates (plone-update.timer): on unless set to no.
 case "${AUTO_UPDATE:-yes}" in
   [Nn]|[Nn][Oo]|[Ff]alse|0|[Oo]ff) AUTO_UPDATE=no ;;
@@ -337,7 +343,7 @@ if [[ -f /var/run/reboot-required && ! -e "$RESUME_DIR/restarted" ]]; then
     cp "$0" "$RESUME_DIR/setup.sh"
     (
       umask 077
-      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN LETSENCRYPT_STAGING STARTED_AT; do
+      for var in ADMIN_PASSWORD DOMAIN LETSENCRYPT_EMAIL SITE_TIMEZONE SITE_LANGUAGE STARTER_CONTENT PLONE_VERSION VOLTO_VERSION POSTGRES_VERSION ADDONS FRONTEND_IMAGE BACKEND_IMAGE REGISTRY_USER REGISTRY_TOKEN DEMO_USER DEMO_PASSWORD DEMO_ROLES AUTO_UPDATE NOTIFY_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD EMAIL_FROM REPORT_EMAIL SPAMHAUS_KEY LOG_SERVER LOG_TOKEN LOG_REQUESTS METRICS_ENDPOINT METRICS_USER METRICS_TOKEN CONTROL_PANEL LETSENCRYPT_STAGING STARTED_AT; do
         printf 'export %s=%q\n' "$var" "${!var}"
       done > "$RESUME_DIR/settings"
     )
@@ -2038,7 +2044,7 @@ STATE_DIR=/var/lib/plone-in-a-box
 APP_DIR=/opt/plone
 OVERRIDE=$APP_DIR/docker-compose.override.yml
 # The OpenTelemetry Collector's image (plone-otel).
-OTELCOL_IMAGE=otel/opentelemetry-collector-contrib:0.165.0
+OTELCOL_IMAGE=otel/opentelemetry-collector-contrib:0.166.0
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 if [[ -e "$OVERRIDE" ]] && ! grep -qE '^# Written by (Plone in a Box|plone-syslog)' "$OVERRIDE"; then
   echo "$OVERRIDE wasn't written by Plone in a Box; leaving the containers as they are" >&2
@@ -3185,11 +3191,49 @@ def parts():
     return found
 
 
+def running():
+    """The exact versions running (such as 6.2.3), asked of the containers
+    at the same time; {} for any that doesn't answer."""
+    compose = ("docker", "compose", "--project-directory", APP, "exec", "-T")
+    asks = {
+        "plone": compose + ("backend", "/app/bin/python", "-c",
+                            'from importlib.metadata import version; print(version("Products.CMFPlone"))'),
+        "volto": compose + ("frontend", "node", "-p", 'require("@plone/volto/package.json").version'),
+        "aurora": compose + ("frontend", "node", "-p", 'require("@plone/aurora/package.json").version'),
+        "postgresql": compose + ("db", "postgres", "--version"),
+    }
+    procs = {}
+    for name, cmd in asks.items():
+        try:
+            procs[name] = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        except OSError:
+            pass
+    found = {}
+    for name, proc in procs.items():
+        try:
+            out, _ = proc.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            continue
+        words = out.split()  # postgres --version: "postgres (PostgreSQL) 17.12 (Debian ...)"
+        out = (words[2] if name == "postgresql" and len(words) > 2 else words[-1]) if words else ""
+        if proc.returncode == 0 and re.fullmatch(r"[0-9][0-9A-Za-z.+-]*", out):
+            found[name] = out
+    return found
+
+
 def versions(e):
+    exact = running()
+    frontend = "Aurora" if "aurora" in exact and "volto" not in exact else "Volto"
     return {
-        "plone": e.get("PLONE_VERSION", "unknown"),
-        "volto": e.get("VOLTO_VERSION", "unknown"),
-        "postgresql": e.get("POSTGRES_VERSION", "unknown"),
+        # What's running, or the image tags in .env if a part doesn't answer.
+        "plone": exact.get("plone") or e.get("PLONE_VERSION", "unknown"),
+        "volto": exact.get("volto") or exact.get("aurora") or e.get("VOLTO_VERSION", "unknown"),
+        "frontend": frontend,
+        "postgresql": exact.get("postgresql") or e.get("POSTGRES_VERSION", "unknown"),
+        "plone_tag": e.get("PLONE_VERSION", ""),
+        "volto_tag": e.get("VOLTO_VERSION", ""),
+        "postgresql_tag": e.get("POSTGRES_VERSION", ""),
         "backend_image": e.get("BACKEND_IMAGE", "") or "official",
         "frontend_image": e.get("FRONTEND_IMAGE", "") or "official",
     }
@@ -3268,7 +3312,17 @@ def features():
         "graphs": host(otel.split()[0]) if otel else "",
         "cloudflare": os.path.exists("/etc/nginx/conf.d/plone-cloudflare.conf"),
         "https_ip_certificate": enabled("plone-https-ip.timer"),
+        "demo_user": demo_user(),
     }
+
+
+def demo_user():
+    """The demo login's name: saved at setup (2.27), or in the credentials file."""
+    name = read(f"{STATE}/demo-user")
+    if not name:
+        m = re.search(r"^Demo login: ([a-z0-9._-]+) / ", read("/root/plone-credentials.txt"), re.M)
+        name = m.group(1) if m else ""
+    return name
 
 
 def security():
@@ -3297,7 +3351,7 @@ def show(s):
     else:
         lines.append(("Parts", "unknown (is Docker running?)"))
     v = s["versions"]
-    lines.append(("Versions", f"Plone {v['plone']}, Volto {v['volto']}, PostgreSQL {v['postgresql']}"))
+    lines.append(("Versions", f"Plone {v['plone']}, {v.get('frontend', 'Volto')} {v['volto']}, PostgreSQL {v['postgresql']}"))
     for kind in ("backend_image", "frontend_image"):
         if v[kind] != "official":
             lines.append((kind.replace("_", " ").capitalize(), v[kind]))
@@ -3371,13 +3425,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HELPER = "/run/plone-panel/helper.sock"
 ORIGIN = os.environ.get("PANEL_ORIGIN", "")
-ACTIONS = {"backup", "restore-test", "test-notification", "test-email", "logs-off", "graphs-off"}
+ACTIONS = {"backup", "restore-test", "test-notification", "test-email", "logs-off", "graphs-off", "demo-password"}
 JOBS = {"backup", "restore-test"}
 IDLE_SECONDS = 15 * 60
 last_request = time.monotonic()
 
 
-def helper(line, timeout=120):
+def helper(line, timeout=240):
     """Asks the root helper; it answers with its exit code, a newline, and text."""
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
         s.settimeout(timeout)
@@ -3473,7 +3527,11 @@ cat > /usr/local/bin/plone-panel <<'PLONE_PANEL_EOF'
 #        sudo plone-panel status
 #        sudo plone-panel password     (a new password for the box login)
 #        sudo plone-panel do ACTION    (what the page's buttons run: backup,
-#             restore-test, test-notification, test-email, logs-off, graphs-off)
+#             restore-test, test-notification, test-email, logs-off, graphs-off,
+#             demo-password)
+# on --port: on port 8443 of the site's own address, also for a site with a
+# domain name (no DNS record needed; setup does this). plone-panel on then
+# moves it to box.<domain>.
 set -uo pipefail
 [[ $EUID -eq 0 ]] || { echo "Please run this with sudo: sudo plone-panel ${1:-}" >&2; exit 1; }
 STATE_DIR=/var/lib/plone-in-a-box
@@ -3487,7 +3545,7 @@ LOGIN=box
 PORT=8443
 API_PORT=8092  # 8091 is plone-otel's nginx_status
 # The page's buttons, each a fixed command (plone-panel do ...).
-ACTIONS="backup restore-test test-notification test-email logs-off graphs-off"
+ACTIONS="backup restore-test test-notification test-email logs-off graphs-off demo-password"
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a /var/log/plone-panel.log; }
 die() { say "$*" >&2; exit 1; }
 
@@ -3503,6 +3561,14 @@ new_password() {
   printf '%s:%s\n' "$LOGIN" "$(openssl passwd -6 -stdin <<<"$pw")" > "$PASSWORDS.new" || die "Couldn't save the password"
   chown root:www-data "$PASSWORDS.new" && chmod 640 "$PASSWORDS.new" && mv "$PASSWORDS.new" "$PASSWORDS"
   printf '%s' "$pw"
+}
+
+# The demo login's name: saved at setup (2.27), or in the credentials file.
+demo_user() {
+  local name
+  name=$(cat "$STATE_DIR/demo-user" 2>/dev/null)
+  [[ -n "$name" ]] || name=$(sed -n 's#^Demo login: \([a-z0-9._-]*\) / .*#\1#p' /root/plone-credentials.txt 2>/dev/null | head -n 1)
+  printf '%s' "$name"
 }
 
 job_unit() {
@@ -3565,6 +3631,10 @@ button:disabled { opacity: .5; cursor: default; }
 .section { font-size: 1.15rem; margin: 2rem 0 .6rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .result { min-height: 1.5em; font-weight: 600; }
+.secret-line { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .5rem; font-weight: 400; }
+.secret { font: 1.15rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .04em;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .3rem .6rem;
+  overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
 EOF
   cat > "$PAGE/panel.js" <<'EOF'
 // Plain words from plone-status --json, which /api/status passes on.
@@ -3617,7 +3687,7 @@ function show(s) {
   cards.appendChild(card("Parts", parts.length ? parts.map(function (n) {
     var p = s.parts[n]; return n + ": " + p.state + (p.health ? " (" + p.health + ")" : "");
   }).join(", ") : "unknown", parts.length && !down.length ? "ok" : "bad"));
-  cards.appendChild(card("Versions", "Plone " + v.plone + ", Volto " + v.volto + ", PostgreSQL " + v.postgresql));
+  cards.appendChild(card("Versions", "Plone " + v.plone + ", " + (v.frontend || "Volto") + " " + v.volto + ", PostgreSQL " + v.postgresql));
   cards.appendChild(card("Disk", d.used_percent + "% used, " + d.free_gb + " GB free", d.used_percent >= 90 ? "bad" : d.used_percent >= 80 ? "warn" : "ok"));
   cards.appendChild(card("Memory", m.used_mb + " MB of " + m.total_mb + " MB in use"));
   cards.appendChild(card("Last backup", (b.count ? local(b.newest_iso, b.newest) + " (" + b.newest_mb + " MB)" : "none yet") +
@@ -3642,7 +3712,8 @@ function actions(s) {
     ["test-notification", "Send a test notification", !!f.notifications],
     ["test-email", "Send a test email", !!f.email],
     ["logs-off", "Stop sending logs", !!f.logs, "Stop sending the logs to " + f.logs + "? They'll stay on the server only."],
-    ["graphs-off", "Stop sending graphs", !!f.graphs, "Stop sending numbers to " + f.graphs + "?"]
+    ["graphs-off", "Stop sending graphs", !!f.graphs, "Stop sending numbers to " + f.graphs + "?"],
+    ["demo-password", "New demo password", !!f.demo_user, "Make a new password for the demo login " + f.demo_user + "? The old one stops working."]
   ];
   var box = document.getElementById("actions");
   box.textContent = "";
@@ -3683,10 +3754,44 @@ function run(action, question, button) {
     .then(function (out) {
       if (BACKGROUND[action]) { follow(action, button); return; }
       button.disabled = false;
-      result.textContent = out.message;
+      showResult(out.message);
       check();
     })
     .catch(function (e) { button.disabled = false; result.textContent = e.message; });
+}
+// A message; a new password in it goes on its own line, in a monospace
+// font (0 and O, l and 1 are easier to tell apart), with a Copy button.
+function showResult(message) {
+  var result = document.getElementById("result");
+  var m = /^(.*has this password:) (\S+)$/.exec(message || "");
+  result.textContent = m ? m[1] : message;
+  if (!m) return;
+  var line = document.createElement("div");
+  line.className = "secret-line";
+  var code = document.createElement("code");
+  code.className = "secret";
+  code.textContent = m[2];
+  var copy = document.createElement("button");
+  copy.type = "button";
+  copy.textContent = "Copy";
+  function select() {
+    var range = document.createRange();
+    range.selectNodeContents(code);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    copy.textContent = "Selected: copy it";
+  }
+  copy.addEventListener("click", function () {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) return select();
+    navigator.clipboard.writeText(m[2]).then(function () {
+      copy.textContent = "Copied";
+      setTimeout(function () { copy.textContent = "Copy"; }, 2000);
+    }, select);
+  });
+  line.appendChild(code);
+  line.appendChild(copy);
+  result.appendChild(line);
 }
 // Every few seconds: is it still running?
 function follow(action, button) {
@@ -3833,21 +3938,27 @@ EOF
 case "${1:-status}" in
   on)
     shift
-    address=""
+    address="" on_port=0
     while [[ $# -gt 0 ]]; do
       case $1 in
         --address) address=${2:-}; shift ;;
-        *) die "Usage: sudo plone-panel on [--address box.example.org]" ;;
+        --port) on_port=1 ;;
+        *) die "Usage: sudo plone-panel on [--address box.example.org | --port]" ;;
       esac
       shift
     done
     [[ -n "$site_host" ]] || die "No site address in $STATE_DIR/site-url"
-    if is_ip "$site_host"; then
-      # No domain name: port 8443, with the IP address certificate.
-      cert=$(awk '$1 == "ssl_certificate" { sub(/;$/, "", $2); print $2; exit }' /etc/nginx/sites-enabled/plone-https 2>/dev/null)
-      key=$(awk '$1 == "ssl_certificate_key" { sub(/;$/, "", $2); print $2; exit }' /etc/nginx/sites-enabled/plone-https 2>/dev/null)
-      [[ -n "$cert" && -f "$cert" ]] || die "The site has no HTTPS certificate yet (sudo plone-https-ip on)"
-      [[ -z "$address" ]] || die "--address needs a site with a domain name"
+    if is_ip "$site_host" || (( on_port )); then
+      # Port 8443 of the site's own address, with the site's certificate: for
+      # a site without a domain name, or one whose box.<domain> isn't set up.
+      cert="" key=""
+      for conf in /etc/nginx/sites-enabled/plone-https /etc/nginx/sites-enabled/plone; do
+        [[ -n "$cert" ]] && break
+        cert=$(awk '$1 == "ssl_certificate" { sub(/;$/, "", $2); print $2; exit }' "$conf" 2>/dev/null)
+        key=$(awk '$1 == "ssl_certificate_key" { sub(/;$/, "", $2); print $2; exit }' "$conf" 2>/dev/null)
+      done
+      [[ -n "$cert" && -f "$cert" ]] || die "The site has no HTTPS certificate yet"
+      [[ -z "$address" ]] || die "--address and --port don't go together"
       url="https://$site_host:$PORT"
       listen="listen $PORT ssl; listen [::]:$PORT ssl;"
       server_name=_
@@ -3913,7 +4024,7 @@ server {
   location /api/ {
     proxy_pass http://127.0.0.1:$API_PORT;
     proxy_set_header Host \$host;
-    proxy_read_timeout 150s;
+    proxy_read_timeout 250s;
   }
 }
 EOF
@@ -3921,7 +4032,11 @@ EOF
       rm -f "$NGINX_CONF"
       die "nginx didn't accept the control panel's settings; nothing changed for the site"
     fi
-    [[ "$url" == *:$PORT ]] && ufw allow "$PORT/tcp" comment 'Plone in a Box control panel' >/dev/null
+    if [[ "$url" == *:$PORT ]]; then
+      ufw allow "$PORT/tcp" comment 'Plone in a Box control panel' >/dev/null
+    else
+      ufw delete allow "$PORT/tcp" >/dev/null 2>&1  # moved to box.<domain>
+    fi
 
     # Repeated failed logins: blocked like SSH's (fail2ban), if it's on.
     if systemctl is-active --quiet fail2ban; then
@@ -3960,6 +4075,7 @@ EOF
     fi
     if [[ "$url" == *:$PORT ]]; then
       echo "A cloud firewall made before 2.27 (AWS, or Terraform on DigitalOcean or Hetzner) needs TCP port $PORT allowed too."
+      is_ip "$site_host" || echo "For https://box.${site_host#www.} instead: add a DNS record for it, pointing here, then run sudo plone-panel on."
     fi
     ;;
   off)
@@ -3996,6 +4112,34 @@ EOF
         else echo "Couldn't send it: ${out##*$'\n'}"; exit 1; fi ;;
       logs-off) /usr/local/bin/plone-syslog off >/dev/null 2>&1 && echo "The logs now stay on the server only." || { echo "Couldn't turn the logs off."; exit 1; } ;;
       graphs-off) /usr/local/bin/plone-otel off >/dev/null 2>&1 && echo "Graphs are off: no more numbers are sent." || { echo "Couldn't turn graphs off."; exit 1; } ;;
+      demo-password)
+        # A new password for the demo login (create_demo_user.py from setup
+        # resets it, verifies it, and keeps its roles).
+        name=$(demo_user)
+        [[ -n "$name" ]] || { echo "This site has no demo login."; exit 1; }
+        [[ -f /opt/plone/create_demo_user.py ]] || { echo "This server was set up before demo logins: change it in Site Setup > Users."; exit 1; }
+        pw=$(openssl rand -base64 18 | tr -d '/+=')
+        if out=$(DEMO_USER="$name" DEMO_PASSWORD="$pw" DEMO_ROLES="" docker compose --project-directory /opt/plone \
+            run --rm --no-deps -T -e DEMO_USER -e DEMO_PASSWORD -e DEMO_ROLES -e ADDONS= \
+            -v /opt/plone/create_demo_user.py:/app/scripts/create_demo_user.py:ro \
+            backend run /app/scripts/create_demo_user.py 2>&1) && grep -q "is set up" <<<"$out"; then
+          # The credentials file, if it's still there, gets the new one too.
+          if [[ -f /root/plone-credentials.txt ]]; then
+            python3 - "$name" "$pw" <<'PY'
+import re, sys
+name, pw = sys.argv[1:3]
+path = "/root/plone-credentials.txt"
+text = open(path).read()
+text = re.sub(r"^(Demo login: " + re.escape(name) + r" / )(\(the password you entered when deploying\)|\S+)",
+              lambda m: m.group(1) + pw, text, count=1, flags=re.M)
+open(path, "w").write(text)
+PY
+          fi
+          echo "The demo login $name now has this password: $pw"
+        else
+          echo "Couldn't change it; the old password still works. $(tail -n 1 <<<"$out")"
+          exit 1
+        fi ;;
       *) die "Usage: sudo plone-panel do $(tr ' ' '|' <<<"$ACTIONS")" ;;
     esac
     printf '[%s] Ran from the control panel: %s\n' "$(date '+%F %T')" "${2:-}" >> /var/log/plone-panel.log
@@ -4312,6 +4456,8 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
       printf '%s\n' "$demo_out" | grep -v '^DEMO_ROLES_GIVEN='
       given=$(printf '%s\n' "$demo_out" | sed -n 's/^DEMO_ROLES_GIVEN=//p' | tail -n 1)
       DEMO_LINE="Demo login: ${DEMO_USER} / ${DEMO_PASSWORD_SHOWN} (${given:-$roles})${DEMO_ROLES_NOTE}${DEMO_PASSWORD_NOTE}"
+      # For a new password later (plone-panel do demo-password).
+      install -d -m 755 /var/lib/plone-in-a-box && printf '%s\n' "$DEMO_USER" > /var/lib/plone-in-a-box/demo-user
     else
       printf '%s\n' "$demo_out"
       log "Creating the demo login failed (see above); add it in Site Setup > Users"
@@ -4664,6 +4810,21 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$METRICS_ENDPOINT" ]]; then
   fi
 fi
 
+# --- Control panel ---------------------------------------------------------------
+# On the site's own address, port 8443, so it needs no DNS record yet.
+PANEL_LINE=""
+if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && "$CONTROL_PANEL" == yes ]]; then
+  if out=$(/usr/local/bin/plone-panel on --port 2>&1); then
+    panel_url=$(sed -n 's/.*The control panel is on: //p' <<<"$out" | tail -n 1)
+    panel_pw=$(awk '/^Log in as box/ { getline; print; exit }' <<<"$out")
+    log "The control panel is on: ${panel_url}"
+    PANEL_LINE="Control panel (preview): ${panel_url}, login box / ${panel_pw:-(its password, as before)}"
+  else
+    log "Turning on the control panel didn't work: $(tail -n 1 <<<"$out")"
+    PANEL_LINE="Control panel: not turned on: $(tail -n 1 <<<"$out"). Try again with sudo plone-panel on (see the setup guide)."
+  fi
+fi
+
 # --- Done ----------------------------------------------------------------------
 
 if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 ]]; then
@@ -4694,6 +4855,7 @@ ${NOTIFY_LINE}
 ${MAIL_LINE}
 ${LOGS_LINE}
 ${GRAPHS_LINE}
+${PANEL_LINE}
 ${BLOCKLIST_LINES}Store the password in a password manager, then delete this file.
 Stack files: ${APP_DIR} (docker compose --project-directory ${APP_DIR} ps)
 EOF

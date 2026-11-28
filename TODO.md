@@ -5,7 +5,8 @@
 `scripts/test-deploy.sh` runs the Linode, DigitalOcean, AWS and Hetzner tests (see RELEASING.md). Still open:
 
 - [ ] Renew the Linode token when it expires (1 month; the DigitalOcean token made on 2026-11-22 doesn't expire),
-  and rotate the AWS access key.
+  and rotate the AWS access key. The token can't read its own expiry date (it has no profile scope): check it in
+  Cloud Manager, under API Tokens.
 
 ## Per-add-on StackScripts after 2.24
 
@@ -22,7 +23,9 @@
   nginx's and Plone's own numbers (plone.observability's `@@metrics`) to an
   OTLP/HTTP service, tried with Grafana Cloud.
 - [x] A ready-made Grafana dashboard (`docs/grafana/plone-in-a-box.json`).
-  Publish it on grafana.com's dashboards too, once it has settled. 
+  Saved on grafana.com on 2026-11-27 (square Plone mark as its logo, no
+  screenshots yet): link it from the setup guide by its address and number,
+  and add screenshots from a site with a day of steady data. 
 - [x] Request timings: `backend-start` adds plone.observability's filters to
   the official image's `zope.ini` at each start. Drop it once the image
   includes them (plone/container-backend#241). Traces too
@@ -198,7 +201,7 @@ restoring a backup.
   (open in the Launch Stack template and the Terraform firewalls); and the
   first of stage 3: back up now, the restore test (followed until done), a
   test notification, a test email, logs and graphs off. Times in your own
-  time zone. Next: a launch field to turn it on, and the rest of stage 3.
+  time zone. The launch field and New demo password too (2.27). Next: the rest of stage 3.
 - **Our own panel, not Cockpit (decided 2026-11-27):** Cockpit worked (branch
   `plone-panel`, PR #124), but Ubuntu ships it in universe and hasn't fixed
   its security issues promptly (CVE-2026-4802, high, still open in 26.04 and
@@ -269,8 +272,8 @@ server itself.
   production sites: restarts after security updates, disk warnings, notices when a tool is cut off, backup problems
   by email, SSH keys only and fail2ban, and the guide's uptime checks and outgoing ports. In 2.25: a monthly
   restore test, the server's own mail, logs to a syslog service, `plone-cloudflare`, DigitalOcean's free alerts
-  from Terraform, and the GitHub Actions pinned to commit hashes. Still open: review the
-  security headers against current recommendations, and moving to a new Plone version (6.3) still takes a person.
+  from Terraform, and the GitHub Actions pinned to commit hashes. In 2.27: the security headers, reviewed
+  against OWASP's recommendations. Still open: moving to a new Plone version (6.3) still takes a person.
 - [ ] **More add-ons in the catalog.** Suggest Plone and Volto add-ons that work on a box, and invite their
   authors to add a Try It page (`addons.yml`, see docs/try-it-buttons.md), for example starting from
   [Awesome Volto](https://github.com/collective/awesome-volto). As of November 2026 it is still maintained but

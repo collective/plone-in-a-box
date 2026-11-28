@@ -30,6 +30,15 @@
   off` turns it off again. `scripts/test-deploy.sh --panel` tests it. The
   Launch Stack template and the Terraform plans' firewalls allow port 8443
   (nothing answers there until the panel is on).
+- **A Control panel field in the launch form** (Linode, the Launch Stack
+  template, the Terraform plans and the launcher): turns the panel on at
+  `https://<your site>:8443` when the server is created, with its login in
+  the credentials file next to the admin password, so no SSH is needed.
+  Off by default while it's a preview.
+- **New demo password**, a button in the control panel (and `sudo plone-panel
+  do demo-password`): gives the demo login a new password after a workshop
+  or demo, shows it once, and updates the credentials file.
+- The OpenTelemetry Collector (graphs) is 0.166.0.
 - **Security headers**, reviewed against OWASP's current recommendations:
   `Referrer-Policy` (what browsers do by default, now said), a
   `Content-Security-Policy` with only the parts that can't break a Plone site
