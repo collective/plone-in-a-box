@@ -194,11 +194,16 @@ restoring a backup.
   (`plone-syslog on`, `plone-otel off`, ...), so the panel, SSH and the launch
   fields always agree.
 - **Done so far (2.27):** stage 1, `plone-status` (and `--json`); stage 2,
-  `plone-panel on`: a read-only status page of cards in Cockpit, at
-  `box.<domain>` or port 8443, with a `box` login that may run only
-  `plone-status --json` as root (so no administrative access step). Next:
-  open port 8443 in the Launch Stack template and Terraform firewalls when
-  wanted (or say how), a launch field to turn it on, and stage 3.
+  `plone-panel on`: a status page of cards in Cockpit, at `box.<domain>` or
+  port 8443 (open in the Launch Stack template and the Terraform firewalls),
+  with a `box` login that isn't an administrator; and the first of stage 3:
+  back up now, the restore test (followed until done), a test notification,
+  a test email, logs and graphs off. Times in your own time zone. Next: a
+  launch field to turn it on, and the rest of stage 3.
+- **In other languages:** Cockpit's own menus are translated, our page isn't,
+  so its Display language choice is hidden for now. Translate the page (and
+  the status words from `plone-status --json`) with Cockpit's translations
+  for a page, then show the choice again.
 - **In stages, lowest risk first:** (1) a `status` every command can report
   to a program, and one `plone-status` for the whole server (last backup and
   restore test, last update, disk, what's on), which MCP can use too; (2) a

@@ -3674,6 +3674,8 @@ JSON
 #brand::before { content: "Plone in a Box\2122  control panel"; }
 /* What the box login can't use: administrative access, and search (one page). */
 #super-user-indicator, #super-user-indicator-mobile, .nav-system-menu .search { display: none !important; }
+/* Display language: only Cockpit's own menus are translated, not our page (yet). */
+.display-language-menu { display: none !important; }
 CSS
     fi
 
