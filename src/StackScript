@@ -4381,7 +4381,7 @@ if [[ "$NEW_ADMIN_PASSWORD_SET" == 0 && -n "$DEMO_USER" ]]; then
       given=$(printf '%s\n' "$demo_out" | sed -n 's/^DEMO_ROLES_GIVEN=//p' | tail -n 1)
       DEMO_LINE="Demo login: ${DEMO_USER} / ${DEMO_PASSWORD_SHOWN} (${given:-$roles})${DEMO_ROLES_NOTE}${DEMO_PASSWORD_NOTE}"
       # For a new password later (plone-panel do demo-password).
-      printf '%s\n' "$DEMO_USER" > /var/lib/plone-in-a-box/demo-user
+      install -d -m 755 /var/lib/plone-in-a-box && printf '%s\n' "$DEMO_USER" > /var/lib/plone-in-a-box/demo-user
     else
       printf '%s\n' "$demo_out"
       log "Creating the demo login failed (see above); add it in Site Setup > Users"
